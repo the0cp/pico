@@ -15,18 +15,33 @@ int dasmInstruction(const Chunk* chunk, int offset){
     if(offset > 0 && getLine(chunk, offset) == getLine(chunk, offset - 1)){
         printf("\t\t");
     }else{
-        printf("Line: %4d ", getLine(chunk, offset));
+        printf("(Line:%4d) ", getLine(chunk, offset));
     }
 
     uint8_t instruction = chunk -> code[offset];
     switch(instruction){
-        case OP_RETURN:
-            printf("OP_RETURN\n");
-            return offset + 1;
         case OP_CONSTANT:
             return dasmConstant(chunk, offset);
         case OP_LCONSTANT:
             return dasmLConstant(chunk, offset);
+        case OP_ADD:
+            printf("OP_ADD\n");
+            return offset + 1;
+        case OP_SUBTRACT:
+            printf("OP_SUBTRACT\n");
+            return offset + 1;
+        case OP_MULTIPLY:
+            printf("OP_MULTIPLY\n");
+            return offset + 1;
+        case OP_DIVIDE:
+            printf("OP_DIVIDE\n"); 
+            return offset + 1;
+        case OP_NEGATE:
+            printf("OP_NEGATE\n");
+            return offset + 1;
+        case OP_RETURN:
+            printf("OP_RETURN\n");
+            return offset + 1;
         default:
             printf("Unknown opcode %d\n", instruction);
             return offset + 1;

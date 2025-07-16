@@ -5,4 +5,6 @@
 #include <stddef.h>
 #include <stdbool.h>
 
+#define DEBUG_TRACE
+
 #endif  // PICO_COMMON_H
