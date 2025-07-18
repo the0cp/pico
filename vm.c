@@ -70,8 +70,7 @@ static InterpreterStatus run(){
     #define BI_OPERATOR(op) \
         do{ \
             double b = pop(); \
-            double a = pop(); \
-            push(a op b); \
+            *(vm.stackTop - 1) = *(vm.stackTop - 1) op b; \
         }while(0)
 
     DISPATCH();
@@ -116,7 +115,7 @@ static InterpreterStatus run(){
             fprintf(stderr, "Stack underflow\n");
             return VM_RUNTIME_ERROR;
         }
-        *vm.stackTop[-1] = -(*vm.stackTop[-1]);
+        *(vm.stackTop - 1) = -(*(vm.stackTop - 1));
     } DISPATCH();
 
     DO_OP_RETURN:

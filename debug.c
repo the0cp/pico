@@ -13,7 +13,7 @@ void dasmChunk(const Chunk* chunk, const char* name){
 int dasmInstruction(const Chunk* chunk, int offset){
     printf("%04d ", offset);
     if(offset > 0 && getLine(chunk, offset) == getLine(chunk, offset - 1)){
-        printf("\t\t");
+        printf("\t    ");
     }else{
         printf("(Line:%4d) ", getLine(chunk, offset));
     }
