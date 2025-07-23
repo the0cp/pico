@@ -24,7 +24,7 @@ void resetStack();
 void push(Value value);
 Value pop();
 
-InterpreterStatus interpret(Chunk* chunk);
+InterpreterStatus interpret(const char* code);
 static InterpreterStatus run();
 
 #endif // PICO_VM_H

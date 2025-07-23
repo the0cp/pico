@@ -35,10 +35,22 @@ Value pop(){
     return *vm.stackTop;
 }
 
-InterpreterStatus interpret(Chunk* chunk){
-    vm.chunk = chunk;
-    vm.ip = vm.chunk -> code;
-    return run();
+InterpreterStatus interpret(const char* code){
+    Chunk chunk;
+    initChunk(&chunk);
+
+    if(!compile(code, &chunk)){
+        freeChunk(&chunk);
+        return VM_COMPILE_ERROR;
+    }
+
+    vm.chunk = &chunk;
+    vm.ip = vm.chunk->code;
+
+    InterpreterStatus status = run();
+
+    freeChunk(&chunk);
+    return status;
 }
 
 static InterpreterStatus run(){
