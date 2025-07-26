@@ -13,11 +13,7 @@ for,        TOKEN_FOR
 func,       TOKEN_FUNC
 if,         TOKEN_IF
 null,       TOKEN_NULL
-or,         TOKEN_OR
-print,      TOKEN_PRINT
 return,     TOKEN_RETURN
-super,      TOKEN_SUPER
 this,       TOKEN_THIS
 true,       TOKEN_TRUE
-var,        TOKEN_VAR
 while,      TOKEN_WHILE

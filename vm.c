@@ -3,6 +3,7 @@
 
 #include "common.h"
 #include "vm.h"
+#include "compiler.h"
 
 #ifdef DEBUG_TRACE
 #include "debug.h"
@@ -80,10 +81,14 @@ static InterpreterStatus run(){
     #endif
 
     #define BI_OPERATOR(op) \
-        do{ \
-            double b = pop(); \
-            *(vm.stackTop - 1) = *(vm.stackTop - 1) op b; \
-        }while(0)
+    do{ \
+        if(vm.stackTop - vm.stack < 2){ \
+            fprintf(stderr, "Stack underflow\n"); \
+            return VM_RUNTIME_ERROR; \
+        } \
+        double b = pop(); \
+        *(vm.stackTop - 1) = *(vm.stackTop - 1) op b; \
+    }while(0)
 
     DISPATCH();
 

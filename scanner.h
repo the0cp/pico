@@ -1,6 +1,8 @@
 #ifndef PICO_SCANNER_H
 #define PICO_SCANNER_H
 
+#include <stdbool.h>
+
 #define MAX_MODE_STACK 16
 typedef enum{
     MODE_DEFAULT,
@@ -11,7 +13,7 @@ typedef enum{
     TOKEN_IDENTIFIER,
     TOKEN_IF, TOKEN_ELSE,
     TOKEN_WHILE, TOKEN_FOR,
-    TOKEN_FUNCTION, TOKEN_RETURN, TOKEN_CLASS,
+    TOKEN_FUNC, TOKEN_RETURN, TOKEN_CLASS, TOKEN_THIS,
     TOKEN_TRUE, TOKEN_FALSE,
     TOKEN_NULL,
     TOKEN_NUMBER,
@@ -51,7 +53,7 @@ static inline void pushMode(ScannerMode mode);
 static inline ScannerMode popMode();
 static inline ScannerMode currentMode();
 
-static inline char* next();
+static inline const char* next();
 static inline bool is_next(char c);
 
 static inline Token pack(TokenType type, const char* head, int len, int line);
@@ -63,7 +65,7 @@ static inline void handleBlockComment();
 static inline void handleComment();
 
 static Token handleNumber();
-static inline TokenType identigierType();
+static TokenType identifierType();
 static inline Token handleIdentifier();
 
 static inline bool isDigit(char c);

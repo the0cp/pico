@@ -6,9 +6,10 @@ void repl(){
     while(true){
         printf(">>> ");
         if(!fgets(line, sizeof(line), stdin)){
-            print("\n");
+            printf("\n");
             break;
         }
+        if(line[0] == '\n') continue;
         interpret(line);
     }
 }

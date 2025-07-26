@@ -53,7 +53,7 @@ static inline Token error(const char* message, int line){
     return pack(TOKEN_ERROR, message, (int)strlen(message), line);
 }
 
-static inline char* next(){
+static inline const char* next(){
     if(*sc.cur == '\0') return NULL;
     return sc.cur++;
 }
@@ -76,7 +76,7 @@ static inline void skipWhitespace(){
 }
 
 static inline void handleLineComment(){
-    while(*sc.cur == '#' && sc.cur != '\n' && *sc.cur != '\0'){
+    while(*sc.cur == '#' && *sc.cur != '\n' && *sc.cur != '\0'){
         next();
     }
 }
@@ -100,7 +100,7 @@ static inline void handleBlockComment(){
 
         next();
 
-        if(^sc.cur == '\0' && depth > 0){
+        if(*sc.cur == '\0' && depth > 0){
             fprintf(stderr, "Error: Unclosed block comment at line %d\n", sc.line);
             return;
         }
@@ -161,7 +161,7 @@ static inline Token handleIdentifier(){
     return pack(TOKEN_IDENTIFIER, sc.head, (int)(sc.cur - sc.head), sc.line);
 }
 
-static inline TokenType identigierType(){
+static TokenType identifierType(){
     const struct Keyword* keyword = findKeyword(sc.head, (int)(sc.cur - sc.head));
     if(keyword != NULL){
         return keyword -> type;
@@ -177,20 +177,21 @@ static Token scanDefault(){
         return pack(TOKEN_EOF, sc.head, 0, sc.line);
     }
 
-    char c = next();
+    char c = *next();
 
     if(isDigit(c)){
         return handleNumber();
     }
 
     if(isAlpha(c)){
-        return handleIdentifier();
+        Token token = handleIdentifier();
+        token.type = identifierType();
+        return token;
     }
 
     switch(c){
         case '+': return pack(TOKEN_PLUS, sc.head, 1, sc.line);
         case '-': return pack(TOKEN_MINUS, sc.head, 1, sc.line);
-        case '*': return pack(TOKEN_STAR, sc.head, 1, sc.line);
         case '/': return pack(TOKEN_SLASH, sc.head, 1, sc.line);
         case '(': return pack(TOKEN_LEFT_PAREN, sc.head, 1, sc.line);
         case ')': return pack(TOKEN_RIGHT_PAREN, sc.head, 1, sc.line);
@@ -204,15 +205,15 @@ static Token scanDefault(){
         case ',': return pack(TOKEN_COMMA, sc.head, 1, sc.line);
         case ';': return pack(TOKEN_SEMICOLON, sc.head, 1, sc.line);
         case '*':
-            return pack(is_next('=') ? TOKEN_EQUAL : TOKEN_STAR, sc.head, 1 + is_next('='), sc.line);
+            return pack(is_next('=') ? TOKEN_EQUAL : TOKEN_STAR, sc.head, (int)(sc.cur - sc.head), sc.line);
         case '=':
-            return pack(is_next('=') ? TOKEN_EQUAL_EQUAL : TOKEN_EQUAL, sc.head, 1 + is_next('='), sc.line);
+            return pack(is_next('=') ? TOKEN_EQUAL_EQUAL : TOKEN_EQUAL, sc.head, (int)(sc.cur - sc.head), sc.line);
         case '!':
-            return pack(is_next('=') ? TOKEN_NOT_EQUAL : TOKEN_NOT, sc.head, 1 + is_next('='), sc.line);
+            return pack(is_next('=') ? TOKEN_NOT_EQUAL : TOKEN_NOT, sc.head, (int)(sc.cur - sc.head), sc.line);
         case '<':
-            return pack(is_next('=') ? TOKEN_LESS_EQUAL : TOKEN_LESS, sc.head, 1 + is_next('='), sc.line);
+            return pack(is_next('=') ? TOKEN_LESS_EQUAL : TOKEN_LESS, sc.head, (int)(sc.cur - sc.head), sc.line);
         case '>':
-            return pack(is_next('=') ? TOKEN_GREATER_EQUAL : TOKEN_GREATER, sc.head, 1 + is_next('='), sc.line);
+            return pack(is_next('=') ? TOKEN_GREATER_EQUAL : TOKEN_GREATER, sc.head, (int)(sc.cur - sc.head), sc.line);
         case '"':
             pushMode(MODE_IN_STRING);
             return pack(TOKEN_STRING_START, sc.head, 1, sc.line);
@@ -227,7 +228,7 @@ static Token scanString(){
             break; // Interpolation start
         }
 
-        if(*sc.cur == '\\' && (sc.cur[1] == '"' || sc,cur[1] == '$')){
+        if(*sc.cur == '\\' && (sc.cur[1] == '"' || sc.cur[1] == '$')){
             next(); // Skip escape character
         }
         next();
