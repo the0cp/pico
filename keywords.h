@@ -1,5 +1,5 @@
-/* C code produced by gperf version 3.0.1 */
-/* Command-line: 'C:\\Program Files (x86)\\GnuWin32\\bin\\gperf.exe' -L C -E -t -C -G -N findKeyword -H keywordHash keywords.gperf  */
+/* C code produced by gperf version 3.1 */
+/* Command-line: 'C:\\Users\\Admin\\AppData\\Local\\Microsoft\\WinGet\\Packages\\oss-winget.gperf_Microsoft.Winget.Source_8wekyb3d8bbwe\\gperf.exe' -L C -E -t -C -G -N findKeyword -H keywordHash keywords.gperf  */
 /* Computed positions: -k'3' */
 
 #if !((' ' == 32) && ('!' == 33) && ('"' == 34) && ('#' == 35) \
@@ -26,14 +26,19 @@
       && ('w' == 119) && ('x' == 120) && ('y' == 121) && ('z' == 122) \
       && ('{' == 123) && ('|' == 124) && ('}' == 125) && ('~' == 126))
 /* The character set is not based on ISO-646.  */
-error "gperf generated tables don't work with this execution character set. Please report a bug to <bug-gnu-gperf@gnu.org>."
+error "gperf generated tables don't work with this execution character set. Please report a bug to <bug-gperf@gnu.org>."
 #endif
 
-#line 3 "keywords.gperf"
-struct Keyword{
+#line 2 "keywords.gperf"
+
+#include <string.h>
+#include "scanner.h"
+#line 9 "keywords.gperf"
+struct Keyword {
     const char* name;
     TokenType type;
 };
+#include <string.h>
 enum
   {
     TOTAL_KEYWORDS = 11,
@@ -55,7 +60,7 @@ inline
 static unsigned int
 keywordHash (str, len)
      register const char *str;
-     register unsigned int len;
+     register size_t len;
 {
   static const unsigned char asso_values[] =
     {
@@ -86,7 +91,7 @@ keywordHash (str, len)
       20, 20, 20, 20, 20, 20, 20, 20, 20, 20,
       20, 20, 20, 20, 20, 20
     };
-  register int hval = len;
+  register unsigned int hval = len;
 
   switch (hval)
     {
@@ -102,46 +107,43 @@ keywordHash (str, len)
 static const struct Keyword wordlist[] =
   {
     {""}, {""},
-#line 14 "keywords.gperf"
+#line 19 "keywords.gperf"
     {"if",         TOKEN_IF},
-#line 12 "keywords.gperf"
+#line 17 "keywords.gperf"
     {"for",        TOKEN_FOR},
-#line 15 "keywords.gperf"
+#line 20 "keywords.gperf"
     {"null",       TOKEN_NULL},
-#line 11 "keywords.gperf"
-    {"false",      TOKEN_FALSE},
 #line 16 "keywords.gperf"
+    {"false",      TOKEN_FALSE},
+#line 21 "keywords.gperf"
     {"return",     TOKEN_RETURN},
     {""},
-#line 13 "keywords.gperf"
+#line 18 "keywords.gperf"
     {"func",       TOKEN_FUNC},
-#line 17 "keywords.gperf"
+#line 22 "keywords.gperf"
     {"this",       TOKEN_THIS},
-#line 19 "keywords.gperf"
+#line 24 "keywords.gperf"
     {"while",      TOKEN_WHILE},
     {""}, {""}, {""},
-#line 18 "keywords.gperf"
+#line 23 "keywords.gperf"
     {"true",       TOKEN_TRUE},
-#line 9 "keywords.gperf"
+#line 14 "keywords.gperf"
     {"class",      TOKEN_CLASS},
     {""}, {""}, {""},
-#line 10 "keywords.gperf"
+#line 15 "keywords.gperf"
     {"else",       TOKEN_ELSE}
   };
 
-#ifdef __GNUC__
-__inline
-#endif
-static const struct Keyword *
+const struct Keyword *
 findKeyword (str, len)
      register const char *str;
-     register unsigned int len;
+     register size_t len;
 {
   if (len <= MAX_WORD_LENGTH && len >= MIN_WORD_LENGTH)
     {
-      register int key = keywordHash (str, len);
+      register unsigned int key = keywordHash (str, len);
 
-      if (key <= MAX_HASH_VALUE && key >= 0)
+      if (key <= MAX_HASH_VALUE)
         {
           register const char *s = wordlist[key].name;
 

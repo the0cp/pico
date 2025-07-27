@@ -27,6 +27,8 @@ static void handleGrouping();
 static void handleUnary();
 static void handleBinary();
 
+static void handleLiteral();
+
 static Chunk* getCurChunk();
 static void advance();
 

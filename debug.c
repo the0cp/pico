@@ -24,6 +24,15 @@ int dasmInstruction(const Chunk* chunk, int offset){
             return dasmConstant(chunk, offset);
         case OP_LCONSTANT:
             return dasmLConstant(chunk, offset);
+        case OP_NULL:
+            printf("OP_NULL\n");
+            return offset + 1;
+        case OP_TRUE:
+            printf("OP_TRUE\n");
+            return offset + 1;
+        case OP_FALSE:
+            printf("OP_FALSE\n");
+            return offset + 1;
         case OP_ADD:
             printf("OP_ADD\n");
             return offset + 1;
@@ -52,7 +61,7 @@ static int dasmConstant(const Chunk* chunk, int offset){
     uint8_t constantIndex = chunk -> code[offset + 1];
     printf("OP_CONSTANT %d '", constantIndex);
     if(constantIndex < chunk -> constants.count){
-        printf("%g", chunk -> constants.values[constantIndex]);
+        printValue(chunk -> constants.values[constantIndex]);
     }else{
         printf("Unknown constant");
     }
@@ -66,7 +75,7 @@ static int dasmLConstant(const Chunk* chunk, int offset){
                                       (chunk -> code[offset + 3] << 16);
     printf("OP_LCONSTANT %d '", constantIndex);
     if(constantIndex < chunk -> constants.count){
-        printf("%g", chunk -> constants.values[constantIndex]);
+        printValue(chunk -> constants.values[constantIndex]);
     }else{
         printf("Unknown long constant");
     }
@@ -75,7 +84,7 @@ static int dasmLConstant(const Chunk* chunk, int offset){
     // 1 byte for opcode + 1 byte for long constant index
 }
 
-static int getLine(const Chunk* chunk, int offset){
+int getLine(const Chunk* chunk, int offset){
     int low = 0;
     int high = chunk -> lineCount - 1;
     int match = -1;

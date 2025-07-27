@@ -23,8 +23,11 @@ void freeVM();
 void resetStack();
 void push(Value value);
 Value pop();
+static Value peek(int distance);
 
 InterpreterStatus interpret(const char* code);
 static InterpreterStatus run();
+
+static void runtimeError(const char* format, ...);
 
 #endif // PICO_VM_H

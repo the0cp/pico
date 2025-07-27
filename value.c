@@ -26,3 +26,15 @@ void freeValueArray(ValueArray* array){
     resize(array -> values, sizeof(Value) * array -> capacity, 0);
     initValueArray(array);
 }
+
+void printValue(Value value){
+    if(IS_NULL(value)){
+        printf("null");
+    }else if(IS_BOOL(value)){
+        printf(AS_BOOL(value) ? "true" : "false");
+    }else if(IS_NUM(value)){
+        printf("%g", AS_NUM(value));
+    }else{
+        printf("Unknown value type");
+    }
+}

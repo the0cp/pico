@@ -42,6 +42,9 @@ ParseRule rules[] = {
     [TOKEN_STAR]            = {NULL,            handleBinary,   PREC_FACTOR},
     [TOKEN_SLASH]           = {NULL,            handleBinary,   PREC_FACTOR},
     [TOKEN_NUMBER]          = {handleNum,       NULL,           PREC_NONE},
+    [TOKEN_NULL]            = {handleLiteral,   NULL,           PREC_NONE},
+    [TOKEN_TRUE]            = {handleLiteral,   NULL,           PREC_NONE},
+    [TOKEN_FALSE]           = {handleLiteral,   NULL,           PREC_NONE},
     [TOKEN_EOF]             = {NULL,            NULL,           PREC_NONE},
 };
 
@@ -114,7 +117,7 @@ static void stopCompiler(){
 
 static void handleNum(){
     double value = strtod(parser.pre.head, NULL);
-    emitConstant((Value)value);
+    emitConstant(NUM_VAL(value));
 }
 
 static void emitConstant(Value value){
@@ -162,6 +165,16 @@ static void handleBinary(){
         case TOKEN_STAR: emitByte(OP_MULTIPLY); break;
         case TOKEN_SLASH: emitByte(OP_DIVIDE); break;
         default: return;
+    }
+}
+
+static void handleLiteral(){
+    TokenType type = parser.pre.type;
+    switch(type){
+        case TOKEN_NULL: emitByte(OP_NULL); break;
+        case TOKEN_TRUE: emitByte(OP_TRUE); break;
+        case TOKEN_FALSE: emitByte(OP_FALSE); break;
+        default: return;  // Should not reach here
     }
 }
 

@@ -1,10 +1,15 @@
-%struct-type
+%includes
+%{
+#include <string.h>
+#include "scanner.h"
+%}
 
-struct Keyword{
+%language=C
+%struct-type
+struct Keyword {
     const char* name;
     TokenType type;
 };
-
 %%
 class,      TOKEN_CLASS
 else,       TOKEN_ELSE

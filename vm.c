@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdarg.h>
 
 #include "common.h"
 #include "vm.h"
@@ -25,7 +26,7 @@ void freeVM(){
 
 void push(Value value){
     if(vm.stackTop - vm.stack >= STACK_MAX){
-        fprintf(stderr, "Stack overflow\n");
+        runtimeError("Stack overflow");
         exit(EXIT_FAILURE);
     }
     *vm.stackTop++ = value;
@@ -34,6 +35,10 @@ void push(Value value){
 Value pop(){
     vm.stackTop--;
     return *vm.stackTop;
+}
+
+static Value peek(int distance){
+    return vm.stackTop[-1 - distance];
 }
 
 InterpreterStatus interpret(const char* code){
@@ -64,6 +69,9 @@ static InterpreterStatus run(){
         [OP_DIVIDE]     = &&DO_OP_DIVIDE,
         [OP_NEGATE]     = &&DO_OP_NEGATE,
         [OP_RETURN]     = &&DO_OP_RETURN,
+        [OP_NULL]       = &&DO_OP_NULL,
+        [OP_TRUE]       = &&DO_OP_TRUE,
+        [OP_FALSE]      = &&DO_OP_FALSE,
     };
 
     #ifdef DEBUG_TRACE
@@ -83,11 +91,15 @@ static InterpreterStatus run(){
     #define BI_OPERATOR(op) \
     do{ \
         if(vm.stackTop - vm.stack < 2){ \
-            fprintf(stderr, "Stack underflow\n"); \
+            runtimeError("Stack underflow"); \
             return VM_RUNTIME_ERROR; \
         } \
-        double b = pop(); \
-        *(vm.stackTop - 1) = *(vm.stackTop - 1) op b; \
+        if(!IS_NUM(peek(0)) || !IS_NUM(peek(1))){ \
+            runtimeError("Operands must be numbers."); \
+            return VM_RUNTIME_ERROR; \
+        } \
+        double b = AS_NUM(pop()); \
+        *(vm.stackTop - 1) = NUM_VAL(AS_NUM(*(vm.stackTop - 1)) op b); \
     }while(0)
 
     DISPATCH();
@@ -109,6 +121,12 @@ static InterpreterStatus run(){
         push(constant);
     } DISPATCH();
 
+    DO_OP_NULL: push(NULL_VAL()); DISPATCH();
+
+    DO_OP_TRUE: push(BOOL_VAL(true)); DISPATCH();
+
+    DO_OP_FALSE: push(BOOL_VAL(false)); DISPATCH();
+
     DO_OP_ADD: BI_OPERATOR(+); DISPATCH();
 
     DO_OP_SUBTRACT: BI_OPERATOR(-); DISPATCH();
@@ -117,27 +135,40 @@ static InterpreterStatus run(){
 
     DO_OP_DIVIDE:
     {
-        double b = pop();
-        if(b == 0){
-            fprintf(stderr, "Runtime error: Division by zero\n");
+        if(vm.stackTop - vm.stack < 2){
+            runtimeError("Stack underflow");
+            return VM_RUNTIME_ERROR; \
+        }
+        if(!IS_NUM(peek(0)) || !IS_NUM(peek(1))){ 
+            runtimeError("Operand must be a number.");
             return VM_RUNTIME_ERROR;
         }
-        double a = pop();
-        push(a / b);
+
+        double b = AS_NUM(pop());
+        if(b == 0){
+            runtimeError("Runtime error: Division by zero");
+            return VM_RUNTIME_ERROR;
+        }
+        *(vm.stackTop - 1) = NUM_VAL(AS_NUM(*(vm.stackTop - 1)) / b);
     } DISPATCH();
 
     DO_OP_NEGATE:
     {
-        if(vm.stackTop - vm.stack < 1){
-            fprintf(stderr, "Stack underflow\n");
+        if(!IS_NUM(peek(0))){
+            runtimeError("Operand must be a number.");
             return VM_RUNTIME_ERROR;
         }
-        *(vm.stackTop - 1) = -(*(vm.stackTop - 1));
+        if(vm.stackTop - vm.stack < 1){
+            runtimeError("Stack underflow");
+            return VM_RUNTIME_ERROR;
+        }
+        *(vm.stackTop - 1) = NUM_VAL(-AS_NUM(*(vm.stackTop - 1)));
     } DISPATCH();
 
     DO_OP_RETURN:
     {
-        printf("Top of stack: %g\n", pop());
+        printValue(pop());
+        printf("\n");
         return VM_OK;
     }
     
@@ -153,4 +184,19 @@ static InterpreterStatus run(){
     }
     */
 
+}
+
+static void runtimeError(const char* format, ...) {
+    va_list args;
+    va_start(args, format);
+    vfprintf(stderr, format, args);
+    va_end(args);
+    fputs("\n", stderr);
+
+    #ifdef DEBUG_TRACE
+    size_t instructionOffset = vm.ip - vm.chunk -> code;
+    int line = getLine(vm.chunk, instructionOffset);
+    fprintf(stderr, "Runtime error at line %d\n", line);
+    #endif
+    resetStack();
 }
