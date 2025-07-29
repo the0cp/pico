@@ -76,7 +76,7 @@ static inline void skipWhitespace(){
 }
 
 static inline void handleLineComment(){
-    while(*sc.cur == '#' && *sc.cur != '\n' && *sc.cur != '\0'){
+    while(*sc.cur != '\n' && *sc.cur != '\0'){
         next();
     }
 }
@@ -107,14 +107,16 @@ static inline void handleBlockComment(){
     }
 }
 
-static inline void handleComment(){
+static bool handleComment(){
     if(*sc.cur == '#'){
         if(sc.cur[1] == '{'){
             handleBlockComment();
         }else{
             handleLineComment();
         }
+        return true;
     }
+    return false;
 }
 
 static inline bool isDigit(char c){
@@ -170,8 +172,14 @@ static TokenType identifierType(){
 }
 
 static Token scanDefault(){
-    skipWhitespace();
-    handleComment();
+    while(true){
+        skipWhitespace();
+        if(handleComment()){
+            continue; // Skip comments
+        }
+        break;
+    }
+    
     sc.head = sc.cur;
     if(*sc.cur == '\0') {
         return pack(TOKEN_EOF, sc.head, 0, sc.line);

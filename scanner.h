@@ -62,7 +62,7 @@ static inline Token error(const char* message, int line);
 static inline void skipWhitespace();
 static inline void handleLineComment();
 static inline void handleBlockComment();
-static inline void handleComment();
+static bool handleComment();
 
 static Token handleNumber();
 static TokenType identifierType();

@@ -31,6 +31,12 @@ typedef struct{
     Precedence precedence;  // Precedence of the operator
 }ParseRule;
 
+static void handleLiteral(void);
+static void handleGrouping(void);
+static void handleUnary(void);
+static void handleBinary(void);
+static void handleNum(void);
+
 ParseRule rules[] = {
     [TOKEN_LEFT_PAREN]      = {handleGrouping,  NULL,           PREC_NONE},
     [TOKEN_RIGHT_PAREN]     = {NULL,            NULL,           PREC_NONE},
@@ -62,6 +68,7 @@ static void advance(){
     }
 }
 
+
 bool compile(const char* code, Chunk* chunk){
     initScanner(code);
     curChunk = chunk;
@@ -69,6 +76,9 @@ bool compile(const char* code, Chunk* chunk){
     parser.panic = false;
 
     advance();  // Initialize the first token
+    if(parser.cur.type == TOKEN_EOF){
+        return true;  // No code to compile
+    }
     expression(); // Start parsing the expression
 
     consume(TOKEN_EOF, "Expected end of file");

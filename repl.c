@@ -9,6 +9,7 @@ void repl(){
             printf("\n");
             break;
         }
+        line[strcspn(line, "\n")] = 0;
         if(line[0] == '\n') continue;
         interpret(line);
     }

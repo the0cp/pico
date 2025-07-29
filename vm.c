@@ -50,6 +50,11 @@ InterpreterStatus interpret(const char* code){
         return VM_COMPILE_ERROR;
     }
 
+    if(chunk.count == 0){
+        freeChunk(&chunk);
+        return VM_OK;  // No code to execute
+    }
+
     vm.chunk = &chunk;
     vm.ip = vm.chunk->code;
 

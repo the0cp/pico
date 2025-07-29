@@ -1,6 +1,4 @@
 /* C code produced by gperf version 3.1 */
-/* Command-line: 'C:\\Users\\Admin\\AppData\\Local\\Microsoft\\WinGet\\Packages\\oss-winget.gperf_Microsoft.Winget.Source_8wekyb3d8bbwe\\gperf.exe' -L C -E -t -C -G -N findKeyword -H keywordHash keywords.gperf  */
-/* Computed positions: -k'3' */
 
 #if !((' ' == 32) && ('!' == 33) && ('"' == 34) && ('#' == 35) \
       && ('%' == 37) && ('&' == 38) && ('\'' == 39) && ('(' == 40) \
@@ -147,7 +145,7 @@ findKeyword (str, len)
         {
           register const char *s = wordlist[key].name;
 
-          if (*str == *s && !strcmp (str + 1, s + 1))
+          if (*str == *s && !strncmp(str, wordlist[key].name, len))
             return &wordlist[key];
         }
     }
