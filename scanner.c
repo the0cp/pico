@@ -216,7 +216,7 @@ static Token scanDefault(){
         case '*':
             return pack(is_next('=') ? TOKEN_EQUAL : TOKEN_STAR, sc.head, (int)(sc.cur - sc.head), sc.line);
         case '=':
-            return pack(is_next('=') ? TOKEN_EQUAL_EQUAL : TOKEN_EQUAL, sc.head, (int)(sc.cur - sc.head), sc.line);
+            return pack(is_next('=') ? TOKEN_EQUAL : TOKEN_ASSIGN, sc.head, (int)(sc.cur - sc.head), sc.line);
         case '!':
             return pack(is_next('=') ? TOKEN_NOT_EQUAL : TOKEN_NOT, sc.head, (int)(sc.cur - sc.head), sc.line);
         case '<':

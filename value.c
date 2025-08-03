@@ -38,3 +38,20 @@ void printValue(Value value){
         printf("Unknown value type");
     }
 }
+
+ValueType getValueType(Value value){
+    if(IS_NULL(value)) return VALUE_NULL;
+    if(IS_BOOL(value)) return VALUE_BOOL;
+    if(IS_NUM(value))  return VALUE_NUM;
+    return VALUE_UNKNOWN;  // For unsupported types
+}
+
+bool isEqual(Value a, Value b){
+    if(getValueType(a) != getValueType(b)) return false;
+    switch(getValueType(a)){
+        case VALUE_NULL:    return true;  // Both are null
+        case VALUE_BOOL:    return AS_BOOL(a) == AS_BOOL(b);
+        case VALUE_NUM:     return AS_NUM(a) == AS_NUM(b);
+        default:            return false;  // Unsupported type comparison
+    }
+}

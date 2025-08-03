@@ -25,6 +25,8 @@ void push(Value value);
 Value pop();
 static Value peek(int distance);
 
+static bool isTruthy(Value value);
+
 InterpreterStatus interpret(const char* code);
 static InterpreterStatus run();
 

@@ -41,6 +41,11 @@ static Value peek(int distance){
     return vm.stackTop[-1 - distance];
 }
 
+static bool isTruthy(Value value){
+    return !IS_NULL(value) && (IS_BOOL(value) && AS_BOOL(value));
+    // NULL is considered falsy
+}
+
 InterpreterStatus interpret(const char* code){
     Chunk chunk;
     initChunk(&chunk);
@@ -66,17 +71,24 @@ InterpreterStatus interpret(const char* code){
 
 static InterpreterStatus run(){
     static void* dispatchTable[] = {
-        [OP_CONSTANT]   = &&DO_OP_CONSTANT,
-        [OP_LCONSTANT]  = &&DO_OP_LCONSTANT,
-        [OP_ADD]        = &&DO_OP_ADD,
-        [OP_SUBTRACT]   = &&DO_OP_SUBTRACT,
-        [OP_MULTIPLY]   = &&DO_OP_MULTIPLY,
-        [OP_DIVIDE]     = &&DO_OP_DIVIDE,
-        [OP_NEGATE]     = &&DO_OP_NEGATE,
-        [OP_RETURN]     = &&DO_OP_RETURN,
-        [OP_NULL]       = &&DO_OP_NULL,
-        [OP_TRUE]       = &&DO_OP_TRUE,
-        [OP_FALSE]      = &&DO_OP_FALSE,
+        [OP_CONSTANT]       = &&DO_OP_CONSTANT,
+        [OP_LCONSTANT]      = &&DO_OP_LCONSTANT,
+        [OP_ADD]            = &&DO_OP_ADD,
+        [OP_SUBTRACT]       = &&DO_OP_SUBTRACT,
+        [OP_MULTIPLY]       = &&DO_OP_MULTIPLY,
+        [OP_DIVIDE]         = &&DO_OP_DIVIDE,
+        [OP_NEGATE]         = &&DO_OP_NEGATE,
+        [OP_RETURN]         = &&DO_OP_RETURN,
+        [OP_NULL]           = &&DO_OP_NULL,
+        [OP_TRUE]           = &&DO_OP_TRUE,
+        [OP_FALSE]          = &&DO_OP_FALSE,
+        [OP_NOT]            = &&DO_OP_NOT,
+        [OP_EQUAL]          = &&DO_OP_EQUAL,
+        [OP_NOT_EQUAL]      = &&DO_OP_NOT_EQUAL,
+        [OP_GREATER]        = &&DO_OP_GREATER,
+        [OP_LESS]           = &&DO_OP_LESS,
+        [OP_GREATER_EQUAL]  = &&DO_OP_GREATER_EQUAL,
+        [OP_LESS_EQUAL]     = &&DO_OP_LESS_EQUAL,
     };
 
     #ifdef DEBUG_TRACE
@@ -131,6 +143,85 @@ static InterpreterStatus run(){
     DO_OP_TRUE: push(BOOL_VAL(true)); DISPATCH();
 
     DO_OP_FALSE: push(BOOL_VAL(false)); DISPATCH();
+
+    DO_OP_NOT: push(BOOL_VAL(!isTruthy(pop()))); DISPATCH();
+
+    DO_OP_EQUAL:
+    {
+        if(vm.stackTop - vm.stack < 2){
+            runtimeError("Stack underflow");
+            return VM_RUNTIME_ERROR;
+        }
+        Value b = pop();
+        Value a = pop();
+        push(BOOL_VAL(isEqual(a, b)));
+    } DISPATCH();
+
+    DO_OP_NOT_EQUAL:
+    {
+        if(vm.stackTop - vm.stack < 2){
+            runtimeError("Stack underflow");
+            return VM_RUNTIME_ERROR;
+        }
+        Value b = pop();
+        *(vm.stackTop - 1) = BOOL_VAL(!isEqual(peek(0), b));
+    } DISPATCH();
+
+    DO_OP_GREATER:
+    {
+        if(vm.stackTop - vm.stack < 2){
+            runtimeError("Stack underflow");
+            return VM_RUNTIME_ERROR;
+        }
+        if(!IS_NUM(peek(0)) || !IS_NUM(peek(1))){ 
+            runtimeError("Operands must be numbers.");
+            return VM_RUNTIME_ERROR;
+        }
+        double b = AS_NUM(pop());
+        *(vm.stackTop - 1) = BOOL_VAL(AS_NUM(peek(0)) > b);
+    } DISPATCH();
+
+    DO_OP_LESS:
+    {
+        if(vm.stackTop - vm.stack < 2){
+            runtimeError("Stack underflow");
+            return VM_RUNTIME_ERROR;
+        }
+        if(!IS_NUM(peek(0)) || !IS_NUM(peek(1))){ 
+            runtimeError("Operands must be numbers.");
+            return VM_RUNTIME_ERROR;
+        }
+        double b = AS_NUM(pop());
+        *(vm.stackTop - 1) = BOOL_VAL(AS_NUM(peek(0)) < b);
+    } DISPATCH();
+
+    DO_OP_GREATER_EQUAL:
+    {
+        if(vm.stackTop - vm.stack < 2){
+            runtimeError("Stack underflow");
+            return VM_RUNTIME_ERROR;
+        }
+        if(!IS_NUM(peek(0)) || !IS_NUM(peek(1))){ 
+            runtimeError("Operands must be numbers.");
+            return VM_RUNTIME_ERROR;
+        }
+        double b = AS_NUM(pop());
+        *(vm.stackTop - 1) = BOOL_VAL(AS_NUM(peek(0)) >= b);
+    } DISPATCH();
+
+    DO_OP_LESS_EQUAL:
+    {
+        if(vm.stackTop - vm.stack < 2){
+            runtimeError("Stack underflow");
+            return VM_RUNTIME_ERROR;
+        }
+        if(!IS_NUM(peek(0)) || !IS_NUM(peek(1))){ 
+            runtimeError("Operands must be numbers.");
+            return VM_RUNTIME_ERROR;
+        }
+        double b = AS_NUM(pop());
+        *(vm.stackTop - 1) = BOOL_VAL(AS_NUM(peek(0)) <= b);
+    } DISPATCH();
 
     DO_OP_ADD: BI_OPERATOR(+); DISPATCH();
 

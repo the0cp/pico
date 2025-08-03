@@ -51,6 +51,13 @@ ParseRule rules[] = {
     [TOKEN_NULL]            = {handleLiteral,   NULL,           PREC_NONE},
     [TOKEN_TRUE]            = {handleLiteral,   NULL,           PREC_NONE},
     [TOKEN_FALSE]           = {handleLiteral,   NULL,           PREC_NONE},
+    [TOKEN_NOT]             = {handleUnary,     NULL,           PREC_UNARY},
+    [TOKEN_NOT_EQUAL]       = {NULL,            handleBinary,   PREC_EQUALITY},
+    [TOKEN_EQUAL]           = {NULL,            handleBinary,   PREC_EQUALITY},
+    [TOKEN_GREATER]         = {NULL,            handleBinary,   PREC_COMPARISON},
+    [TOKEN_LESS]            = {NULL,            handleBinary,   PREC_COMPARISON},
+    [TOKEN_GREATER_EQUAL]   = {NULL,            handleBinary,   PREC_COMPARISON},
+    [TOKEN_LESS_EQUAL]      = {NULL,            handleBinary,   PREC_COMPARISON},
     [TOKEN_EOF]             = {NULL,            NULL,           PREC_NONE},
 };
 
@@ -161,6 +168,7 @@ static void handleUnary(){
 
     switch(type){
         case TOKEN_MINUS: emitByte(OP_NEGATE); break;
+        case TOKEN_NOT: emitByte(OP_NOT); break;
         default: return;
     }
 }
@@ -170,10 +178,16 @@ static void handleBinary(){
     ParseRule* rule = getRule(type);
     parsePrecedence((Precedence)(rule -> precedence + 1));  // parse the right-hand side, parse only if precedence is higher
     switch(type){
-        case TOKEN_PLUS: emitByte(OP_ADD); break;
-        case TOKEN_MINUS: emitByte(OP_SUBTRACT); break;
-        case TOKEN_STAR: emitByte(OP_MULTIPLY); break;
-        case TOKEN_SLASH: emitByte(OP_DIVIDE); break;
+        case TOKEN_PLUS:            emitByte(OP_ADD); break;
+        case TOKEN_MINUS:           emitByte(OP_SUBTRACT); break;
+        case TOKEN_STAR:            emitByte(OP_MULTIPLY); break;
+        case TOKEN_SLASH:           emitByte(OP_DIVIDE); break;
+        case TOKEN_EQUAL:           emitByte(OP_EQUAL); break;
+        case TOKEN_NOT_EQUAL:       emitByte(OP_NOT_EQUAL); break;
+        case TOKEN_GREATER:         emitByte(OP_GREATER); break;
+        case TOKEN_LESS:            emitByte(OP_LESS); break;
+        case TOKEN_GREATER_EQUAL:   emitByte(OP_GREATER_EQUAL); break;
+        case TOKEN_LESS_EQUAL:      emitByte(OP_LESS_EQUAL); break;
         default: return;
     }
 }

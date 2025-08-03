@@ -25,32 +25,37 @@ int dasmInstruction(const Chunk* chunk, int offset){
         case OP_LCONSTANT:
             return dasmLConstant(chunk, offset);
         case OP_NULL:
-            printf("OP_NULL\n");
-            return offset + 1;
+            printf("OP_NULL\n");            return offset + 1;
         case OP_TRUE:
-            printf("OP_TRUE\n");
-            return offset + 1;
+            printf("OP_TRUE\n");            return offset + 1;
         case OP_FALSE:
-            printf("OP_FALSE\n");
-            return offset + 1;
+            printf("OP_FALSE\n");           return offset + 1;
+        case OP_NOT:
+            printf("OP_NOT\n");             return offset + 1;
+        case OP_NOT_EQUAL:
+            printf("OP_NOT_EQUAL\n");       return offset + 1;
+        case OP_EQUAL:
+            printf("OP_EQUAL\n");           return offset + 1;
+        case OP_GREATER:
+            printf("OP_GREATER\n");         return offset + 1;
+        case OP_LESS:
+            printf("OP_LESS\n");            return offset + 1;
+        case OP_GREATER_EQUAL:
+            printf("OP_GREATER_EQUAL\n");   return offset + 1;
+        case OP_LESS_EQUAL:
+            printf("OP_LESS_EQUAL\n");      return offset + 1;
         case OP_ADD:
-            printf("OP_ADD\n");
-            return offset + 1;
+            printf("OP_ADD\n");             return offset + 1;
         case OP_SUBTRACT:
-            printf("OP_SUBTRACT\n");
-            return offset + 1;
+            printf("OP_SUBTRACT\n");        return offset + 1;
         case OP_MULTIPLY:
-            printf("OP_MULTIPLY\n");
-            return offset + 1;
+            printf("OP_MULTIPLY\n");        return offset + 1;
         case OP_DIVIDE:
-            printf("OP_DIVIDE\n"); 
-            return offset + 1;
+            printf("OP_DIVIDE\n");          return offset + 1;
         case OP_NEGATE:
-            printf("OP_NEGATE\n");
-            return offset + 1;
+            printf("OP_NEGATE\n");          return offset + 1;
         case OP_RETURN:
-            printf("OP_RETURN\n");
-            return offset + 1;
+            printf("OP_RETURN\n");          return offset + 1;
         default:
             printf("Unknown opcode %d\n", instruction);
             return offset + 1;
