@@ -82,6 +82,7 @@ static inline void handleLineComment(){
 }
 
 static inline void handleBlockComment(){
+    next(); next(); // Skip #{
     int depth = 1;
     while(depth > 0 && *sc.cur != '\0'){
         if(*sc.cur == '#' && sc.cur[1] == '{'){
