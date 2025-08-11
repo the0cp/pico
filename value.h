@@ -4,6 +4,7 @@
 #include <string.h>
 
 #include "common.h"
+#include "object.h"
 
 typedef uint64_t Value;
 
@@ -11,6 +12,7 @@ typedef enum{
     VALUE_NULL,
     VALUE_BOOL,
     VALUE_NUM,
+    VALUE_OBJECT,
     VALUE_UNKNOWN,
 } ValueType;
 
@@ -23,13 +25,17 @@ typedef enum{
 #define IS_NULL(value)  ((value) == (QNAN | TAG_NULL))
 #define IS_BOOL(value)  (((value) & ~1) == (QNAN | TAG_FALSE))
 #define IS_NUM(value)   (((value) & QNAN) != QNAN)
+#define IS_OBJECT(value) (((value) & (QNAN | SIGN_BIT)) == (QNAN | SIGN_BIT))
 
 #define AS_NUM(value)   valueToNum(value)
 #define AS_BOOL(value)  ((value) == (QNAN | TAG_TRUE))
+#define AS_OBJECT(value)  ((Object*)(value & ~(QNAN | SIGN_BIT)))
 
 #define NUM_VAL(num)    numToValue(num)
 #define NULL_VAL()      ((Value)(uint64_t)(QNAN | TAG_NULL))
 #define BOOL_VAL(bool)  ((Value)(uint64_t)(QNAN | (bool ? TAG_TRUE : TAG_FALSE)))
+#define OBJECT_VAL(obj) ((Value)(QNAN | SIGN_BIT | (uintptr_t)(obj)))
+
 
 static inline Value numToValue(double num) {
     Value bits;
@@ -53,6 +59,10 @@ void initValueArray(ValueArray* array);
 void writeValueArray(ValueArray* array, Value value);
 void freeValueArray(ValueArray* array);
 void printValue(Value value);
+
+char* valueToString(Value value);
+
+void printObject(Value value);
 
 ValueType getValueType(Value value);
 bool isEqual(Value a, Value b);

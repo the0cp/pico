@@ -3,6 +3,21 @@
 #include "mem.h"
 #include "value.h"
 
+char* valueToString(Value value){
+    if(IS_BOOL(value)){
+        return AS_BOOL(value) ? "true" : "false";
+    }else if(IS_NULL(value)){
+        return "null";
+    }else if(IS_NUM(value)){
+        static char num_str[32];
+        snprintf(num_str, sizeof(num_str), "%g", AS_NUM(value));
+        return num_str;
+    }else if(IS_STRING(value)){
+        return AS_CSTRING(value);
+    }
+    return "Unknown";
+}
+
 void initValueArray(ValueArray* array){
     array -> values = NULL;
     array -> count = 0;
@@ -34,15 +49,18 @@ void printValue(Value value){
         printf(AS_BOOL(value) ? "true" : "false");
     }else if(IS_NUM(value)){
         printf("%g", AS_NUM(value));
+    }else if(IS_OBJECT(value)){
+        printObject(value);
     }else{
         printf("Unknown value type");
     }
 }
 
 ValueType getValueType(Value value){
-    if(IS_NULL(value)) return VALUE_NULL;
-    if(IS_BOOL(value)) return VALUE_BOOL;
-    if(IS_NUM(value))  return VALUE_NUM;
+    if(IS_NULL(value))   return VALUE_NULL;
+    if(IS_BOOL(value))   return VALUE_BOOL;
+    if(IS_NUM(value))    return VALUE_NUM;
+    if(IS_OBJECT(value)) return VALUE_OBJECT;
     return VALUE_UNKNOWN;  // For unsupported types
 }
 
@@ -52,6 +70,15 @@ bool isEqual(Value a, Value b){
         case VALUE_NULL:    return true;  // Both are null
         case VALUE_BOOL:    return AS_BOOL(a) == AS_BOOL(b);
         case VALUE_NUM:     return AS_NUM(a) == AS_NUM(b);
+        case VALUE_OBJECT: {
+            if(IS_STRING(a) && IS_STRING(b)){
+                ObjectString* strA = AS_STRING(a);
+                ObjectString* strB = AS_STRING(b);
+                return strA -> length == strB -> length &&
+                        memcmp(strA -> chars, strB -> chars, strA -> length) == 0;
+            }
+            return false;
+        }
         default:            return false;  // Unsupported type comparison
     }
 }

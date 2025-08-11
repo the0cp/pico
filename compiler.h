@@ -16,7 +16,7 @@ bool compile(const char* code, Chunk* chunk);
 static void stopCompiler();
 static void emitByte(uint8_t byte);
 static void emitPair(uint8_t byte1, uint8_t byte2);
-static void consume(TokenType type, const char* message);
+static void consume(TokenType type, const char* errMsg);
 static void errorAt(Token* token, const char* message);
 
 static void handleNum();
@@ -28,6 +28,8 @@ static void handleUnary();
 static void handleBinary();
 
 static void handleLiteral();
+
+static void handleString();
 
 static Chunk* getCurChunk();
 static void advance();

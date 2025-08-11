@@ -36,6 +36,7 @@ static void handleGrouping(void);
 static void handleUnary(void);
 static void handleBinary(void);
 static void handleNum(void);
+static void handleString(void);
 
 ParseRule rules[] = {
     [TOKEN_LEFT_PAREN]      = {handleGrouping,  NULL,           PREC_NONE},
@@ -43,14 +44,23 @@ ParseRule rules[] = {
     [TOKEN_LEFT_BRACE]      = {NULL,            NULL,           PREC_NONE},
     [TOKEN_RIGHT_BRACE]     = {NULL,            NULL,           PREC_NONE},
     [TOKEN_COMMA]           = {NULL,            NULL,           PREC_NONE},
+
     [TOKEN_PLUS]            = {NULL,            handleBinary,   PREC_TERM},
     [TOKEN_MINUS]           = {handleUnary,     handleBinary,   PREC_TERM},
     [TOKEN_STAR]            = {NULL,            handleBinary,   PREC_FACTOR},
     [TOKEN_SLASH]           = {NULL,            handleBinary,   PREC_FACTOR},
     [TOKEN_NUMBER]          = {handleNum,       NULL,           PREC_NONE},
+
+    [TOKEN_STRING_START]    = {handleString,    NULL,           PREC_NONE},
+    [TOKEN_STRING_END]      = {NULL,            NULL,           PREC_NONE},
+    [TOKEN_INTERPOLATION_START]   = {NULL,        NULL,           PREC_NONE},
+    [TOKEN_INTERPOLATION_END]     = {NULL,        NULL,           PREC_NONE},
+    [TOKEN_INTERPOLATION_CONTENT] = {NULL,       NULL,           PREC_NONE},
+
     [TOKEN_NULL]            = {handleLiteral,   NULL,           PREC_NONE},
     [TOKEN_TRUE]            = {handleLiteral,   NULL,           PREC_NONE},
     [TOKEN_FALSE]           = {handleLiteral,   NULL,           PREC_NONE},
+
     [TOKEN_NOT]             = {handleUnary,     NULL,           PREC_UNARY},
     [TOKEN_NOT_EQUAL]       = {NULL,            handleBinary,   PREC_EQUALITY},
     [TOKEN_EQUAL]           = {NULL,            handleBinary,   PREC_EQUALITY},
@@ -58,6 +68,7 @@ ParseRule rules[] = {
     [TOKEN_LESS]            = {NULL,            handleBinary,   PREC_COMPARISON},
     [TOKEN_GREATER_EQUAL]   = {NULL,            handleBinary,   PREC_COMPARISON},
     [TOKEN_LESS_EQUAL]      = {NULL,            handleBinary,   PREC_COMPARISON},
+
     [TOKEN_EOF]             = {NULL,            NULL,           PREC_NONE},
 };
 
@@ -202,12 +213,41 @@ static void handleLiteral(){
     }
 }
 
-static void consume(TokenType type, const char* message){
+static void handleString(){
+    int partCnt = 0;
+
+    while(parser.cur.type != TOKEN_STRING_END){
+            if(parser.cur.type == TOKEN_INTERPOLATION_CONTENT){
+                Token* token = &parser.cur;
+                ObjectString* str = copyString(token -> head, token -> len);
+                emitConstant(OBJECT_VAL(str));
+                advance();
+            }else{
+                consume(TOKEN_INTERPOLATION_START, "Expect string or interpolation.");
+                expression();
+                emitByte(OP_TO_STRING);
+                consume(TOKEN_INTERPOLATION_END, "Expect '}' after expression.");
+            }
+            partCnt++;
+    }
+
+    consume(TOKEN_STRING_END, "Unterminated string.");
+
+    if(partCnt == 0){
+        emitConstant(OBJECT_VAL(copyString("", 0)));
+    }else{
+        for(int i = 1; i < partCnt; i++){
+            emitByte(OP_ADD);
+        }
+    }
+}
+
+static void consume(TokenType type, const char* errMsg){
     if(parser.cur.type == type){
         advance();
         return;
     }
-    errorAt(&parser.cur, message);
+    errorAt(&parser.cur, errMsg);
 }
 
 static Chunk* getCurChunk(){

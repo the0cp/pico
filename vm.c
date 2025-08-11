@@ -5,6 +5,7 @@
 #include "common.h"
 #include "vm.h"
 #include "compiler.h"
+#include "mem.h"
 
 #ifdef DEBUG_TRACE
 #include "debug.h"
@@ -42,7 +43,7 @@ static Value peek(int distance){
 }
 
 static bool isTruthy(Value value){
-    return !IS_NULL(value) && (IS_BOOL(value) && AS_BOOL(value));
+    return !(IS_NULL(value) || (IS_BOOL(value) && !AS_BOOL(value)));
     // NULL is considered falsy
 }
 
@@ -73,11 +74,13 @@ static InterpreterStatus run(){
     static void* dispatchTable[] = {
         [OP_CONSTANT]       = &&DO_OP_CONSTANT,
         [OP_LCONSTANT]      = &&DO_OP_LCONSTANT,
+
         [OP_ADD]            = &&DO_OP_ADD,
         [OP_SUBTRACT]       = &&DO_OP_SUBTRACT,
         [OP_MULTIPLY]       = &&DO_OP_MULTIPLY,
         [OP_DIVIDE]         = &&DO_OP_DIVIDE,
         [OP_NEGATE]         = &&DO_OP_NEGATE,
+
         [OP_RETURN]         = &&DO_OP_RETURN,
         [OP_NULL]           = &&DO_OP_NULL,
         [OP_TRUE]           = &&DO_OP_TRUE,
@@ -89,6 +92,8 @@ static InterpreterStatus run(){
         [OP_LESS]           = &&DO_OP_LESS,
         [OP_GREATER_EQUAL]  = &&DO_OP_GREATER_EQUAL,
         [OP_LESS_EQUAL]     = &&DO_OP_LESS_EQUAL,
+
+        [OP_TO_STRING]      = &&DO_OP_TO_STRING,
     };
 
     #ifdef DEBUG_TRACE
@@ -136,6 +141,15 @@ static InterpreterStatus run(){
         ];
         vm.ip += 3; // Move past the index
         push(constant);
+    } DISPATCH();
+
+    DO_OP_TO_STRING:
+    {
+        if(!IS_STRING(peek(0))){
+            Value value = pop();
+            char* str = valueToString(value);
+            push(OBJECT_VAL(copyString(str, strlen(str))));
+        }
     } DISPATCH();
 
     DO_OP_NULL: push(NULL_VAL()); DISPATCH();
@@ -223,7 +237,30 @@ static InterpreterStatus run(){
         *(vm.stackTop - 1) = BOOL_VAL(AS_NUM(peek(0)) <= b);
     } DISPATCH();
 
-    DO_OP_ADD: BI_OPERATOR(+); DISPATCH();
+    DO_OP_ADD: 
+    {
+        if(IS_STRING(peek(0)) || IS_STRING(peek(1))){
+            ObjectString* b = AS_STRING(pop());
+            ObjectString* a = AS_STRING(pop());
+            
+            int len = a -> length + b -> length;
+            char* chars = (char*)resize(NULL, 0, len + 1);
+            memcpy(chars, a -> chars, a -> length);
+            memcpy(chars + a -> length, b -> chars, b -> length);
+            chars[len] = '\0';
+
+            ObjectString* res = copyString(chars, len);
+            resize(chars, len + 1, 0);
+            push(OBJECT_VAL(res));
+        }else if(IS_NUM(peek(0)) && IS_NUM(peek(1))){
+            double b = AS_NUM(pop());
+            double a =AS_NUM(pop());
+            push(NUM_VAL(a + b));
+        }else{
+            runtimeError("Unknown operands.");
+            return VM_RUNTIME_ERROR;
+        }
+    } DISPATCH();
 
     DO_OP_SUBTRACT: BI_OPERATOR(-); DISPATCH();
 
