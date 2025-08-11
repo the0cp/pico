@@ -240,18 +240,23 @@ static InterpreterStatus run(){
     DO_OP_ADD: 
     {
         if(IS_STRING(peek(0)) || IS_STRING(peek(1))){
-            ObjectString* b = AS_STRING(pop());
-            ObjectString* a = AS_STRING(pop());
-            
-            int len = a -> length + b -> length;
+            Value b = pop();
+            Value a = pop();
+
+            char* strA = valueToString(a);
+            char* strB = valueToString(b);
+
+            size_t lenA = strlen(strA);
+            size_t lenB = strlen(strB);
+            size_t len = lenA + lenB;
+
             char* chars = (char*)resize(NULL, 0, len + 1);
-            memcpy(chars, a -> chars, a -> length);
-            memcpy(chars + a -> length, b -> chars, b -> length);
+            memcpy(chars, strA, lenA);
+            memcpy(chars + lenA, strB, lenB);
             chars[len] = '\0';
 
-            ObjectString* res = copyString(chars, len);
+            push(OBJECT_VAL(copyString(chars, len)));
             resize(chars, len + 1, 0);
-            push(OBJECT_VAL(res));
         }else if(IS_NUM(peek(0)) && IS_NUM(peek(1))){
             double b = AS_NUM(pop());
             double a =AS_NUM(pop());

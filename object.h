@@ -20,8 +20,9 @@ typedef struct{
 typedef struct{
     Object obj;
     size_t length;
-    char* chars;  // Pointer to the string characters
+    // char* chars;  // Pointer to the string characters
     uint32_t hash;
+    char chars[];   // Flexible array member
 }ObjectString;
 
 ObjectString* copyString(const char* chars, int len);
