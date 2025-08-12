@@ -19,10 +19,12 @@ void resetStack(){
 
 void initVM(){
     resetStack();
+    vm.objects = NULL;
+    initHashTable(&vm.strings);
 }
 
 void freeVM(){
-
+    freeHashTable(&vm.strings);
 }
 
 void push(Value value){

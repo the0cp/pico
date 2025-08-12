@@ -32,7 +32,7 @@ typedef enum{
 #define AS_OBJECT(value)  ((Object*)(value & ~(QNAN | SIGN_BIT)))
 
 #define NUM_VAL(num)    numToValue(num)
-#define NULL_VAL()      ((Value)(uint64_t)(QNAN | TAG_NULL))
+#define NULL_VAL        ((Value)(uint64_t)(QNAN | TAG_NULL))
 #define BOOL_VAL(bool)  ((Value)(uint64_t)(QNAN | (bool ? TAG_TRUE : TAG_FALSE)))
 #define OBJECT_VAL(obj) ((Value)(QNAN | SIGN_BIT | (uintptr_t)(obj)))
 

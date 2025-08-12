@@ -21,7 +21,7 @@ typedef struct{
     Object obj;
     size_t length;
     // char* chars;  // Pointer to the string characters
-    uint32_t hash;
+    uint64_t hash;
     char chars[];   // Flexible array member
 }ObjectString;
 

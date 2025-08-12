@@ -2,6 +2,7 @@
 #define PICO_VM_H
 
 #include "chunk.h"
+#include "hashtable.h"
 
 #define STACK_MAX 256
 
@@ -10,6 +11,8 @@ typedef struct{
     uint8_t* ip;  // Instruction pointer
     Value stack[STACK_MAX];  // Stack for values
     Value* stackTop;
+    HashTable strings;
+    Object* objects;
 }VM;
 
 typedef enum{
