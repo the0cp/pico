@@ -6,7 +6,10 @@
 #include "file.h"
 
 int main(int argc, const char* argv[]){
-    initVM();
+    
+    VM vm;
+
+    initVM(&vm);
 
     /*
     for(int i = 0; i < 260; i++){
@@ -27,13 +30,13 @@ int main(int argc, const char* argv[]){
     */
 
     if(argc == 1){
-        repl();
+        repl(&vm);
     }else if(argc == 2){
-        runScript(argv[1]);
+        runScript(&vm, argv[1]);
     }else{
         fprintf(stderr, "Usage: %s [script]\n", argv[0]);
         return 1;
     }
-    freeVM();
+    freeVM(&vm);
     return 0;
 }

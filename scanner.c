@@ -167,7 +167,7 @@ static inline Token handleIdentifier(){
 static TokenType identifierType(){
     const struct Keyword* keyword = findKeyword(sc.head, (int)(sc.cur - sc.head));
     if(keyword != NULL){
-        return keyword -> type;
+        return keyword->type;
     }
     return TOKEN_IDENTIFIER;
 }

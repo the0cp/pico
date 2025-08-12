@@ -9,6 +9,7 @@
 
 Parser parser;
 Chunk* curChunk;
+VM* curVm;
 
 typedef enum{
     PREC_NONE,
@@ -24,19 +25,19 @@ typedef enum{
     PREC_PRIMARY     // identifiers, literals, grouping
 }Precedence;
 
-typedef void (*ParseFunc)(void);
+typedef void (*ParseFunc)(VM* vm);
 typedef struct{
     ParseFunc prefix;  // Function to handle prefix parsing
     ParseFunc infix;   // Function to handle infix parsing
     Precedence precedence;  // Precedence of the operator
 }ParseRule;
 
-static void handleLiteral(void);
-static void handleGrouping(void);
-static void handleUnary(void);
-static void handleBinary(void);
-static void handleNum(void);
-static void handleString(void);
+static void handleLiteral(VM* vm);
+static void handleGrouping(VM* vm);
+static void handleUnary(VM* vm);
+static void handleBinary(VM* vm);
+static void handleNum(VM* vm);
+static void handleString(VM* vm);
 
 ParseRule rules[] = {
     [TOKEN_LEFT_PAREN]      = {handleGrouping,  NULL,           PREC_NONE},
@@ -73,7 +74,7 @@ ParseRule rules[] = {
 };
 
 static inline ParseRule* getRule(TokenType type){return &rules[type];}
-static void parsePrecedence(Precedence precedence);
+static void parsePrecedence(VM* vm, Precedence precedence);
 
 static void advance(){
     parser.pre = parser.cur;
@@ -87,9 +88,10 @@ static void advance(){
 }
 
 
-bool compile(const char* code, Chunk* chunk){
+bool compile(VM* vm, const char* code, Chunk* chunk){
     initScanner(code);
     curChunk = chunk;
+    curVm = vm;
     parser.hadError = false;
     parser.panic = false;
 
@@ -97,29 +99,29 @@ bool compile(const char* code, Chunk* chunk){
     if(parser.cur.type == TOKEN_EOF){
         return true;  // No code to compile
     }
-    expression(); // Start parsing the expression
+    expression(vm); // Start parsing the expression
 
     consume(TOKEN_EOF, "Expected end of file");
-    stopCompiler();
+    stopCompiler(vm);
     return !parser.hadError;
 }
 
-static void expression(){
-    parsePrecedence(PREC_ASSIGNMENT);
+static void expression(VM* vm){
+    parsePrecedence(vm, PREC_ASSIGNMENT);
 }
 
-static void parsePrecedence(Precedence precedence){
+static void parsePrecedence(VM* vm, Precedence precedence){
     advance();
-    ParseFunc preRule = getRule(parser.pre.type) -> prefix;
+    ParseFunc preRule = getRule(parser.pre.type)->prefix;
     if(preRule == NULL){
         errorAt(&parser.pre, "Expect expression");
         return;
     }
-    preRule();
-    while(precedence <= getRule(parser.cur.type) -> precedence){
+    preRule(vm);
+    while(precedence <= getRule(parser.cur.type)->precedence){
         advance();
-        ParseFunc inRule = getRule(parser.pre.type) -> infix;
-        inRule();
+        ParseFunc inRule = getRule(parser.pre.type)->infix;
+        inRule(vm);
     }
 }
 
@@ -132,7 +134,7 @@ static void emitPair(uint8_t byte1, uint8_t byte2){
     emitByte(byte2);
 }
 
-static void stopCompiler(){
+static void stopCompiler(VM* vm){
     emitByte(OP_RETURN);
 
     #ifdef DEBUG_PRINT_CODE
@@ -143,12 +145,12 @@ static void stopCompiler(){
     #endif
 }
 
-static void handleNum(){
+static void handleNum(VM* vm){
     double value = strtod(parser.pre.head, NULL);
-    emitConstant(NUM_VAL(value));
+    emitConstant(vm, NUM_VAL(value));
 }
 
-static void emitConstant(Value value){
+static void emitConstant(VM* vm, Value value){
     int constantIndex = addConstant(getCurChunk(), value);
     if(constantIndex < 0){
         fprintf(stderr, "Failed to add constant\n");
@@ -168,14 +170,14 @@ static void emitConstant(Value value){
     }
 }
 
-static void handleGrouping(){
-    expression();
+static void handleGrouping(VM* vm){
+    expression(vm);
     consume(TOKEN_RIGHT_PAREN, "Expected ')' after expression");
 }
 
-static void handleUnary(){
+static void handleUnary(VM* vm){
     TokenType type = parser.pre.type;
-    parsePrecedence(PREC_UNARY);
+    parsePrecedence(vm, PREC_UNARY);
 
     switch(type){
         case TOKEN_MINUS: emitByte(OP_NEGATE); break;
@@ -184,10 +186,10 @@ static void handleUnary(){
     }
 }
 
-static void handleBinary(){
+static void handleBinary(VM* vm){
     TokenType type = parser.pre.type;
     ParseRule* rule = getRule(type);
-    parsePrecedence((Precedence)(rule -> precedence + 1));  // parse the right-hand side, parse only if precedence is higher
+    parsePrecedence(vm, (Precedence)(rule->precedence + 1));  // parse the right-hand side, parse only if precedence is higher
     switch(type){
         case TOKEN_PLUS:            emitByte(OP_ADD); break;
         case TOKEN_MINUS:           emitByte(OP_SUBTRACT); break;
@@ -203,7 +205,8 @@ static void handleBinary(){
     }
 }
 
-static void handleLiteral(){
+static void handleLiteral(VM* vm){
+    (void)vm;
     TokenType type = parser.pre.type;
     switch(type){
         case TOKEN_NULL: emitByte(OP_NULL); break;
@@ -213,18 +216,18 @@ static void handleLiteral(){
     }
 }
 
-static void handleString(){
+static void handleString(VM* vm){
     int partCnt = 0;
 
     while(parser.cur.type != TOKEN_STRING_END){
             if(parser.cur.type == TOKEN_INTERPOLATION_CONTENT){
                 Token* token = &parser.cur;
-                ObjectString* str = copyString(token -> head, token -> len);
-                emitConstant(OBJECT_VAL(str));
+                ObjectString* str = copyString(vm, token->head, token->len);
+                emitConstant(vm, OBJECT_VAL(str));
                 advance();
             }else{
                 consume(TOKEN_INTERPOLATION_START, "Expect string or interpolation.");
-                expression();
+                expression(vm);
                 emitByte(OP_TO_STRING);
                 consume(TOKEN_INTERPOLATION_END, "Expect '}' after expression.");
             }
@@ -234,7 +237,7 @@ static void handleString(){
     consume(TOKEN_STRING_END, "Unterminated string.");
 
     if(partCnt == 0){
-        emitConstant(OBJECT_VAL(copyString("", 0)));
+        emitConstant(vm, OBJECT_VAL(copyString(vm, "", 0)));
     }else{
         for(int i = 1; i < partCnt; i++){
             emitByte(OP_ADD);

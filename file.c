@@ -22,9 +22,9 @@ char* read(const char* path){
     return content;
 }
 
-void runScript(const char* path) {
+void runScript(VM* vm, const char* path) {
     char* content = read(path);
-    InterpreterStatus status = interpret(content);
+    InterpreterStatus status = interpret(vm, content);
     free(content);
 
     if(status == VM_COMPILE_ERROR) exit(EXIT_FAILURE);

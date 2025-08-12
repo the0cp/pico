@@ -1,7 +1,7 @@
 #include "repl.h"
 #include "vm.h"
 
-void repl(){
+void repl(VM* vm){
     char line[1024];
     while(true){
         printf(">>> ");
@@ -11,6 +11,6 @@ void repl(){
         }
         line[strcspn(line, "\n")] = 0;
         if(line[0] == '\n') continue;
-        interpret(line);
+        interpret(vm, line);
     }
 }

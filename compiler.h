@@ -12,28 +12,28 @@ typedef struct{
     bool panic; // Flag to indicate if we are in panic mode
 }Parser;
 
-bool compile(const char* code, Chunk* chunk);
-static void stopCompiler();
+bool compile(VM* vm, const char* code, Chunk* chunk);
+static void stopCompiler(VM* vm);
 static void emitByte(uint8_t byte);
 static void emitPair(uint8_t byte1, uint8_t byte2);
 static void consume(TokenType type, const char* errMsg);
 static void errorAt(Token* token, const char* message);
 
-static void handleNum();
-static void emitConstant(Value value);
+static void handleNum(VM* vm);
+static void emitConstant(VM* vm, Value value);
 
-static void handleGrouping();
+static void handleGrouping(VM* vm);
 
-static void handleUnary();
-static void handleBinary();
+static void handleUnary(VM* vm);
+static void handleBinary(VM* vm);
 
-static void handleLiteral();
+static void handleLiteral(VM* vm);
 
-static void handleString();
+static void handleString(VM* vm);
 
 static Chunk* getCurChunk();
 static void advance();
 
-static void expression();
+static void expression(VM* vm);
 
 #endif // PICO_COMPILER_H

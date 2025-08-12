@@ -5,6 +5,8 @@
 #include <stdlib.h>
 #include <string.h>
 
-void repl();
+typedef struct VM VM;
+
+void repl(VM* vm);
 
 #endif // PICO_REPL_H

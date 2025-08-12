@@ -8,6 +8,7 @@
 #include "object.h"
 #include "value.h"
 #include "hashtable.h"
+#include "vm.h"
 
 #include "xxhash.h"
 
@@ -43,25 +44,29 @@ static uint64_t hashString(const char* key, int len){
     return XXH3_64bits_withSeed(key, (size_t)len, g_hash_seed);
 }
 
-static ObjectString* allocString(int len, uint64_t hash){
+static ObjectString* allocString(VM* vm, int len, uint64_t hash){
     ObjectString* str = (ObjectString*)resize(NULL, 0, sizeof(ObjectString) + len + 1);
-    str -> obj.type = OBJECT_STRING;
-    str -> length = len;
-    str -> hash = hash;
-    tableSet(&vm.strings, str, NULL_VAL);
+    str->obj.type = OBJECT_STRING;
+    str->length = len;
+    str->hash = hash;
+    str->obj.next = vm->objects;
+    vm->objects = (Object*)str;
+    tableSet(&vm->strings, str, NULL_VAL);
     return str;
 }
 
-ObjectString* copyString(const char* chars, int len){
+ObjectString* copyString(VM* vm, const char* chars, int len){
     uint64_t hash = hashString(chars, len);
-    /*
-    ObjectString* str = allocString(len, hash);
-    memcpy(str -> chars, chars, len);
-    str -> chars[len] = '\0';
-    return str;
-    */
 
-    //ObjectString* interned = tableGetInternedString()
+    ObjectString* interned = tableGetInternedString(&vm->strings, chars, len, hash);
+    if(interned != NULL){
+        return interned;
+    }
+
+    ObjectString* str = allocString(vm, len, hash);
+    memcpy(str->chars, chars, len);
+    str->chars[len] = '\0';
+    return str;
 }
 
 void printObject(Value value){

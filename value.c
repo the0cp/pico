@@ -19,26 +19,26 @@ char* valueToString(Value value){
 }
 
 void initValueArray(ValueArray* array){
-    array -> values = NULL;
-    array -> count = 0;
-    array -> capacity = 0;
+    array->values = NULL;
+    array->count = 0;
+    array->capacity = 0;
 }
 
 void writeValueArray(ValueArray* array, Value value){
-    if(array -> count + 1 > array -> capacity){
-        size_t oldCapacity = array -> capacity;
-        array -> capacity = oldCapacity < 8 ? 8 : oldCapacity * 2;
-        array -> values = (Value*)resize(
-            array -> values,
+    if(array->count + 1 > array->capacity){
+        size_t oldCapacity = array->capacity;
+        array->capacity = oldCapacity < 8 ? 8 : oldCapacity * 2;
+        array->values = (Value*)resize(
+            array->values,
             sizeof(Value) * oldCapacity,
-            sizeof(Value) * array -> capacity
+            sizeof(Value) * array->capacity
         );
     }
-    array -> values[array -> count++] = value;
+    array->values[array->count++] = value;
 }
 
 void freeValueArray(ValueArray* array){
-    resize(array -> values, sizeof(Value) * array -> capacity, 0);
+    resize(array->values, sizeof(Value) * array->capacity, 0);
     initValueArray(array);
 }
 
@@ -74,8 +74,8 @@ bool isEqual(Value a, Value b){
             if(IS_STRING(a) && IS_STRING(b)){
                 ObjectString* strA = AS_STRING(a);
                 ObjectString* strB = AS_STRING(b);
-                return strA -> length == strB -> length &&
-                        memcmp(strA -> chars, strB -> chars, strA -> length) == 0;
+                return strA->length == strB->length &&
+                        memcmp(strA->chars, strB->chars, strA->length) == 0;
             }
             return false;
         }

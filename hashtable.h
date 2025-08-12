@@ -4,6 +4,8 @@
 #include "common.h"
 #include "value.h"
 
+typedef struct ObjectString ObjectString;
+
 typedef struct{
     ObjectString* key;
     Value value;

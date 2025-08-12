@@ -5,7 +5,9 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "vm.h"
+
 char* read(const char* path);
-void runScript(const char* path);
+void runScript(VM* vm, const char* path);
 
 #endif // FILE_H
