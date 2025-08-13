@@ -40,37 +40,37 @@ static void handleNum(VM* vm);
 static void handleString(VM* vm);
 
 ParseRule rules[] = {
-    [TOKEN_LEFT_PAREN]      = {handleGrouping,  NULL,           PREC_NONE},
-    [TOKEN_RIGHT_PAREN]     = {NULL,            NULL,           PREC_NONE},
-    [TOKEN_LEFT_BRACE]      = {NULL,            NULL,           PREC_NONE},
-    [TOKEN_RIGHT_BRACE]     = {NULL,            NULL,           PREC_NONE},
-    [TOKEN_COMMA]           = {NULL,            NULL,           PREC_NONE},
+    [TOKEN_LEFT_PAREN]              = {handleGrouping,  NULL,           PREC_NONE},
+    [TOKEN_RIGHT_PAREN]             = {NULL,            NULL,           PREC_NONE},
+    [TOKEN_LEFT_BRACE]              = {NULL,            NULL,           PREC_NONE},
+    [TOKEN_RIGHT_BRACE]             = {NULL,            NULL,           PREC_NONE},
+    [TOKEN_COMMA]                   = {NULL,            NULL,           PREC_NONE},
 
-    [TOKEN_PLUS]            = {NULL,            handleBinary,   PREC_TERM},
-    [TOKEN_MINUS]           = {handleUnary,     handleBinary,   PREC_TERM},
-    [TOKEN_STAR]            = {NULL,            handleBinary,   PREC_FACTOR},
-    [TOKEN_SLASH]           = {NULL,            handleBinary,   PREC_FACTOR},
-    [TOKEN_NUMBER]          = {handleNum,       NULL,           PREC_NONE},
+    [TOKEN_PLUS]                    = {NULL,            handleBinary,   PREC_TERM},
+    [TOKEN_MINUS]                   = {handleUnary,     handleBinary,   PREC_TERM},
+    [TOKEN_STAR]                    = {NULL,            handleBinary,   PREC_FACTOR},
+    [TOKEN_SLASH]                   = {NULL,            handleBinary,   PREC_FACTOR},
+    [TOKEN_NUMBER]                  = {handleNum,       NULL,           PREC_NONE},
 
-    [TOKEN_STRING_START]    = {handleString,    NULL,           PREC_NONE},
-    [TOKEN_STRING_END]      = {NULL,            NULL,           PREC_NONE},
-    [TOKEN_INTERPOLATION_START]   = {NULL,        NULL,           PREC_NONE},
-    [TOKEN_INTERPOLATION_END]     = {NULL,        NULL,           PREC_NONE},
-    [TOKEN_INTERPOLATION_CONTENT] = {NULL,       NULL,           PREC_NONE},
+    [TOKEN_STRING_START]            = {handleString,    NULL,           PREC_NONE},
+    [TOKEN_STRING_END]              = {NULL,            NULL,           PREC_NONE},
+    [TOKEN_INTERPOLATION_START]     = {NULL,            NULL,           PREC_NONE},
+    [TOKEN_INTERPOLATION_END]       = {NULL,            NULL,           PREC_NONE},
+    [TOKEN_INTERPOLATION_CONTENT]   = {NULL,            NULL,           PREC_NONE},
 
-    [TOKEN_NULL]            = {handleLiteral,   NULL,           PREC_NONE},
-    [TOKEN_TRUE]            = {handleLiteral,   NULL,           PREC_NONE},
-    [TOKEN_FALSE]           = {handleLiteral,   NULL,           PREC_NONE},
+    [TOKEN_NULL]                    = {handleLiteral,   NULL,           PREC_NONE},
+    [TOKEN_TRUE]                    = {handleLiteral,   NULL,           PREC_NONE},
+    [TOKEN_FALSE]                   = {handleLiteral,   NULL,           PREC_NONE},
 
-    [TOKEN_NOT]             = {handleUnary,     NULL,           PREC_UNARY},
-    [TOKEN_NOT_EQUAL]       = {NULL,            handleBinary,   PREC_EQUALITY},
-    [TOKEN_EQUAL]           = {NULL,            handleBinary,   PREC_EQUALITY},
-    [TOKEN_GREATER]         = {NULL,            handleBinary,   PREC_COMPARISON},
-    [TOKEN_LESS]            = {NULL,            handleBinary,   PREC_COMPARISON},
-    [TOKEN_GREATER_EQUAL]   = {NULL,            handleBinary,   PREC_COMPARISON},
-    [TOKEN_LESS_EQUAL]      = {NULL,            handleBinary,   PREC_COMPARISON},
+    [TOKEN_NOT]                     = {handleUnary,     NULL,           PREC_UNARY},
+    [TOKEN_NOT_EQUAL]               = {NULL,            handleBinary,   PREC_EQUALITY},
+    [TOKEN_EQUAL]                   = {NULL,            handleBinary,   PREC_EQUALITY},
+    [TOKEN_GREATER]                 = {NULL,            handleBinary,   PREC_COMPARISON},
+    [TOKEN_LESS]                    = {NULL,            handleBinary,   PREC_COMPARISON},
+    [TOKEN_GREATER_EQUAL]           = {NULL,            handleBinary,   PREC_COMPARISON},
+    [TOKEN_LESS_EQUAL]              = {NULL,            handleBinary,   PREC_COMPARISON},
 
-    [TOKEN_EOF]             = {NULL,            NULL,           PREC_NONE},
+    [TOKEN_EOF]                     = {NULL,            NULL,           PREC_NONE},
 };
 
 static inline ParseRule* getRule(TokenType type){return &rules[type];}
@@ -222,7 +222,33 @@ static void handleString(VM* vm){
     while(parser.cur.type != TOKEN_STRING_END){
             if(parser.cur.type == TOKEN_INTERPOLATION_CONTENT){
                 Token* token = &parser.cur;
+
+                char* unescaped_chars = malloc(token->len + 1);
+                if(unescaped_chars == NULL){
+                    errorAt(token, "Memory Error while processing string.");
+                    advance();
+                    continue;
+                }
+
+                int unescaped_len = 0;
+                for(int i = 0; i < token->len; i++){
+                    if(token->head[i] == '\\' && i + 1 < token->len){
+                        i++;
+                        switch(token->head[i]){
+                            case 'n': unescaped_chars[unescaped_len++] = '\n'; break;
+                            case 't': unescaped_chars[unescaped_len++] = '\t'; break;
+                            case '\\': unescaped_chars[unescaped_len++] = '\\'; break;
+                            case '"': unescaped_chars[unescaped_len++] = '"'; break;
+                            case '$': unescaped_chars[unescaped_len++] = '$'; break;
+                            default: unescaped_chars[unescaped_len++] = token->head[i]; break;
+                        }
+                    }else{
+                        unescaped_chars[unescaped_len++] = token->head[i];
+                    }
+                }
+
                 ObjectString* str = copyString(vm, token->head, token->len);
+                free(unescaped_chars);
                 emitConstant(vm, OBJECT_VAL(str));
                 advance();
             }else{

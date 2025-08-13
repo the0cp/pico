@@ -236,10 +236,6 @@ static Token scanString(){
         if(*sc.cur == '$' && sc.cur[1] == '{'){
             break; // Interpolation start
         }
-
-        if(*sc.cur == '\\' && (sc.cur[1] == '"' || sc.cur[1] == '$')){
-            next(); // Skip escape character
-        }
         next();
     }
 
