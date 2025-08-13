@@ -12,28 +12,33 @@ typedef struct{
     bool panic; // Flag to indicate if we are in panic mode
 }Parser;
 
+typedef struct Compiler{
+    Parser parser;
+    Chunk* chunk;
+    VM* vm;
+}Compiler;
+
 bool compile(VM* vm, const char* code, Chunk* chunk);
-static void stopCompiler(VM* vm);
-static void emitByte(uint8_t byte);
-static void emitPair(uint8_t byte1, uint8_t byte2);
-static void consume(TokenType type, const char* errMsg);
-static void errorAt(Token* token, const char* message);
+static void stopCompiler(Compiler* compiler);
+static void emitByte(Compiler* compiler, uint8_t byte);
+static void emitPair(Compiler* compiler, uint8_t byte1, uint8_t byte2);
+static void consume(Compiler* compiler, TokenType type, const char* errMsg);
+static void errorAt(Compiler* compiler, Token* token, const char* message);
 
-static void handleNum(VM* vm);
-static void emitConstant(VM* vm, Value value);
+static void handleNum(Compiler* compiler);
+static void emitConstant(Compiler* compiler, Value value);
 
-static void handleGrouping(VM* vm);
+static void handleGrouping(Compiler* compiler);
 
-static void handleUnary(VM* vm);
-static void handleBinary(VM* vm);
+static void handleUnary(Compiler* compiler);
+static void handleBinary(Compiler* compiler);
 
-static void handleLiteral(VM* vm);
+static void handleLiteral(Compiler* compiler);
 
-static void handleString(VM* vm);
+static void handleString(Compiler* compiler);
 
-static Chunk* getCurChunk();
-static void advance();
+static void advance(Compiler* compiler);
 
-static void expression(VM* vm);
+static void expression(Compiler* compiler);
 
 #endif // PICO_COMPILER_H

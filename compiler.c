@@ -7,10 +7,6 @@
 #include "debug.h"
 #endif
 
-Parser parser;
-Chunk* curChunk;
-VM* curVm;
-
 typedef enum{
     PREC_NONE,
     PREC_ASSIGNMENT,  // =
@@ -25,19 +21,19 @@ typedef enum{
     PREC_PRIMARY     // identifiers, literals, grouping
 }Precedence;
 
-typedef void (*ParseFunc)(VM* vm);
+typedef void (*ParseFunc)(Compiler* compiler);
 typedef struct{
     ParseFunc prefix;  // Function to handle prefix parsing
     ParseFunc infix;   // Function to handle infix parsing
     Precedence precedence;  // Precedence of the operator
 }ParseRule;
 
-static void handleLiteral(VM* vm);
-static void handleGrouping(VM* vm);
-static void handleUnary(VM* vm);
-static void handleBinary(VM* vm);
-static void handleNum(VM* vm);
-static void handleString(VM* vm);
+static void handleLiteral(Compiler* compiler);
+static void handleGrouping(Compiler* compiler);
+static void handleUnary(Compiler* compiler);
+static void handleBinary(Compiler* compiler);
+static void handleNum(Compiler* compiler);
+static void handleString(Compiler* compiler);
 
 ParseRule rules[] = {
     [TOKEN_LEFT_PAREN]              = {handleGrouping,  NULL,           PREC_NONE},
@@ -74,95 +70,96 @@ ParseRule rules[] = {
 };
 
 static inline ParseRule* getRule(TokenType type){return &rules[type];}
-static void parsePrecedence(VM* vm, Precedence precedence);
+static void parsePrecedence(Compiler* compiler, Precedence precedence);
 
-static void advance(){
-    parser.pre = parser.cur;
+static void advance(Compiler* compiler){
+    compiler->parser.pre = compiler->parser.cur;
     while(true){
-        parser.cur = scan();
-        if(parser.cur.type != TOKEN_ERROR){
+        compiler->parser.cur = scan();
+        if(compiler->parser.cur.type != TOKEN_ERROR){
             break;
         }
-        errorAt(&parser.cur, "Unexpected token: %.*s");
+        errorAt(compiler, &compiler->parser.cur, "Unexpected token: %.*s");
     }
 }
 
 
 bool compile(VM* vm, const char* code, Chunk* chunk){
+    Compiler compiler;
     initScanner(code);
-    curChunk = chunk;
-    curVm = vm;
-    parser.hadError = false;
-    parser.panic = false;
+    compiler.chunk = chunk;
+    compiler.vm = vm;
+    compiler.parser.hadError = false;
+    compiler.parser.panic = false;
 
-    advance();  // Initialize the first token
-    if(parser.cur.type == TOKEN_EOF){
+    advance(&compiler);  // Initialize the first token
+    if(compiler.parser.cur.type == TOKEN_EOF){
         return true;  // No code to compile
     }
-    expression(vm); // Start parsing the expression
+    expression(&compiler); // Start parsing the expression
 
-    consume(TOKEN_EOF, "Expected end of file");
-    stopCompiler(vm);
-    return !parser.hadError;
+    consume(&compiler, TOKEN_EOF, "Expected end of file");
+    stopCompiler(&compiler);
+    return !compiler.parser.hadError;
 }
 
-static void expression(VM* vm){
-    parsePrecedence(vm, PREC_ASSIGNMENT);
+static void expression(Compiler* compiler){
+    parsePrecedence(compiler, PREC_ASSIGNMENT);
 }
 
-static void parsePrecedence(VM* vm, Precedence precedence){
-    advance();
-    ParseFunc preRule = getRule(parser.pre.type)->prefix;
+static void parsePrecedence(Compiler* compiler, Precedence precedence){
+    advance(compiler);
+    ParseFunc preRule = getRule(compiler->parser.pre.type)->prefix;
     if(preRule == NULL){
-        errorAt(&parser.pre, "Expect expression");
+        errorAt(compiler, &compiler->parser.pre, "Expect expression");
         return;
     }
-    preRule(vm);
-    while(precedence <= getRule(parser.cur.type)->precedence){
-        advance();
-        ParseFunc inRule = getRule(parser.pre.type)->infix;
-        inRule(vm);
+    preRule(compiler);
+    while(precedence <= getRule(compiler->parser.cur.type)->precedence){
+        advance(compiler);
+        ParseFunc inRule = getRule(compiler->parser.pre.type)->infix;
+        inRule(compiler);
     }
 }
 
-static void emitByte(uint8_t byte){
-    writeChunk(getCurChunk(), byte, parser.pre.line);
+static void emitByte(Compiler* compiler, uint8_t byte){
+    writeChunk(compiler->chunk, byte, compiler->parser.pre.line);
 }
 
-static void emitPair(uint8_t byte1, uint8_t byte2){
-    emitByte(byte1);
-    emitByte(byte2);
+static void emitPair(Compiler* compiler, uint8_t byte1, uint8_t byte2){
+    emitByte(compiler, byte1);
+    emitByte(compiler, byte2);
 }
 
-static void stopCompiler(VM* vm){
-    emitByte(OP_RETURN);
+static void stopCompiler(Compiler* compiler){
+    emitByte(compiler, OP_RETURN);
 
     #ifdef DEBUG_PRINT_CODE
-    if(!parser.hadError){
+    if(!compiler->parser.hadError){
         printf("== Compiled code ==\n");
-        dasmChunk(getCurChunk(), "code");
+        dasmChunk(compiler->chunk, "code");
     }
     #endif
 }
 
-static void handleNum(VM* vm){
-    double value = strtod(parser.pre.head, NULL);
-    emitConstant(vm, NUM_VAL(value));
+static void handleNum(Compiler* compiler){
+    double value = strtod(compiler->parser.pre.head, NULL);
+    emitConstant(compiler, NUM_VAL(value));
 }
 
-static void emitConstant(VM* vm, Value value){
-    int constantIndex = addConstant(getCurChunk(), value);
+static void emitConstant(Compiler* compiler, Value value){
+    int constantIndex = addConstant(compiler->chunk, value);
     if(constantIndex < 0){
         fprintf(stderr, "Failed to add constant\n");
         return;
     }else if(constantIndex <= 0xff){
-        emitPair(OP_CONSTANT, (uint8_t)constantIndex);
+        emitPair(compiler, OP_CONSTANT, (uint8_t)constantIndex);
         return;
     }else if(constantIndex <= 0xffffff){
-        emitByte(OP_LCONSTANT);
-        emitByte((uint8_t)(constantIndex & 0xff));
-        emitByte((uint8_t)((constantIndex >> 8) & 0xff));
-        emitByte((uint8_t)((constantIndex >> 16) & 0xff));
+        emitByte(compiler, OP_LCONSTANT);
+        emitByte(compiler, (uint8_t)(constantIndex & 0xff));
+        emitByte(compiler, (uint8_t)((constantIndex >> 8) & 0xff));
+        emitByte(compiler, (uint8_t)((constantIndex >> 16) & 0xff));
         return;
     }else{
         fprintf(stderr, "Constant index out of range: %d\n", constantIndex);
@@ -170,63 +167,62 @@ static void emitConstant(VM* vm, Value value){
     }
 }
 
-static void handleGrouping(VM* vm){
-    expression(vm);
-    consume(TOKEN_RIGHT_PAREN, "Expected ')' after expression");
+static void handleGrouping(Compiler* compiler){
+    expression(compiler);
+    consume(compiler, TOKEN_RIGHT_PAREN, "Expected ')' after expression");
 }
 
-static void handleUnary(VM* vm){
-    TokenType type = parser.pre.type;
-    parsePrecedence(vm, PREC_UNARY);
+static void handleUnary(Compiler* compiler){
+    TokenType type = compiler->parser.pre.type;
+    parsePrecedence(compiler, PREC_UNARY);
 
     switch(type){
-        case TOKEN_MINUS: emitByte(OP_NEGATE); break;
-        case TOKEN_NOT: emitByte(OP_NOT); break;
+        case TOKEN_MINUS: emitByte(compiler, OP_NEGATE); break;
+        case TOKEN_NOT: emitByte(compiler, OP_NOT); break;
         default: return;
     }
 }
 
-static void handleBinary(VM* vm){
-    TokenType type = parser.pre.type;
+static void handleBinary(Compiler* compiler){
+    TokenType type = compiler->parser.pre.type;
     ParseRule* rule = getRule(type);
-    parsePrecedence(vm, (Precedence)(rule->precedence + 1));  // parse the right-hand side, parse only if precedence is higher
+    parsePrecedence(compiler, (Precedence)(rule->precedence + 1));  // parse the right-hand side, parse only if precedence is higher
     switch(type){
-        case TOKEN_PLUS:            emitByte(OP_ADD); break;
-        case TOKEN_MINUS:           emitByte(OP_SUBTRACT); break;
-        case TOKEN_STAR:            emitByte(OP_MULTIPLY); break;
-        case TOKEN_SLASH:           emitByte(OP_DIVIDE); break;
-        case TOKEN_EQUAL:           emitByte(OP_EQUAL); break;
-        case TOKEN_NOT_EQUAL:       emitByte(OP_NOT_EQUAL); break;
-        case TOKEN_GREATER:         emitByte(OP_GREATER); break;
-        case TOKEN_LESS:            emitByte(OP_LESS); break;
-        case TOKEN_GREATER_EQUAL:   emitByte(OP_GREATER_EQUAL); break;
-        case TOKEN_LESS_EQUAL:      emitByte(OP_LESS_EQUAL); break;
+        case TOKEN_PLUS:            emitByte(compiler, OP_ADD); break;
+        case TOKEN_MINUS:           emitByte(compiler, OP_SUBTRACT); break;
+        case TOKEN_STAR:            emitByte(compiler, OP_MULTIPLY); break;
+        case TOKEN_SLASH:           emitByte(compiler, OP_DIVIDE); break;
+        case TOKEN_EQUAL:           emitByte(compiler, OP_EQUAL); break;
+        case TOKEN_NOT_EQUAL:       emitByte(compiler, OP_NOT_EQUAL); break;
+        case TOKEN_GREATER:         emitByte(compiler, OP_GREATER); break;
+        case TOKEN_LESS:            emitByte(compiler, OP_LESS); break;
+        case TOKEN_GREATER_EQUAL:   emitByte(compiler, OP_GREATER_EQUAL); break;
+        case TOKEN_LESS_EQUAL:      emitByte(compiler, OP_LESS_EQUAL); break;
         default: return;
     }
 }
 
-static void handleLiteral(VM* vm){
-    (void)vm;
-    TokenType type = parser.pre.type;
+static void handleLiteral(Compiler* compiler){
+    TokenType type = compiler->parser.pre.type;
     switch(type){
-        case TOKEN_NULL: emitByte(OP_NULL); break;
-        case TOKEN_TRUE: emitByte(OP_TRUE); break;
-        case TOKEN_FALSE: emitByte(OP_FALSE); break;
+        case TOKEN_NULL: emitByte(compiler, OP_NULL); break;
+        case TOKEN_TRUE: emitByte(compiler, OP_TRUE); break;
+        case TOKEN_FALSE: emitByte(compiler, OP_FALSE); break;
         default: return;  // Should not reach here
     }
 }
 
-static void handleString(VM* vm){
+static void handleString(Compiler* compiler){
     int partCnt = 0;
 
-    while(parser.cur.type != TOKEN_STRING_END){
-            if(parser.cur.type == TOKEN_INTERPOLATION_CONTENT){
-                Token* token = &parser.cur;
+    while(compiler->parser.cur.type != TOKEN_STRING_END){
+            if(compiler->parser.cur.type == TOKEN_INTERPOLATION_CONTENT){
+                Token* token = &compiler->parser.cur;
 
                 char* unescaped_chars = malloc(token->len + 1);
                 if(unescaped_chars == NULL){
-                    errorAt(token, "Memory Error while processing string.");
-                    advance();
+                    errorAt(compiler, token, "Memory Error while processing string.");
+                    advance(compiler);
                     continue;
                 }
 
@@ -247,54 +243,46 @@ static void handleString(VM* vm){
                     }
                 }
 
-                ObjectString* str = copyString(vm, token->head, token->len);
+                ObjectString* str = copyString(compiler->vm, token->head, token->len);
                 free(unescaped_chars);
-                emitConstant(vm, OBJECT_VAL(str));
-                advance();
+                emitConstant(compiler, OBJECT_VAL(str));
+                advance(compiler);
             }else{
-                consume(TOKEN_INTERPOLATION_START, "Expect string or interpolation.");
-                expression(vm);
-                emitByte(OP_TO_STRING);
-                consume(TOKEN_INTERPOLATION_END, "Expect '}' after expression.");
+                consume(compiler, TOKEN_INTERPOLATION_START, "Expect string or interpolation.");
+                expression(compiler);
+                emitByte(compiler, OP_TO_STRING);
+                consume(compiler, TOKEN_INTERPOLATION_END, "Expect '}' after expression.");
             }
             partCnt++;
     }
 
-    consume(TOKEN_STRING_END, "Unterminated string.");
+    consume(compiler, TOKEN_STRING_END, "Unterminated string.");
 
     if(partCnt == 0){
-        emitConstant(vm, OBJECT_VAL(copyString(vm, "", 0)));
+        emitConstant(compiler, OBJECT_VAL(copyString(compiler->vm, "", 0)));
     }else{
         for(int i = 1; i < partCnt; i++){
-            emitByte(OP_ADD);
+            emitByte(compiler, OP_ADD);
         }
     }
 }
 
-static void consume(TokenType type, const char* errMsg){
-    if(parser.cur.type == type){
-        advance();
+static void consume(Compiler* compiler, TokenType type, const char* errMsg){
+    if(compiler->parser.cur.type == type){
+        advance(compiler);
         return;
     }
-    errorAt(&parser.cur, errMsg);
+    errorAt(compiler, &compiler->parser.cur, errMsg);
 }
 
-static Chunk* getCurChunk(){
-    if(curChunk == NULL){
-        fprintf(stderr, "No current chunk available\n");
-        return NULL;
-    }
-    return curChunk;
-}
-
-static void errorAt(Token* token, const char* message){
-    fprintf(stderr, "Error [line %d] ", parser.cur.line);
+static void errorAt(Compiler* compiler, Token* token, const char* message){
+    fprintf(stderr, "Error [line %d] ", compiler->parser.cur.line);
     if(token->type != TOKEN_EOF){
         fprintf(stderr, "at '%.*s': ", token->len, token->head);
     }else{
         fprintf(stderr, "at end: ");
     }
-    fprintf(stderr, message);
+    fprintf(stderr, "%s", message);
     fprintf(stderr, "\n");
-    parser.hadError = true;
+    compiler->parser.hadError = true;
 }
