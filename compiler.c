@@ -215,7 +215,7 @@ static void handleLiteral(Compiler* compiler){
 static void handleString(Compiler* compiler){
     int partCnt = 0;
 
-    while(compiler->parser.cur.type != TOKEN_STRING_END){
+    while(compiler->parser.cur.type != TOKEN_STRING_END && compiler->parser.cur.type != TOKEN_EOF){
             if(compiler->parser.cur.type == TOKEN_INTERPOLATION_CONTENT){
                 Token* token = &compiler->parser.cur;
 
@@ -231,19 +231,31 @@ static void handleString(Compiler* compiler){
                     if(token->head[i] == '\\' && i + 1 < token->len){
                         i++;
                         switch(token->head[i]){
+                            case 'a': unescaped_chars[unescaped_len++] = '\a'; break;
+                            case 'b': unescaped_chars[unescaped_len++] = '\b'; break;
+                            case 'f': unescaped_chars[unescaped_len++] = '\f'; break;
+                            case 'r': unescaped_chars[unescaped_len++] = '\r'; break;
                             case 'n': unescaped_chars[unescaped_len++] = '\n'; break;
+                            case 'v': unescaped_chars[unescaped_len++] = '\v'; break;
                             case 't': unescaped_chars[unescaped_len++] = '\t'; break;
                             case '\\': unescaped_chars[unescaped_len++] = '\\'; break;
                             case '"': unescaped_chars[unescaped_len++] = '"'; break;
                             case '$': unescaped_chars[unescaped_len++] = '$'; break;
-                            default: unescaped_chars[unescaped_len++] = token->head[i]; break;
+                            case '0': unescaped_chars[unescaped_len++] = '\0'; break;
+                            default: {
+                                char err_msg[30];
+                                snprintf(err_msg, sizeof(err_msg), "Invalid escape character '\\%c'.", token->head[i]);
+                                errorAt(compiler, token, err_msg);
+                                unescaped_chars[unescaped_len++] = token->head[i]; 
+                                break;
+                            }
                         }
                     }else{
                         unescaped_chars[unescaped_len++] = token->head[i];
                     }
                 }
 
-                ObjectString* str = copyString(compiler->vm, token->head, token->len);
+                ObjectString* str = copyString(compiler->vm, unescaped_chars, unescaped_len);
                 free(unescaped_chars);
                 emitConstant(compiler, OBJECT_VAL(str));
                 advance(compiler);

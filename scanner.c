@@ -236,6 +236,10 @@ static Token scanString(){
         if(*sc.cur == '$' && sc.cur[1] == '{'){
             break; // Interpolation start
         }
+
+        if(*sc.cur == '\\' && sc.cur[1] != '\0'){
+            next(); // Skip escape character, it is necessary while precessing '\$' etc.
+        }
         next();
     }
 
@@ -255,6 +259,7 @@ static Token scanString(){
         return pack(TOKEN_STRING_END, sc.head, (int)(sc.cur - sc.head), sc.line);
     }
 
+    popMode();
     return error("Unterminated string literal", sc.line);
 }
 
