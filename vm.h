@@ -14,6 +14,7 @@ typedef struct VM{
     Value stack[STACK_MAX];  // Stack for values
     Value* stackTop;
     HashTable strings;
+    HashTable globals;
     Object* objects;
 }VM;
 

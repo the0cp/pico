@@ -19,10 +19,12 @@ void initVM(VM* vm){
     resetStack(vm);
     vm->objects = NULL;
     initHashTable(&vm->strings);
+    initHashTable(&vm->globals);
 }
 
 void freeVM(VM* vm){
     freeHashTable(&vm->strings);
+    freeHashTable(&vm->globals);
     // freeObjects(vm);
 }
 
@@ -95,6 +97,16 @@ static InterpreterStatus run(VM* vm){
         [OP_LESS_EQUAL]     = &&DO_OP_LESS_EQUAL,
 
         [OP_TO_STRING]      = &&DO_OP_TO_STRING,
+
+        [OP_POP]            = &&DO_OP_POP,
+
+        [OP_PRINT]          = &&DO_OP_PRINT,
+        [OP_DEFINE_GLOBAL]  = &&DO_OP_DEFINE_GLOBAL,
+        [OP_DEFINE_LGLOBAL] = &&DO_OP_DEFINE_LGLOBAL,
+        [OP_GET_GLOBAL]     = &&DO_OP_GET_GLOBAL,
+        [OP_GET_LGLOBAL]    = &&DO_OP_GET_LGLOBAL,
+        [OP_SET_GLOBAL]     = &&DO_OP_SET_GLOABL,
+        [OP_SET_LGLOBAL]    = &&DO_OP_SET_LGLOBAL,
     };
 
     #ifdef DEBUG_TRACE
@@ -304,10 +316,90 @@ static InterpreterStatus run(VM* vm){
         *(vm->stackTop - 1) = NUM_VAL(-AS_NUM(*(vm->stackTop - 1)));
     } DISPATCH();
 
-    DO_OP_RETURN:
+    DO_OP_POP:
+    {
+        pop(vm);
+    } DISPATCH();
+
+    DO_OP_PRINT:
     {
         printValue(pop(vm));
         printf("\n");
+    } DISPATCH();
+
+    DO_OP_DEFINE_GLOBAL:
+    {
+        ObjectString* name = AS_STRING(vm->chunk->constants.values[*vm->ip++]);
+        tableSet(&vm->globals, name, peek(vm, 0));
+        pop(vm);
+    } DISPATCH();
+
+    DO_OP_DEFINE_LGLOBAL:
+    {
+        uint32_t index = (uint32_t)vm->ip[0] |
+                         ((uint32_t)vm->ip[1] << 8) |
+                         ((uint32_t)vm->ip[2] << 16);
+        vm->ip += 3;
+        ObjectString* name = AS_STRING(vm->chunk->constants.values[index]);
+        tableSet(&vm->globals, name, peek(vm, 0));
+        pop(vm);
+    } DISPATCH();
+
+    DO_OP_GET_GLOBAL:
+    {
+        ObjectString* name = AS_STRING(vm->chunk->constants.values[*vm->ip++]);
+        Value value;
+        if (!tableGet(&vm->globals, name, &value)) {
+            runtimeError(vm, "Undefined variable '%.*s'.", name->length, name->chars);
+            return VM_RUNTIME_ERROR;
+        }
+        push(vm, value);
+    } DISPATCH();
+
+    DO_OP_GET_LGLOBAL:
+    {
+        uint32_t index = (uint32_t)vm->ip[0] |
+                        ((uint32_t)vm->ip[1] << 8) |
+                        ((uint32_t)vm->ip[2] << 16);
+        vm->ip += 3;
+        ObjectString* name = AS_STRING(vm->chunk->constants.values[index]);
+        Value value;
+        if(!tableGet(&vm->globals, name, &value)){
+            runtimeError(vm, "Undefined variable '%.*s'.", name->length, name->chars);
+            return VM_RUNTIME_ERROR;
+        }
+        push(vm, value);
+    } DISPATCH();
+
+    DO_OP_SET_GLOABL:
+    {
+        ObjectString* name = AS_STRING(vm->chunk->constants.values[*vm->ip++]);
+        if(tableSet(&vm->globals, name, peek(vm, 0))){
+            // empty bucket, undefined
+            tableRemove(&vm->globals, name);
+            runtimeError(vm, "Undefined variable '%.*s'.", name->length, name->chars);
+            return VM_RUNTIME_ERROR;
+        }
+    } DISPATCH();
+
+    DO_OP_SET_LGLOBAL:
+    {
+        uint32_t index =(uint32_t)vm->ip[0] |
+                        ((uint32_t)vm->ip[1] << 8) |
+                        ((uint32_t)vm->ip[2] << 16);
+        vm->ip += 3;
+        ObjectString* name = AS_STRING(vm->chunk->constants.values[index]);
+        if(tableSet(&vm->globals, name, peek(vm, 0))){
+            tableRemove(&vm->globals, name);
+            runtimeError(vm, "Undefined variable '%.*s'.", name->length, name->chars);
+            return VM_RUNTIME_ERROR;
+        }
+    } DISPATCH();
+
+    DO_OP_RETURN:
+    {
+        // printValue(pop(vm));
+        // printf("\n");
         return VM_OK;
     }
     

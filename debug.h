@@ -5,6 +5,9 @@
 
 void dasmChunk(const Chunk* chunk, const char* name);
 int dasmInstruction(const Chunk* chunk, int offset);
+static int dasmGlobal(const char* opName, const Chunk* chunk, int offset);
+static int dasmLGlobal(const char* opName, const Chunk* chunk, int offset);
+
 static int dasmConstant(const Chunk* chunk, int offset);
 static int dasmLConstant(const Chunk* chunk, int offset);
 int getLine(const Chunk* chunk, int offset);

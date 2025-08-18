@@ -21,19 +21,19 @@ typedef enum{
     PREC_PRIMARY     // identifiers, literals, grouping
 }Precedence;
 
-typedef void (*ParseFunc)(Compiler* compiler);
+typedef void (*ParseFunc)(Compiler* compiler, bool canAssign);
 typedef struct{
     ParseFunc prefix;  // Function to handle prefix parsing
     ParseFunc infix;   // Function to handle infix parsing
     Precedence precedence;  // Precedence of the operator
 }ParseRule;
 
-static void handleLiteral(Compiler* compiler);
-static void handleGrouping(Compiler* compiler);
-static void handleUnary(Compiler* compiler);
-static void handleBinary(Compiler* compiler);
-static void handleNum(Compiler* compiler);
-static void handleString(Compiler* compiler);
+static void handleLiteral(Compiler* compiler, bool canAssign);
+static void handleGrouping(Compiler* compiler, bool canAssign);
+static void handleUnary(Compiler* compiler, bool canAssign);
+static void handleBinary(Compiler* compiler, bool canAssign);
+static void handleNum(Compiler* compiler, bool canAssign);
+static void handleString(Compiler* compiler, bool canAssign);
 
 ParseRule rules[] = {
     [TOKEN_LEFT_PAREN]              = {handleGrouping,  NULL,           PREC_NONE},
@@ -41,12 +41,14 @@ ParseRule rules[] = {
     [TOKEN_LEFT_BRACE]              = {NULL,            NULL,           PREC_NONE},
     [TOKEN_RIGHT_BRACE]             = {NULL,            NULL,           PREC_NONE},
     [TOKEN_COMMA]                   = {NULL,            NULL,           PREC_NONE},
+    [TOKEN_SEMICOLON]               = {NULL,            NULL,           PREC_NONE},
 
     [TOKEN_PLUS]                    = {NULL,            handleBinary,   PREC_TERM},
     [TOKEN_MINUS]                   = {handleUnary,     handleBinary,   PREC_TERM},
     [TOKEN_STAR]                    = {NULL,            handleBinary,   PREC_FACTOR},
     [TOKEN_SLASH]                   = {NULL,            handleBinary,   PREC_FACTOR},
     [TOKEN_NUMBER]                  = {handleNum,       NULL,           PREC_NONE},
+    [TOKEN_IDENTIFIER]              = {handleVar,       NULL,           PREC_NONE},
 
     [TOKEN_STRING_START]            = {handleString,    NULL,           PREC_NONE},
     [TOKEN_STRING_END]              = {NULL,            NULL,           PREC_NONE},
@@ -71,6 +73,7 @@ ParseRule rules[] = {
 
 static inline ParseRule* getRule(TokenType type){return &rules[type];}
 static void parsePrecedence(Compiler* compiler, Precedence precedence);
+static int parseVar(Compiler* compiler, const char* err);
 
 static void advance(Compiler* compiler){
     compiler->parser.pre = compiler->parser.cur;
@@ -96,8 +99,11 @@ bool compile(VM* vm, const char* code, Chunk* chunk){
     if(compiler.parser.cur.type == TOKEN_EOF){
         return true;  // No code to compile
     }
-    expression(&compiler); // Start parsing the expression
+    // expression(&compiler); // Start parsing the expression
 
+    while(!match(&compiler, TOKEN_EOF)){
+        decl(&compiler);
+    }
     consume(&compiler, TOKEN_EOF, "Expected end of file");
     stopCompiler(&compiler);
     return !compiler.parser.hadError;
@@ -107,6 +113,86 @@ static void expression(Compiler* compiler){
     parsePrecedence(compiler, PREC_ASSIGNMENT);
 }
 
+static void decl(Compiler* compiler){
+    if(match(compiler, TOKEN_VAR)){
+        varDecl(compiler);
+    }else{
+        stmt(compiler);
+    }
+    if(compiler->parser.panic){
+        sync(compiler);
+    }
+}
+
+static void varDecl(Compiler* compiler){
+    int global = parseVar(compiler, "Expect variable name.");
+
+    if(match(compiler, TOKEN_ASSIGN)){
+        expression(compiler);
+    }else{
+        emitByte(compiler, OP_NULL);
+    }
+
+    consume(compiler, TOKEN_SEMICOLON, "Expect ';' after declaration.");
+
+    defineVar(compiler, global);
+}
+
+static void stmt(Compiler* compiler){
+    if(match(compiler, TOKEN_PRINT)){
+        printStmt(compiler);
+    }else{
+        expressionStmt(compiler);
+    }
+}
+
+static void expressionStmt(Compiler* compiler){
+    expression(compiler);
+    consume(compiler, TOKEN_SEMICOLON, "Expect ';' after expression.");
+    emitByte(compiler, OP_POP);  // drop result
+}
+
+static bool checkType(Compiler* compiler, TokenType type){
+    return compiler->parser.cur.type == type;
+}
+
+static bool match(Compiler* compiler, TokenType type){
+    if(!checkType(compiler, type)){
+        return false;
+    }
+    advance(compiler);
+    return true;
+}
+
+static void sync(Compiler* compiler){
+    compiler->parser.panic = false;
+    while(compiler->parser.cur.type != TOKEN_EOF){
+        if(compiler->parser.pre.type == TOKEN_SEMICOLON){
+            return;
+        }
+        switch(compiler->parser.cur.type){
+            case TOKEN_CLASS:
+            case TOKEN_FUNC:
+            case TOKEN_VAR:
+            case TOKEN_FOR:
+            case TOKEN_IF:
+            case TOKEN_WHILE:
+            case TOKEN_PRINT:
+            case TOKEN_RETURN:
+                return;
+            default:
+                ;
+        }
+        advance(compiler);
+    }
+}
+
+static void printStmt(Compiler* compiler){
+    expression(compiler);
+    consume(compiler, TOKEN_SEMICOLON, "Expect ';' after a expression");
+    emitByte(compiler, OP_PRINT);
+}
+
 static void parsePrecedence(Compiler* compiler, Precedence precedence){
     advance(compiler);
     ParseFunc preRule = getRule(compiler->parser.pre.type)->prefix;
@@ -114,11 +200,41 @@ static void parsePrecedence(Compiler* compiler, Precedence precedence){
         errorAt(compiler, &compiler->parser.pre, "Expect expression");
         return;
     }
-    preRule(compiler);
+    bool canAssign = precedence <= PREC_ASSIGNMENT;
+    preRule(compiler, canAssign);
     while(precedence <= getRule(compiler->parser.cur.type)->precedence){
         advance(compiler);
         ParseFunc inRule = getRule(compiler->parser.pre.type)->infix;
-        inRule(compiler);
+        inRule(compiler, canAssign);
+    }
+
+    if(canAssign && match(compiler, TOKEN_ASSIGN)){
+        errorAt(compiler, &compiler->parser.pre, "Invalid assignment.");
+    }
+}
+
+static int identifierConst(Compiler* compiler){
+    Token* name = &compiler->parser.pre;
+    Value strVal = OBJECT_VAL(copyString(compiler->vm, name->head, name->len));
+    addConstant(compiler->chunk, strVal);
+}
+
+static int parseVar(Compiler* compiler, const char* err){
+    consume(compiler, TOKEN_IDENTIFIER, err);
+    return identifierConst(compiler);
+}
+
+static void defineVar(Compiler* compiler, int global){
+    if(global <= 0xff){
+        emitByte(compiler, OP_DEFINE_GLOBAL);
+        emitByte(compiler, (uint8_t)global);
+    }else if(global <= 0xffffff){
+        emitByte(compiler, OP_DEFINE_GLOBAL);
+        emitByte(compiler, (uint8_t)(global & 0xff));
+        emitByte(compiler, (uint8_t)((global >> 8) & 0xff));
+        emitByte(compiler, (uint8_t)((global >> 16) & 0xff));
+    }else{
+        errorAt(compiler, &compiler->parser.pre, "Too many variables declared");
     }
 }
 
@@ -142,7 +258,11 @@ static void stopCompiler(Compiler* compiler){
     #endif
 }
 
-static void handleNum(Compiler* compiler){
+static void handleNum(Compiler* compiler, bool canAssign){
+    if(canAssign && match(compiler, TOKEN_ASSIGN)){
+        errorAt(compiler, &compiler->parser.pre, "Invalid assignment target.");
+        return;
+    }
     double value = strtod(compiler->parser.pre.head, NULL);
     emitConstant(compiler, NUM_VAL(value));
 }
@@ -167,12 +287,42 @@ static void emitConstant(Compiler* compiler, Value value){
     }
 }
 
-static void handleGrouping(Compiler* compiler){
+static void handleVar(Compiler* compiler, bool canAssign){
+    int index = identifierConst(compiler);
+    if(canAssign && match(compiler, TOKEN_ASSIGN)){
+        expression(compiler);
+        if(index <= 0xff){
+            emitByte(compiler, OP_SET_GLOBAL);
+            emitByte(compiler, (uint8_t)index);
+        }else if(index <= 0xffffff){
+            emitByte(compiler, OP_SET_LGLOBAL);
+            emitByte(compiler, (uint8_t)(index & 0xff));
+            emitByte(compiler, (uint8_t)((index >> 8) & 0xff));
+            emitByte(compiler, (uint8_t)((index >> 16) & 0xff));
+        }else{
+            errorAt(compiler, &compiler->parser.pre, "Too many variables.");
+        }
+    }else{
+        if(index <= 0xff){
+            emitByte(compiler, OP_GET_GLOBAL);
+            emitByte(compiler, (uint8_t)index);
+        }else if(index <= 0xffffff){
+            emitByte(compiler, OP_GET_LGLOBAL);
+            emitByte(compiler, (uint8_t)(index & 0xff));
+            emitByte(compiler, (uint8_t)((index >> 8) & 0xff));
+            emitByte(compiler, (uint8_t)((index >> 16) & 0xff));
+        }else{
+            errorAt(compiler, &compiler->parser.pre, "Too many variables");
+        }
+    }
+}
+
+static void handleGrouping(Compiler* compiler, bool canAssign){
     expression(compiler);
     consume(compiler, TOKEN_RIGHT_PAREN, "Expected ')' after expression");
 }
 
-static void handleUnary(Compiler* compiler){
+static void handleUnary(Compiler* compiler, bool canAssign){
     TokenType type = compiler->parser.pre.type;
     parsePrecedence(compiler, PREC_UNARY);
 
@@ -183,7 +333,7 @@ static void handleUnary(Compiler* compiler){
     }
 }
 
-static void handleBinary(Compiler* compiler){
+static void handleBinary(Compiler* compiler, bool canAssign){
     TokenType type = compiler->parser.pre.type;
     ParseRule* rule = getRule(type);
     parsePrecedence(compiler, (Precedence)(rule->precedence + 1));  // parse the right-hand side, parse only if precedence is higher
@@ -202,7 +352,7 @@ static void handleBinary(Compiler* compiler){
     }
 }
 
-static void handleLiteral(Compiler* compiler){
+static void handleLiteral(Compiler* compiler, bool canAssign){
     TokenType type = compiler->parser.pre.type;
     switch(type){
         case TOKEN_NULL: emitByte(compiler, OP_NULL); break;
@@ -212,7 +362,7 @@ static void handleLiteral(Compiler* compiler){
     }
 }
 
-static void handleString(Compiler* compiler){
+static void handleString(Compiler* compiler, bool canAssign){
     int partCnt = 0;
 
     while(compiler->parser.cur.type != TOKEN_STRING_END && compiler->parser.cur.type != TOKEN_EOF){

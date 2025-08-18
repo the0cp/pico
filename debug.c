@@ -54,8 +54,25 @@ int dasmInstruction(const Chunk* chunk, int offset){
             printf("OP_DIVIDE\n");          return offset + 1;
         case OP_NEGATE:
             printf("OP_NEGATE\n");          return offset + 1;
+        case OP_PRINT:
+            printf("OP_PRINT\n");           return offset + 1;
+        case OP_POP:
+            printf("OP_POP\n");             return offset + 1;
         case OP_RETURN:
             printf("OP_RETURN\n");          return offset + 1;
+
+        case OP_DEFINE_GLOBAL:
+            return dasmGlobal("OP_DEFINE_GLOBAL", chunk, offset);
+        case OP_DEFINE_LGLOBAL:
+            return dasmLGlobal("OP_DEFINE_LGLOBAL", chunk, offset);
+        case OP_GET_GLOBAL:
+            return dasmGlobal("OP_GET_GLOBAL", chunk, offset);
+        case OP_GET_LGLOBAL:
+            return dasmLGlobal("OP_GET_LGLOBAL", chunk, offset);
+        case OP_SET_GLOBAL:
+            return dasmGlobal("OP_SET_GLOBAL", chunk, offset);
+        case OP_SET_LGLOBAL:
+            return dasmLGlobal("OP_SET_LGLOBAL", chunk, offset);
         default:
             printf("Unknown opcode %d\n", instruction);
             return offset + 1;
@@ -64,13 +81,13 @@ int dasmInstruction(const Chunk* chunk, int offset){
 
 static int dasmConstant(const Chunk* chunk, int offset){
     uint8_t constantIndex = chunk->code[offset + 1];
-    printf("OP_CONSTANT %d '", constantIndex);
+    printf("OP_CONSTANT %d ", constantIndex);
     if(constantIndex < chunk->constants.count){
         printValue(chunk->constants.values[constantIndex]);
     }else{
         printf("Unknown constant");
     }
-    printf("'\n");
+    printf("\n");
     return offset + 2; 
 }
 
@@ -87,6 +104,32 @@ static int dasmLConstant(const Chunk* chunk, int offset){
     printf("'\n");
     return offset + 4; 
     // 1 byte for opcode + 1 byte for long constant index
+}
+
+static int dasmGlobal(const char* opName, const Chunk* chunk, int offset) {
+    uint8_t constantIndex = chunk->code[offset + 1];
+    printf("%-22s %d '", opName, constantIndex); // Adjusted alignment for longer names
+    if(constantIndex < chunk->constants.count) {
+        printValue(chunk->constants.values[constantIndex]);
+    }else{
+        printf("Unknown variable");
+    }
+    printf("'\n");
+    return offset + 2;
+}
+
+static int dasmLGlobal(const char* opName, const Chunk* chunk, int offset) {
+    uint32_t constantIndex = (uint32_t)chunk->code[offset + 1] |
+                                    (chunk->code[offset + 2] << 8) |
+                                    (chunk->code[offset + 3] << 16);
+    printf("%-22s %d '", opName, constantIndex); // Adjusted alignment
+    if(constantIndex < chunk->constants.count){
+        printValue(chunk->constants.values[constantIndex]);
+    }else{
+        printf("Unknown long variable");
+    }
+    printf("'\n");
+    return offset + 4;
 }
 
 int getLine(const Chunk* chunk, int offset){

@@ -25,20 +25,35 @@ static void emitPair(Compiler* compiler, uint8_t byte1, uint8_t byte2);
 static void consume(Compiler* compiler, TokenType type, const char* errMsg);
 static void errorAt(Compiler* compiler, Token* token, const char* message);
 
-static void handleNum(Compiler* compiler);
+static void handleNum(Compiler* compiler, bool canAssign);
 static void emitConstant(Compiler* compiler, Value value);
+static void handleVar(Compiler* compiler, bool canAssign);
 
-static void handleGrouping(Compiler* compiler);
+static void handleGrouping(Compiler* compiler, bool canAssign);
 
-static void handleUnary(Compiler* compiler);
-static void handleBinary(Compiler* compiler);
+static void handleUnary(Compiler* compiler, bool canAssign);
+static void handleBinary(Compiler* compiler, bool canAssign);
 
-static void handleLiteral(Compiler* compiler);
+static void handleLiteral(Compiler* compiler, bool canAssign);
 
-static void handleString(Compiler* compiler);
+static void handleString(Compiler* compiler, bool canAssign);
 
 static void advance(Compiler* compiler);
 
 static void expression(Compiler* compiler);
+
+static void decl(Compiler* compiler);
+static void varDecl(Compiler* compiler);
+static void defineVar(Compiler* compiler, int global);
+
+static void stmt(Compiler* compiler);
+
+static void expressionStmt(Compiler* compiler);
+
+static bool checkType(Compiler* compiler, TokenType type);
+static bool match(Compiler* compiler, TokenType type);
+static void sync(Compiler* compiler);
+
+static void printStmt(Compiler* compiler);
 
 #endif // PICO_COMPILER_H

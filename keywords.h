@@ -1,4 +1,6 @@
 /* C code produced by gperf version 3.1 */
+/* Command-line: 'C:\\Users\\Admin\\AppData\\Local\\Microsoft\\WinGet\\Packages\\oss-winget.gperf_Microsoft.Winget.Source_8wekyb3d8bbwe\\gperf.exe' -L C -E -t -C -G -N findKeyword -H keywordHash keywords.gperf  */
+/* Computed positions: -k'1-2' */
 
 #if !((' ' == 32) && ('!' == 33) && ('"' == 34) && ('#' == 35) \
       && ('%' == 37) && ('&' == 38) && ('\'' == 39) && ('(' == 40) \
@@ -39,14 +41,14 @@ struct Keyword {
 #include <string.h>
 enum
   {
-    TOTAL_KEYWORDS = 11,
+    TOTAL_KEYWORDS = 13,
     MIN_WORD_LENGTH = 2,
     MAX_WORD_LENGTH = 6,
     MIN_HASH_VALUE = 2,
-    MAX_HASH_VALUE = 19
+    MAX_HASH_VALUE = 24
   };
 
-/* maximum key range = 18, duplicates = 0 */
+/* maximum key range = 23, duplicates = 0 */
 
 #ifdef __GNUC__
 __inline
@@ -62,74 +64,69 @@ keywordHash (str, len)
 {
   static const unsigned char asso_values[] =
     {
-      20, 20, 20, 20, 20, 20, 20, 20, 20, 20,
-      20, 20, 20, 20, 20, 20, 20, 20, 20, 20,
-      20, 20, 20, 20, 20, 20, 20, 20, 20, 20,
-      20, 20, 20, 20, 20, 20, 20, 20, 20, 20,
-      20, 20, 20, 20, 20, 20, 20, 20, 20, 20,
-      20, 20, 20, 20, 20, 20, 20, 20, 20, 20,
-      20, 20, 20, 20, 20, 20, 20, 20, 20, 20,
-      20, 20, 20, 20, 20, 20, 20, 20, 20, 20,
-      20, 20, 20, 20, 20, 20, 20, 20, 20, 20,
-      20, 20, 20, 20, 20, 20, 20, 10, 20, 20,
-      20, 20, 20, 20, 20,  5, 20, 20,  0, 20,
-       4, 20, 20, 20,  0, 15,  0, 10, 20, 20,
-      20, 20, 20, 20, 20, 20, 20, 20, 20, 20,
-      20, 20, 20, 20, 20, 20, 20, 20, 20, 20,
-      20, 20, 20, 20, 20, 20, 20, 20, 20, 20,
-      20, 20, 20, 20, 20, 20, 20, 20, 20, 20,
-      20, 20, 20, 20, 20, 20, 20, 20, 20, 20,
-      20, 20, 20, 20, 20, 20, 20, 20, 20, 20,
-      20, 20, 20, 20, 20, 20, 20, 20, 20, 20,
-      20, 20, 20, 20, 20, 20, 20, 20, 20, 20,
-      20, 20, 20, 20, 20, 20, 20, 20, 20, 20,
-      20, 20, 20, 20, 20, 20, 20, 20, 20, 20,
-      20, 20, 20, 20, 20, 20, 20, 20, 20, 20,
-      20, 20, 20, 20, 20, 20, 20, 20, 20, 20,
-      20, 20, 20, 20, 20, 20, 20, 20, 20, 20,
-      20, 20, 20, 20, 20, 20
+      25, 25, 25, 25, 25, 25, 25, 25, 25, 25,
+      25, 25, 25, 25, 25, 25, 25, 25, 25, 25,
+      25, 25, 25, 25, 25, 25, 25, 25, 25, 25,
+      25, 25, 25, 25, 25, 25, 25, 25, 25, 25,
+      25, 25, 25, 25, 25, 25, 25, 25, 25, 25,
+      25, 25, 25, 25, 25, 25, 25, 25, 25, 25,
+      25, 25, 25, 25, 25, 25, 25, 25, 25, 25,
+      25, 25, 25, 25, 25, 25, 25, 25, 25, 25,
+      25, 25, 25, 25, 25, 25, 25, 25, 25, 25,
+      25, 25, 25, 25, 25, 25, 25,  0, 25, 10,
+      25,  0,  0, 25,  5,  0, 25, 25,  9, 25,
+      15,  5,  0, 25, 10, 25,  0,  0,  0,  0,
+      25, 25, 25, 25, 25, 25, 25, 25, 25, 25,
+      25, 25, 25, 25, 25, 25, 25, 25, 25, 25,
+      25, 25, 25, 25, 25, 25, 25, 25, 25, 25,
+      25, 25, 25, 25, 25, 25, 25, 25, 25, 25,
+      25, 25, 25, 25, 25, 25, 25, 25, 25, 25,
+      25, 25, 25, 25, 25, 25, 25, 25, 25, 25,
+      25, 25, 25, 25, 25, 25, 25, 25, 25, 25,
+      25, 25, 25, 25, 25, 25, 25, 25, 25, 25,
+      25, 25, 25, 25, 25, 25, 25, 25, 25, 25,
+      25, 25, 25, 25, 25, 25, 25, 25, 25, 25,
+      25, 25, 25, 25, 25, 25, 25, 25, 25, 25,
+      25, 25, 25, 25, 25, 25, 25, 25, 25, 25,
+      25, 25, 25, 25, 25, 25, 25, 25, 25, 25,
+      25, 25, 25, 25, 25, 25
     };
-  register unsigned int hval = len;
-
-  switch (hval)
-    {
-      default:
-        hval += asso_values[(unsigned char)str[2]];
-      /*FALLTHROUGH*/
-      case 2:
-        break;
-    }
-  return hval;
+  return len + asso_values[(unsigned char)str[1]] + asso_values[(unsigned char)str[0]];
 }
 
 static const struct Keyword wordlist[] =
   {
     {""}, {""},
-#line 19 "keywords.gperf"
-    {"if",         TOKEN_IF},
-#line 17 "keywords.gperf"
-    {"for",        TOKEN_FOR},
 #line 20 "keywords.gperf"
-    {"null",       TOKEN_NULL},
-#line 16 "keywords.gperf"
-    {"false",      TOKEN_FALSE},
-#line 21 "keywords.gperf"
-    {"return",     TOKEN_RETURN},
-    {""},
+    {"if",         TOKEN_IF},
+#line 19 "keywords.gperf"
+    {"var",        TOKEN_VAR},
 #line 18 "keywords.gperf"
     {"func",       TOKEN_FUNC},
-#line 22 "keywords.gperf"
-    {"this",       TOKEN_THIS},
+#line 16 "keywords.gperf"
+    {"false",      TOKEN_FALSE},
+    {""}, {""},
+#line 17 "keywords.gperf"
+    {"for",        TOKEN_FOR},
 #line 24 "keywords.gperf"
+    {"this",       TOKEN_THIS},
+#line 26 "keywords.gperf"
     {"while",      TOKEN_WHILE},
-    {""}, {""}, {""},
-#line 23 "keywords.gperf"
-    {"true",       TOKEN_TRUE},
-#line 14 "keywords.gperf"
-    {"class",      TOKEN_CLASS},
-    {""}, {""}, {""},
+    {""}, {""},
 #line 15 "keywords.gperf"
-    {"else",       TOKEN_ELSE}
+    {"else",       TOKEN_ELSE},
+#line 25 "keywords.gperf"
+    {"true",       TOKEN_TRUE},
+#line 22 "keywords.gperf"
+    {"print",      TOKEN_PRINT},
+#line 23 "keywords.gperf"
+    {"return",     TOKEN_RETURN},
+    {""}, {""},
+#line 21 "keywords.gperf"
+    {"null",       TOKEN_NULL},
+    {""}, {""}, {""}, {""},
+#line 14 "keywords.gperf"
+    {"class",      TOKEN_CLASS}
   };
 
 const struct Keyword *

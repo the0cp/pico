@@ -99,7 +99,7 @@ bool tableSet(HashTable* table, ObjectString* key, Value value){
         }
 
         if(bucket->key == key){
-            bucket->value == value;
+            bucket->value = value;  // update
             return false;
         }
 
