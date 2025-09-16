@@ -212,7 +212,11 @@ ObjectString* tableGetInternedString(HashTable* table, const char* chars, int le
         Entry* entry = &table->entries[cur_index];
 
         if(entry->key == NULL){
-            return NULL;
+            if(IS_NULL(entry->value)){
+                return NULL;
+            }
+            probe_dist++;
+            continue;
         }
 
         uint32_t entry_ideal_index = entry->key->hash & (table->capacity - 1);

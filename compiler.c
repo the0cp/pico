@@ -95,6 +95,9 @@ bool compile(VM* vm, const char* code, Chunk* chunk){
     compiler.parser.hadError = false;
     compiler.parser.panic = false;
 
+    compiler.localCnt = 0;
+    compiler.scopeDepth = 0;
+
     advance(&compiler);  // Initialize the first token
     if(compiler.parser.cur.type == TOKEN_EOF){
         return true;  // No code to compile
@@ -138,9 +141,33 @@ static void varDecl(Compiler* compiler){
     defineVar(compiler, global);
 }
 
+static void beginScope(Compiler* compiler){
+    compiler->scopeDepth++;
+}
+
+static void block(Compiler* compiler){
+    while(!checkType(compiler, TOKEN_RIGHT_BRACE) && !checkType(compiler, TOKEN_EOF)){
+        decl(compiler);
+    }
+    consume(compiler, TOKEN_RIGHT_BRACE, "Expect '}' after block.");
+}
+
+static void endScope(Compiler* compiler){
+    compiler->scopeDepth--;
+    while(compiler->localCnt > 0 && 
+        compiler->locals[compiler->localCnt-1].depth > compiler->scopeDepth){
+            emitByte(compiler, OP_POP);
+            compiler->localCnt--;
+        }
+}
+
 static void stmt(Compiler* compiler){
     if(match(compiler, TOKEN_PRINT)){
         printStmt(compiler);
+    }else if(match(compiler, TOKEN_LEFT_BRACE)){
+        beginScope(compiler);
+        block(compiler);
+        endScope(compiler);
     }else{
         expressionStmt(compiler);
     }
@@ -219,23 +246,71 @@ static int identifierConst(Compiler* compiler){
     addConstant(compiler->chunk, strVal);
 }
 
+static void addLocal(Compiler* compiler, Token name){
+    if(compiler->localCnt == LOCAL_MAX){
+        errorAt(compiler, &name, "Too many local variables");
+        return;
+    }
+    Local* local = &compiler->locals[compiler->localCnt++];
+    local->name = name;
+    local->depth = -1;  // sentinel, decl-ed but not def-ed
+}
+
+static void declLocal(Compiler* compiler){
+    if(compiler->scopeDepth == 0){
+        return;
+    }
+    Token* name = &compiler->parser.pre;
+    for(int i = compiler->localCnt-1; i >= 0; i--){
+        Local* local = &compiler->locals[i];
+        if(local->depth != -1 && local->depth < compiler->scopeDepth){
+            break;
+        }
+        if(name->len == local->name.len && memcmp(name->head, local->name.head, name->len) == 0){
+            errorAt(compiler, name, "Variable with this name already existed.");
+        }
+    }
+    addLocal(compiler, *name);
+}
+
 static int parseVar(Compiler* compiler, const char* err){
     consume(compiler, TOKEN_IDENTIFIER, err);
+    if(compiler->scopeDepth > 0){
+        return 0;
+    }
     return identifierConst(compiler);
 }
 
 static void defineVar(Compiler* compiler, int global){
+    if(compiler->scopeDepth > 0){
+        compiler->locals[compiler->localCnt-1].depth = compiler->scopeDepth;
+        return;
+    }
     if(global <= 0xff){
         emitByte(compiler, OP_DEFINE_GLOBAL);
         emitByte(compiler, (uint8_t)global);
-    }else if(global <= 0xffffff){
+    }else if(global <= 0xffff){
         emitByte(compiler, OP_DEFINE_GLOBAL);
         emitByte(compiler, (uint8_t)(global & 0xff));
         emitByte(compiler, (uint8_t)((global >> 8) & 0xff));
-        emitByte(compiler, (uint8_t)((global >> 16) & 0xff));
     }else{
         errorAt(compiler, &compiler->parser.pre, "Too many variables declared");
     }
+}
+
+static int resolveLocal(Compiler* compiler, Token* name){
+    // search matched local variable
+    for(int i = compiler->localCnt-1; i >= 0; i--){
+        Local* local = &compiler->locals[i];
+        if(name->len == local->name.len && 
+            memcmp(name->head, local->name.head, name->len) == 0){
+                if(local->depth == -1){
+                    errorAt(compiler, name, "Cannot read local variable");
+                }
+                return i;
+        }
+    }
+    return -1;
 }
 
 static void emitByte(Compiler* compiler, uint8_t byte){
@@ -275,11 +350,10 @@ static void emitConstant(Compiler* compiler, Value value){
     }else if(constantIndex <= 0xff){
         emitPair(compiler, OP_CONSTANT, (uint8_t)constantIndex);
         return;
-    }else if(constantIndex <= 0xffffff){
+    }else if(constantIndex <= 0xffff){
         emitByte(compiler, OP_LCONSTANT);
         emitByte(compiler, (uint8_t)(constantIndex & 0xff));
         emitByte(compiler, (uint8_t)((constantIndex >> 8) & 0xff));
-        emitByte(compiler, (uint8_t)((constantIndex >> 16) & 0xff));
         return;
     }else{
         fprintf(stderr, "Constant index out of range: %d\n", constantIndex);
@@ -288,32 +362,43 @@ static void emitConstant(Compiler* compiler, Value value){
 }
 
 static void handleVar(Compiler* compiler, bool canAssign){
-    int index = identifierConst(compiler);
+    Token* name = &compiler->parser.pre;
+    int localIndex = resolveLocal(compiler, name);
+    uint8_t getOp, setOp, getLOp, setLOp;
+    int index;
+    bool isLocal = (localIndex != -1);
+    if(isLocal){
+        index = localIndex;
+        getOp = OP_GET_LOCAL;
+        setOp = OP_SET_LOCAL;
+        getLOp = OP_GET_LLOCAL;
+        setLOp = OP_SET_LLOCAL;
+    }else{
+        index = identifierConst(compiler);
+        getOp = OP_GET_GLOBAL;
+        setOp = OP_SET_GLOBAL;
+        getLOp = OP_GET_LGLOBAL;
+        setLOp = OP_SET_LGLOBAL;
+    }
+
+    uint8_t finalOp, finalLOp;
     if(canAssign && match(compiler, TOKEN_ASSIGN)){
         expression(compiler);
-        if(index <= 0xff){
-            emitByte(compiler, OP_SET_GLOBAL);
-            emitByte(compiler, (uint8_t)index);
-        }else if(index <= 0xffffff){
-            emitByte(compiler, OP_SET_LGLOBAL);
-            emitByte(compiler, (uint8_t)(index & 0xff));
-            emitByte(compiler, (uint8_t)((index >> 8) & 0xff));
-            emitByte(compiler, (uint8_t)((index >> 16) & 0xff));
-        }else{
-            errorAt(compiler, &compiler->parser.pre, "Too many variables.");
-        }
+        finalOp = setOp;
+        finalLOp = setLOp;
     }else{
-        if(index <= 0xff){
-            emitByte(compiler, OP_GET_GLOBAL);
-            emitByte(compiler, (uint8_t)index);
-        }else if(index <= 0xffffff){
-            emitByte(compiler, OP_GET_LGLOBAL);
-            emitByte(compiler, (uint8_t)(index & 0xff));
-            emitByte(compiler, (uint8_t)((index >> 8) & 0xff));
-            emitByte(compiler, (uint8_t)((index >> 16) & 0xff));
-        }else{
-            errorAt(compiler, &compiler->parser.pre, "Too many variables");
-        }
+        finalOp = getOp;
+        finalLOp = getLOp;
+    }
+
+    if(index <= 0xff){
+        emitPair(compiler, finalOp, (uint8_t)index);
+    }else if(index <= 0xffff){
+        emitByte(compiler, finalLOp);
+        emitByte(compiler, (uint8_t)(index & 0xff));
+        emitByte(compiler, (uint8_t)(index >> 8) & 0xff);
+    }else{
+        errorAt(compiler, &compiler->parser.pre, "Too many variables!");
     }
 }
 

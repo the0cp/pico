@@ -13,6 +13,8 @@ file(GLOB SOURCE_DIR "*.c")
 
 add_library(xxhash_lib STATIC vendor/xxhash/xxhash.c)
 
+add_compile_options(-g)
+
 target_include_directories(xxhash_lib PUBLIC vendor/xxhash)
 
 add_executable(pico ${SOURCE_DIR})

@@ -107,6 +107,11 @@ static InterpreterStatus run(VM* vm){
         [OP_GET_LGLOBAL]    = &&DO_OP_GET_LGLOBAL,
         [OP_SET_GLOBAL]     = &&DO_OP_SET_GLOABL,
         [OP_SET_LGLOBAL]    = &&DO_OP_SET_LGLOBAL,
+
+        [OP_GET_LOCAL]      = &&DO_OP_GET_LOCAL,
+        [OP_SET_LOCAL]      = &&DO_OP_SET_LOCAL,
+        [OP_GET_LLOCAL]     = &&DO_OP_GET_LLOCAL,
+        [OP_SET_LLOCAL]     = &&DO_OP_SET_LLOCAL,
     };
 
     #ifdef DEBUG_TRACE
@@ -148,11 +153,10 @@ static InterpreterStatus run(VM* vm){
     DO_OP_LCONSTANT:
     {
         Value constant = vm->chunk->constants.values[
-            (uint32_t)vm->ip[0] | 
-            ((uint32_t)vm->ip[1] << 8) | 
-            ((uint32_t)vm->ip[2] << 16)
+            (uint16_t)vm->ip[0] | 
+            ((uint16_t)vm->ip[1] << 8)
         ];
-        vm->ip += 3; // Move past the index
+        vm->ip += 2; // Move past the index
         push(vm, constant);
     } DISPATCH();
 
@@ -336,10 +340,9 @@ static InterpreterStatus run(VM* vm){
 
     DO_OP_DEFINE_LGLOBAL:
     {
-        uint32_t index = (uint32_t)vm->ip[0] |
-                         ((uint32_t)vm->ip[1] << 8) |
-                         ((uint32_t)vm->ip[2] << 16);
-        vm->ip += 3;
+        uint16_t index = (uint16_t)vm->ip[0] |
+                         ((uint16_t)vm->ip[1] << 8);
+        vm->ip += 2;
         ObjectString* name = AS_STRING(vm->chunk->constants.values[index]);
         tableSet(&vm->globals, name, peek(vm, 0));
         pop(vm);
@@ -358,10 +361,9 @@ static InterpreterStatus run(VM* vm){
 
     DO_OP_GET_LGLOBAL:
     {
-        uint32_t index = (uint32_t)vm->ip[0] |
-                        ((uint32_t)vm->ip[1] << 8) |
-                        ((uint32_t)vm->ip[2] << 16);
-        vm->ip += 3;
+        uint16_t index = (uint16_t)vm->ip[0] |
+                        ((uint16_t)vm->ip[1] << 8);
+        vm->ip += 2;
         ObjectString* name = AS_STRING(vm->chunk->constants.values[index]);
         Value value;
         if(!tableGet(&vm->globals, name, &value)){
@@ -384,10 +386,9 @@ static InterpreterStatus run(VM* vm){
 
     DO_OP_SET_LGLOBAL:
     {
-        uint32_t index =(uint32_t)vm->ip[0] |
-                        ((uint32_t)vm->ip[1] << 8) |
-                        ((uint32_t)vm->ip[2] << 16);
-        vm->ip += 3;
+        uint16_t index =(uint16_t)vm->ip[0] |
+                        ((uint16_t)vm->ip[1] << 8);
+        vm->ip += 2;
         ObjectString* name = AS_STRING(vm->chunk->constants.values[index]);
         if(tableSet(&vm->globals, name, peek(vm, 0))){
             tableRemove(&vm->globals, name);
@@ -395,6 +396,36 @@ static InterpreterStatus run(VM* vm){
             return VM_RUNTIME_ERROR;
         }
     } DISPATCH();
+
+    DO_OP_GET_LOCAL:
+    {
+        uint8_t slot = *vm->ip++;
+        push(vm, vm->stack[slot]);
+    } DISPATCH();
+
+    DO_OP_SET_LOCAL:
+    {
+        uint8_t slot = *vm->ip++;
+        vm->stack[slot] = peek(vm, 0);
+    } DISPATCH();
+
+    DO_OP_GET_LLOCAL:
+    {
+        uint16_t slot = (uint16_t)vm->ip[0] |
+                        ((uint16_t)vm->ip[1] << 8);
+        vm->ip += 2;
+        push(vm, vm->stack[slot]);
+    } DISPATCH();
+
+    DO_OP_SET_LLOCAL:
+    {
+        uint16_t slot = (uint16_t)vm->ip[0] |
+                        ((uint16_t)vm->ip[1] << 8);
+        vm->ip += 2;
+        vm->stack[slot] = peek(vm, 0);
+    } DISPATCH();
+
+    
 
     DO_OP_RETURN:
     {

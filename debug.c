@@ -73,6 +73,10 @@ int dasmInstruction(const Chunk* chunk, int offset){
             return dasmGlobal("OP_SET_GLOBAL", chunk, offset);
         case OP_SET_LGLOBAL:
             return dasmLGlobal("OP_SET_LGLOBAL", chunk, offset);
+        case OP_GET_LOCAL:
+            printf("OP_GET_LOCAL\n");       return offset + 2;
+        case OP_SET_LOCAL:
+            printf("OP_SET_LOCAL");         return offset + 2;
         default:
             printf("Unknown opcode %d\n", instruction);
             return offset + 1;

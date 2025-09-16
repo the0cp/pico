@@ -5,6 +5,13 @@
 #include "scanner.h"
 #include "common.h"
 
+#define LOCAL_MAX (UINT16_MAX + 1)
+
+typedef struct{
+    Token name;
+    int depth;
+}Local;
+
 typedef struct{
     Token pre;  // Previous token
     Token cur;  // Current token
@@ -16,6 +23,9 @@ typedef struct Compiler{
     Parser parser;
     Chunk* chunk;
     VM* vm;
+    Local locals[LOCAL_MAX];
+    int localCnt;
+    int scopeDepth;
 }Compiler;
 
 bool compile(VM* vm, const char* code, Chunk* chunk);
@@ -45,6 +55,10 @@ static void expression(Compiler* compiler);
 static void decl(Compiler* compiler);
 static void varDecl(Compiler* compiler);
 static void defineVar(Compiler* compiler, int global);
+
+static void beginScope(Compiler* compiler);
+static void block(Compiler* compiler);
+static void endScope(Compiler* compiler);
 
 static void stmt(Compiler* compiler);
 
