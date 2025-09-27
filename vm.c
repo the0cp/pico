@@ -112,6 +112,9 @@ static InterpreterStatus run(VM* vm){
         [OP_SET_LOCAL]      = &&DO_OP_SET_LOCAL,
         [OP_GET_LLOCAL]     = &&DO_OP_GET_LLOCAL,
         [OP_SET_LLOCAL]     = &&DO_OP_SET_LLOCAL,
+
+        [OP_JUMP]           = &&DO_OP_JUMP,
+        [OP_JUMP_IF_FALSE]  = &&DO_OP_JUMP_IF_FALSE,
     };
 
     #ifdef DEBUG_TRACE
@@ -425,7 +428,22 @@ static InterpreterStatus run(VM* vm){
         vm->stack[slot] = peek(vm, 0);
     } DISPATCH();
 
-    
+    DO_OP_JUMP:
+    {
+        uint16_t offset = (uint16_t)(vm->ip[0] << 8) | vm->ip[1];
+        vm->ip += 2;
+        vm->ip += offset;
+    } DISPATCH();
+
+    DO_OP_JUMP_IF_FALSE:
+    {
+        uint16_t offset = (uint16_t)(vm->ip[0] << 8) | vm->ip[1];
+        vm->ip += 2;
+        if(!isTruthy(peek(vm, 0))){
+            vm->ip += offset;
+        }
+        
+    } DISPATCH();
 
     DO_OP_RETURN:
     {

@@ -74,9 +74,17 @@ int dasmInstruction(const Chunk* chunk, int offset){
         case OP_SET_LGLOBAL:
             return dasmLGlobal("OP_SET_LGLOBAL", chunk, offset);
         case OP_GET_LOCAL:
-            printf("OP_GET_LOCAL\n");       return offset + 2;
+            return dasmLocal("OP_GET_LOCAL", chunk, offset);
         case OP_SET_LOCAL:
-            printf("OP_SET_LOCAL");         return offset + 2;
+            return dasmLocal("OP_SET_LOCAL", chunk, offset);
+        case OP_GET_LLOCAL:
+            return dasmLLocal("OP_GET_LLOCAL", chunk, offset);
+        case OP_SET_LLOCAL:
+            return dasmLLocal("OP_SET_LLOCAL", chunk, offset);
+        case OP_JUMP:
+            return dasmJump("OP_JUMP", 1, chunk, offset);
+        case OP_JUMP_IF_FALSE:
+            return dasmJump("OP_JUMP_IF_FALSE", 1, chunk, offset);
         default:
             printf("Unknown opcode %d\n", instruction);
             return offset + 1;
@@ -134,6 +142,24 @@ static int dasmLGlobal(const char* opName, const Chunk* chunk, int offset) {
     }
     printf("'\n");
     return offset + 4;
+}
+
+static int dasmLocal(const char* opName, const Chunk* chunk, int offset){
+    uint8_t slot = chunk->code[offset+1];
+    printf("%-16s %4d\n", opName, slot);
+    return offset + 2;
+}
+
+static int dasmLLocal(const char* opName, const Chunk* chunk, int offset){
+    uint16_t slot = (uint16_t)(chunk->code[offset+1] | (chunk->code[offset+2] << 8));
+    printf("%-16s %4d\n", opName, slot);
+    return offset + 3;
+}
+
+static int dasmJump(const char* name, int sign, const Chunk* chunk, int offset){
+    uint16_t jump = (uint16_t)(chunk->code[offset+1] << 8) | chunk->code[offset+2];
+    printf("%-16s %4d -> %d\n", name, offset, offset + 3 + sign * jump);
+    return offset + 3;
 }
 
 int getLine(const Chunk* chunk, int offset){

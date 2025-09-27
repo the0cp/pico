@@ -88,28 +88,36 @@ static void advance(Compiler* compiler){
 
 
 bool compile(VM* vm, const char* code, Chunk* chunk){
-    Compiler compiler;
+    Compiler* compiler = (Compiler*)malloc(sizeof(Compiler));
+    if(compiler == NULL){
+        fprintf(stderr, "Not enough memory to compile.\n");
+        return false;
+    }
     initScanner(code);
-    compiler.chunk = chunk;
-    compiler.vm = vm;
-    compiler.parser.hadError = false;
-    compiler.parser.panic = false;
+    compiler->chunk = chunk;
+    compiler->vm = vm;
+    compiler->parser.hadError = false;
+    compiler->parser.panic = false;
 
-    compiler.localCnt = 0;
-    compiler.scopeDepth = 0;
+    compiler->localCnt = 0;
+    compiler->scopeDepth = 0;
 
-    advance(&compiler);  // Initialize the first token
-    if(compiler.parser.cur.type == TOKEN_EOF){
+    advance(compiler);  // Initialize the first token
+    if(compiler->parser.cur.type == TOKEN_EOF){
         return true;  // No code to compile
     }
     // expression(&compiler); // Start parsing the expression
 
-    while(!match(&compiler, TOKEN_EOF)){
-        decl(&compiler);
+    while(!match(compiler, TOKEN_EOF)){
+        decl(compiler);
     }
-    consume(&compiler, TOKEN_EOF, "Expected end of file");
-    stopCompiler(&compiler);
-    return !compiler.parser.hadError;
+    consume(compiler, TOKEN_EOF, "Expected end of file");
+    stopCompiler(compiler);
+
+    bool hadError = compiler->parser.hadError;
+    free(compiler);
+    
+    return hadError;
 }
 
 static void expression(Compiler* compiler){
@@ -164,6 +172,8 @@ static void endScope(Compiler* compiler){
 static void stmt(Compiler* compiler){
     if(match(compiler, TOKEN_PRINT)){
         printStmt(compiler);
+    }else if(match(compiler, TOKEN_IF)){
+        ifStmt(compiler);
     }else if(match(compiler, TOKEN_LEFT_BRACE)){
         beginScope(compiler);
         block(compiler);
@@ -220,6 +230,35 @@ static void printStmt(Compiler* compiler){
     emitByte(compiler, OP_PRINT);
 }
 
+static void ifStmt(Compiler* compiler){
+    /*
+    code: if (condition) { then_branch } else { else_branch }
+    
+            +--------------------------------------------+
+            |                                            |
+            V                                            |
+    | ---cond--- | OP_JUMP_IF_FALSE | offset_to_else | OP_POP | ---then--- | OP_JUMP | offset_to_end | OP_POP | ---else--- |
+                                    |                                                ^
+                                    |                                                |
+                                    +------------------------------------------------+
+    */
+    consume(compiler, TOKEN_LEFT_PAREN, "Expect '(' after 'if'.");
+    expression(compiler);
+    consume(compiler, TOKEN_RIGHT_PAREN, "Expect ')' after condition.");
+
+    int thenJump = emitJump(compiler, OP_JUMP_IF_FALSE);
+    emitByte(compiler, OP_POP);
+    stmt(compiler);
+
+    int elseJump = emitJump(compiler, OP_JUMP);
+    patchJump(compiler, thenJump);
+
+    emitByte(compiler, OP_POP);
+    if(match(compiler, TOKEN_ELSE)) stmt(compiler);
+
+    patchJump(compiler, elseJump);
+}
+
 static void parsePrecedence(Compiler* compiler, Precedence precedence){
     advance(compiler);
     ParseFunc preRule = getRule(compiler->parser.pre.type)->prefix;
@@ -243,7 +282,7 @@ static void parsePrecedence(Compiler* compiler, Precedence precedence){
 static int identifierConst(Compiler* compiler){
     Token* name = &compiler->parser.pre;
     Value strVal = OBJECT_VAL(copyString(compiler->vm, name->head, name->len));
-    addConstant(compiler->chunk, strVal);
+    return addConstant(compiler->chunk, strVal);
 }
 
 static void addLocal(Compiler* compiler, Token name){
@@ -276,6 +315,7 @@ static void declLocal(Compiler* compiler){
 static int parseVar(Compiler* compiler, const char* err){
     consume(compiler, TOKEN_IDENTIFIER, err);
     if(compiler->scopeDepth > 0){
+        declLocal(compiler);
         return 0;
     }
     return identifierConst(compiler);
@@ -320,6 +360,21 @@ static void emitByte(Compiler* compiler, uint8_t byte){
 static void emitPair(Compiler* compiler, uint8_t byte1, uint8_t byte2){
     emitByte(compiler, byte1);
     emitByte(compiler, byte2);
+}
+
+static int emitJump(Compiler* compiler, uint8_t instruction){
+    emitByte(compiler, instruction);
+    emitPair(compiler, 0xff, 0xff);
+    return compiler->chunk->count - 2;
+}
+
+static void patchJump(Compiler* compiler, int offset){
+    int jump = compiler->chunk->count - (offset + 2);
+    if(jump > UINT16_MAX){
+        errorAt(compiler, &compiler->parser.pre, "Jump too long.");
+    }
+    compiler->chunk->code[offset] = (jump >> 8) & 0xff;
+    compiler->chunk->code[offset+1] = jump & 0xff;
 }
 
 static void stopCompiler(Compiler* compiler){
@@ -395,8 +450,8 @@ static void handleVar(Compiler* compiler, bool canAssign){
         emitPair(compiler, finalOp, (uint8_t)index);
     }else if(index <= 0xffff){
         emitByte(compiler, finalLOp);
-        emitByte(compiler, (uint8_t)(index & 0xff));
-        emitByte(compiler, (uint8_t)(index >> 8) & 0xff);
+        emitPair(compiler, (uint8_t)(index & 0xff),
+                           (uint8_t)(index >> 8) & 0xff);
     }else{
         errorAt(compiler, &compiler->parser.pre, "Too many variables!");
     }

@@ -32,6 +32,8 @@ bool compile(VM* vm, const char* code, Chunk* chunk);
 static void stopCompiler(Compiler* compiler);
 static void emitByte(Compiler* compiler, uint8_t byte);
 static void emitPair(Compiler* compiler, uint8_t byte1, uint8_t byte2);
+static int emitJump(Compiler* compiler, uint8_t instruction);
+static void patchJump(Compiler* compiler, int offset);
 static void consume(Compiler* compiler, TokenType type, const char* errMsg);
 static void errorAt(Compiler* compiler, Token* token, const char* message);
 
@@ -69,5 +71,7 @@ static bool match(Compiler* compiler, TokenType type);
 static void sync(Compiler* compiler);
 
 static void printStmt(Compiler* compiler);
+
+static void ifStmt(Compiler* compiler);
 
 #endif // PICO_COMPILER_H
