@@ -41,7 +41,7 @@ struct Keyword {
 #include <string.h>
 enum
   {
-    TOTAL_KEYWORDS = 13,
+    TOTAL_KEYWORDS = 15,
     MIN_WORD_LENGTH = 2,
     MAX_WORD_LENGTH = 6,
     MIN_HASH_VALUE = 2,
@@ -73,9 +73,9 @@ keywordHash (str, len)
       25, 25, 25, 25, 25, 25, 25, 25, 25, 25,
       25, 25, 25, 25, 25, 25, 25, 25, 25, 25,
       25, 25, 25, 25, 25, 25, 25, 25, 25, 25,
-      25, 25, 25, 25, 25, 25, 25,  0, 25, 10,
-      25,  0,  0, 25,  5,  0, 25, 25,  9, 25,
-      15,  5,  0, 25, 10, 25,  0,  0,  0,  0,
+      25, 25, 25, 25, 25, 25, 25,  0, 25,  5,
+      25,  0,  5, 25,  5,  0, 25, 25, 14, 25,
+       0,  0,  0, 25,  0, 25, 10,  0, 10,  5,
       25, 25, 25, 25, 25, 25, 25, 25, 25, 25,
       25, 25, 25, 25, 25, 25, 25, 25, 25, 25,
       25, 25, 25, 25, 25, 25, 25, 25, 25, 25,
@@ -97,33 +97,36 @@ keywordHash (str, len)
 static const struct Keyword wordlist[] =
   {
     {""}, {""},
+#line 28 "keywords.gperf"
+    {"or",         TOKEN_OR},
+#line 27 "keywords.gperf"
+    {"and",        TOKEN_AND},
+#line 21 "keywords.gperf"
+    {"null",       TOKEN_NULL},
+#line 22 "keywords.gperf"
+    {"print",      TOKEN_PRINT},
+#line 23 "keywords.gperf"
+    {"return",     TOKEN_RETURN},
 #line 20 "keywords.gperf"
     {"if",         TOKEN_IF},
-#line 19 "keywords.gperf"
-    {"var",        TOKEN_VAR},
+#line 17 "keywords.gperf"
+    {"for",        TOKEN_FOR},
 #line 18 "keywords.gperf"
     {"func",       TOKEN_FUNC},
 #line 16 "keywords.gperf"
     {"false",      TOKEN_FALSE},
     {""}, {""},
-#line 17 "keywords.gperf"
-    {"for",        TOKEN_FOR},
-#line 24 "keywords.gperf"
-    {"this",       TOKEN_THIS},
+#line 19 "keywords.gperf"
+    {"var",        TOKEN_VAR},
+#line 25 "keywords.gperf"
+    {"true",       TOKEN_TRUE},
 #line 26 "keywords.gperf"
     {"while",      TOKEN_WHILE},
     {""}, {""},
 #line 15 "keywords.gperf"
     {"else",       TOKEN_ELSE},
-#line 25 "keywords.gperf"
-    {"true",       TOKEN_TRUE},
-#line 22 "keywords.gperf"
-    {"print",      TOKEN_PRINT},
-#line 23 "keywords.gperf"
-    {"return",     TOKEN_RETURN},
-    {""}, {""},
-#line 21 "keywords.gperf"
-    {"null",       TOKEN_NULL},
+#line 24 "keywords.gperf"
+    {"this",       TOKEN_THIS},
     {""}, {""}, {""}, {""},
 #line 14 "keywords.gperf"
     {"class",      TOKEN_CLASS}

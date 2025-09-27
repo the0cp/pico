@@ -2,6 +2,7 @@
 #include <stdlib.h>
 
 #include "compiler.h"
+#include "chunk.h"
 
 #ifdef DEBUG_PRINT_CODE
 #include "debug.h"
@@ -34,6 +35,8 @@ static void handleUnary(Compiler* compiler, bool canAssign);
 static void handleBinary(Compiler* compiler, bool canAssign);
 static void handleNum(Compiler* compiler, bool canAssign);
 static void handleString(Compiler* compiler, bool canAssign);
+static void handleAnd(Compiler* compiler, bool canAssign);
+static void handleOr(Compiler* compiler, bool canAssign);
 
 ParseRule rules[] = {
     [TOKEN_LEFT_PAREN]              = {handleGrouping,  NULL,           PREC_NONE},
@@ -67,6 +70,9 @@ ParseRule rules[] = {
     [TOKEN_LESS]                    = {NULL,            handleBinary,   PREC_COMPARISON},
     [TOKEN_GREATER_EQUAL]           = {NULL,            handleBinary,   PREC_COMPARISON},
     [TOKEN_LESS_EQUAL]              = {NULL,            handleBinary,   PREC_COMPARISON},
+
+    [TOKEN_AND]                     = {NULL,            handleAnd,      PREC_AND},
+    [TOKEN_OR]                      = {NULL,            handleOr,       PREC_OR},
 
     [TOKEN_EOF]                     = {NULL,            NULL,           PREC_NONE},
 };
@@ -117,7 +123,7 @@ bool compile(VM* vm, const char* code, Chunk* chunk){
     bool hadError = compiler->parser.hadError;
     free(compiler);
     
-    return hadError;
+    return !hadError;
 }
 
 static void expression(Compiler* compiler){
@@ -567,6 +573,22 @@ static void handleString(Compiler* compiler, bool canAssign){
             emitByte(compiler, OP_ADD);
         }
     }
+}
+
+static void handleAnd(Compiler* compiler, bool canAssign){
+    int endJump = emitJump(compiler, OP_JUMP_IF_FALSE);
+    emitByte(compiler, OP_POP);
+    parsePrecedence(compiler, PREC_AND);
+    patchJump(compiler, endJump);
+}
+
+static void handleOr(Compiler* compiler, bool canAssign){
+    int elseJump = emitJump(compiler, OP_JUMP_IF_FALSE);
+    int endJump = emitJump(compiler, OP_JUMP);
+    patchJump(compiler, elseJump);
+    emitByte(compiler, OP_POP);
+    parsePrecedence(compiler, PREC_OR);
+    patchJump(compiler, endJump);
 }
 
 static void consume(Compiler* compiler, TokenType type, const char* errMsg){

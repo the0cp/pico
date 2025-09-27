@@ -50,6 +50,9 @@ static void handleLiteral(Compiler* compiler, bool canAssign);
 
 static void handleString(Compiler* compiler, bool canAssign);
 
+static void handleAnd(Compiler* compiler, bool canAssign);
+static void handleOr(Compiler* compiler, bool canAssign);
+
 static void advance(Compiler* compiler);
 
 static void expression(Compiler* compiler);

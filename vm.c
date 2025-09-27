@@ -3,6 +3,7 @@
 #include <stdarg.h>
 
 #include "common.h"
+#include "chunk.h"
 #include "vm.h"
 #include "compiler.h"
 #include "mem.h"
@@ -46,7 +47,9 @@ static Value peek(VM* vm, int distance){
 }
 
 static bool isTruthy(Value value){
-    return !(IS_NULL(value) || (IS_BOOL(value) && !AS_BOOL(value)));
+    return !(IS_NULL(value) ||
+            (IS_BOOL(value) && !AS_BOOL(value)) ||
+            (IS_NUM(value) && AS_NUM(value) == 0));
     // NULL is considered falsy
 }
 
@@ -105,7 +108,7 @@ static InterpreterStatus run(VM* vm){
         [OP_DEFINE_LGLOBAL] = &&DO_OP_DEFINE_LGLOBAL,
         [OP_GET_GLOBAL]     = &&DO_OP_GET_GLOBAL,
         [OP_GET_LGLOBAL]    = &&DO_OP_GET_LGLOBAL,
-        [OP_SET_GLOBAL]     = &&DO_OP_SET_GLOABL,
+        [OP_SET_GLOBAL]     = &&DO_OP_SET_GLOBAL,
         [OP_SET_LGLOBAL]    = &&DO_OP_SET_LGLOBAL,
 
         [OP_GET_LOCAL]      = &&DO_OP_GET_LOCAL,
@@ -376,7 +379,7 @@ static InterpreterStatus run(VM* vm){
         push(vm, value);
     } DISPATCH();
 
-    DO_OP_SET_GLOABL:
+    DO_OP_SET_GLOBAL:
     {
         ObjectString* name = AS_STRING(vm->chunk->constants.values[*vm->ip++]);
         if(tableSet(&vm->globals, name, peek(vm, 0))){

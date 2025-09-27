@@ -24,3 +24,5 @@ return,     TOKEN_RETURN
 this,       TOKEN_THIS
 true,       TOKEN_TRUE
 while,      TOKEN_WHILE
+and,        TOKEN_AND
+or,         TOKEN_OR
