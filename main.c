@@ -33,9 +33,11 @@ int main(int argc, const char* argv[]){
         repl(&vm);
     }else if(argc == 2){
         runScript(&vm, argv[1]);
+    }else if(argc == 3 && strcmp(argv[1], "run") == 0){
+        runScript(&vm, argv[2]);
     }else{
         fprintf(stderr, "Usage: %s [script]\n", argv[0]);
-        return 1;
+        return 64;
     }
     freeVM(&vm);
     return 0;
