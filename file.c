@@ -1,5 +1,15 @@
 #include "file.h"
 #include "vm.h"
+#include "compiler.h"
+#include "chunk.h"
+
+static bool endsWith(const char* str, const char* suffix){
+    if(!str || !suffix) return false;
+    size_t str_len = strlen(str);
+    size_t suffix_len = strlen(str);
+    if(suffix_len > str_len)    return false;
+    return strncmp(str+str_len-suffix_len, suffix, suffix_len) == 0;
+}
 
 char* read(const char* path){
     FILE* file = fopen(path, "rb");
@@ -29,4 +39,35 @@ void runScript(VM* vm, const char* path) {
 
     if(status == VM_COMPILE_ERROR) exit(EXIT_FAILURE);
     if(status == VM_RUNTIME_ERROR) exit(EXIT_FAILURE);
+}
+
+void buildScript(VM* vm, const char* path){
+    char* source = read(path);
+
+    Chunk chunk;
+    initChunk(&chunk);
+
+    if(!compile(vm, source, &chunk)){
+        free(source);
+        freeChunk(&chunk);
+        exit(65);   // format error
+    }
+
+    char outputPath[1024];
+    strncpy(outputPath, path, sizeof(outputPath) - 1);
+    outputPath[sizeof(outputPath) - 1] = '\0';  // null end
+    char* dot = strrchr(outputPath, '.');
+    if(dot != NULL){
+        strcpy(dot, ".pco");
+    }else{
+        strcat(outputPath, ".pco");
+    }
+
+    printf("Compiling %s to %s...\n", path, outputPath);
+
+    // serializeChunk();
+
+    free(source);
+    freeChunk(&chunk);
+    printf("Compilation successful.\n");
 }

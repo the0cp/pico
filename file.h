@@ -9,5 +9,6 @@
 
 char* read(const char* path);
 void runScript(VM* vm, const char* path);
+void buildScript(VM* vm, const char* path);
 
 #endif // FILE_H
