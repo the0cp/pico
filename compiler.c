@@ -180,6 +180,8 @@ static void stmt(Compiler* compiler){
         printStmt(compiler);
     }else if(match(compiler, TOKEN_IF)){
         ifStmt(compiler);
+    }else if(match(compiler, TOKEN_WHILE)){
+        whileStmt(compiler);
     }else if(match(compiler, TOKEN_LEFT_BRACE)){
         beginScope(compiler);
         block(compiler);
@@ -265,6 +267,28 @@ static void ifStmt(Compiler* compiler){
     patchJump(compiler, elseJump);
 }
 
+static void whileStmt(Compiler* compiler){
+    /*
+    code: while (condition) { () }
+    
+    */
+
+    int loopStart = compiler->chunk->count;
+
+    consume(compiler, TOKEN_LEFT_PAREN, "Expect '(' after 'while'.");
+    expression(compiler);
+    consume(compiler, TOKEN_RIGHT_PAREN, "Expect ')' after condition.");
+
+    int exitJump = emitJump(compiler, OP_JUMP_IF_FALSE);
+    emitByte(compiler, OP_POP);
+    stmt(compiler);
+
+    emitLoop(compiler, loopStart);
+
+    patchJump(compiler, exitJump);
+    emitByte(compiler, OP_POP);
+}
+
 static void parsePrecedence(Compiler* compiler, Precedence precedence){
     advance(compiler);
     ParseFunc preRule = getRule(compiler->parser.pre.type)->prefix;
@@ -337,8 +361,7 @@ static void defineVar(Compiler* compiler, int global){
         emitByte(compiler, (uint8_t)global);
     }else if(global <= 0xffff){
         emitByte(compiler, OP_DEFINE_GLOBAL);
-        emitByte(compiler, (uint8_t)(global & 0xff));
-        emitByte(compiler, (uint8_t)((global >> 8) & 0xff));
+        emitPair(compiler, (uint8_t)((global >> 8) & 0xff), (uint8_t)(global & 0xff));
     }else{
         errorAt(compiler, &compiler->parser.pre, "Too many variables declared");
     }
@@ -372,6 +395,15 @@ static int emitJump(Compiler* compiler, uint8_t instruction){
     emitByte(compiler, instruction);
     emitPair(compiler, 0xff, 0xff);
     return compiler->chunk->count - 2;
+}
+
+static void emitLoop(Compiler* compiler, int loopStart){
+    emitByte(compiler, OP_LOOP);
+    int offset = compiler->chunk->count - loopStart + 2;
+    if(offset > UINT16_MAX){
+        errorAt(compiler, &compiler->parser.pre, "Loop too large.");
+    }
+    emitPair(compiler, (uint8_t)((offset >> 8) & 0xff), (uint8_t)(offset & 0xff));
 }
 
 static void patchJump(Compiler* compiler, int offset){
@@ -413,8 +445,7 @@ static void emitConstant(Compiler* compiler, Value value){
         return;
     }else if(constantIndex <= 0xffff){
         emitByte(compiler, OP_LCONSTANT);
-        emitByte(compiler, (uint8_t)(constantIndex & 0xff));
-        emitByte(compiler, (uint8_t)((constantIndex >> 8) & 0xff));
+        emitPair(compiler, (uint8_t)((constantIndex >> 8) & 0xff), (uint8_t)(constantIndex & 0xff));
         return;
     }else{
         fprintf(stderr, "Constant index out of range: %d\n", constantIndex);
@@ -456,8 +487,7 @@ static void handleVar(Compiler* compiler, bool canAssign){
         emitPair(compiler, finalOp, (uint8_t)index);
     }else if(index <= 0xffff){
         emitByte(compiler, finalLOp);
-        emitPair(compiler, (uint8_t)(index & 0xff),
-                           (uint8_t)(index >> 8) & 0xff);
+        emitPair(compiler, (uint8_t)((index >> 8) & 0xff), (uint8_t)(index & 0xff));
     }else{
         errorAt(compiler, &compiler->parser.pre, "Too many variables!");
     }

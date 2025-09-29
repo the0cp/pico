@@ -118,6 +118,8 @@ static InterpreterStatus run(VM* vm){
 
         [OP_JUMP]           = &&DO_OP_JUMP,
         [OP_JUMP_IF_FALSE]  = &&DO_OP_JUMP_IF_FALSE,
+
+        [OP_LOOP]           = &&DO_OP_LOOP,
     };
 
     #ifdef DEBUG_TRACE
@@ -159,8 +161,8 @@ static InterpreterStatus run(VM* vm){
     DO_OP_LCONSTANT:
     {
         Value constant = vm->chunk->constants.values[
-            (uint16_t)vm->ip[0] | 
-            ((uint16_t)vm->ip[1] << 8)
+            (uint16_t)(vm->ip[0] << 8) | 
+            vm->ip[1]
         ];
         vm->ip += 2; // Move past the index
         push(vm, constant);
@@ -346,8 +348,8 @@ static InterpreterStatus run(VM* vm){
 
     DO_OP_DEFINE_LGLOBAL:
     {
-        uint16_t index = (uint16_t)vm->ip[0] |
-                         ((uint16_t)vm->ip[1] << 8);
+        uint16_t index = (uint16_t)(vm->ip[0] << 8) | vm->ip[1];
+                         
         vm->ip += 2;
         ObjectString* name = AS_STRING(vm->chunk->constants.values[index]);
         tableSet(&vm->globals, name, peek(vm, 0));
@@ -367,8 +369,7 @@ static InterpreterStatus run(VM* vm){
 
     DO_OP_GET_LGLOBAL:
     {
-        uint16_t index = (uint16_t)vm->ip[0] |
-                        ((uint16_t)vm->ip[1] << 8);
+        uint16_t index = (uint16_t)(vm->ip[0] << 8) | vm->ip[1];
         vm->ip += 2;
         ObjectString* name = AS_STRING(vm->chunk->constants.values[index]);
         Value value;
@@ -392,8 +393,7 @@ static InterpreterStatus run(VM* vm){
 
     DO_OP_SET_LGLOBAL:
     {
-        uint16_t index =(uint16_t)vm->ip[0] |
-                        ((uint16_t)vm->ip[1] << 8);
+        uint16_t index = (uint16_t)(vm->ip[0] << 8) | vm->ip[1];
         vm->ip += 2;
         ObjectString* name = AS_STRING(vm->chunk->constants.values[index]);
         if(tableSet(&vm->globals, name, peek(vm, 0))){
@@ -417,16 +417,14 @@ static InterpreterStatus run(VM* vm){
 
     DO_OP_GET_LLOCAL:
     {
-        uint16_t slot = (uint16_t)vm->ip[0] |
-                        ((uint16_t)vm->ip[1] << 8);
+        uint16_t slot = (uint16_t)(vm->ip[0] << 8) | vm->ip[1];
         vm->ip += 2;
         push(vm, vm->stack[slot]);
     } DISPATCH();
 
     DO_OP_SET_LLOCAL:
     {
-        uint16_t slot = (uint16_t)vm->ip[0] |
-                        ((uint16_t)vm->ip[1] << 8);
+        uint16_t slot = (uint16_t)(vm->ip[0] << 8) | vm->ip[1];
         vm->ip += 2;
         vm->stack[slot] = peek(vm, 0);
     } DISPATCH();
@@ -446,6 +444,13 @@ static InterpreterStatus run(VM* vm){
             vm->ip += offset;
         }
         
+    } DISPATCH();
+
+    DO_OP_LOOP:
+    {
+        uint16_t offset = (uint16_t)(vm->ip[0] << 8) | vm->ip[1];
+        vm->ip += 2;
+        vm->ip -= offset;
     } DISPATCH();
 
     DO_OP_RETURN:

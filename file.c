@@ -57,10 +57,20 @@ void buildScript(VM* vm, const char* path){
     strncpy(outputPath, path, sizeof(outputPath) - 1);
     outputPath[sizeof(outputPath) - 1] = '\0';  // null end
     char* dot = strrchr(outputPath, '.');
+    int base_len;
     if(dot != NULL){
-        strcpy(dot, ".pco");
+        base_len = strlen(path);
     }else{
-        strcat(outputPath, ".pco");
+        base_len = dot - path;
+    }
+
+    int written = snprintf(outputPath, sizeof(outputPath), "%.*s.pco", base_len, path);
+
+    if(written < 0 || written >= sizeof(outputPath)){
+        fprintf(stderr, "Error: Could not generate output path");
+        free(source);
+        freeChunk(&chunk);
+        exit(70);
     }
 
     printf("Compiling %s to %s...\n", path, outputPath);

@@ -85,6 +85,8 @@ int dasmInstruction(const Chunk* chunk, int offset){
             return dasmJump("OP_JUMP", 1, chunk, offset);
         case OP_JUMP_IF_FALSE:
             return dasmJump("OP_JUMP_IF_FALSE", 1, chunk, offset);
+        case OP_LOOP:
+            return dasmJump("OP_LOOP", -1, chunk, offset);
         default:
             printf("Unknown opcode %d\n", instruction);
             return offset + 1;

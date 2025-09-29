@@ -34,6 +34,7 @@ static void emitByte(Compiler* compiler, uint8_t byte);
 static void emitPair(Compiler* compiler, uint8_t byte1, uint8_t byte2);
 static int emitJump(Compiler* compiler, uint8_t instruction);
 static void patchJump(Compiler* compiler, int offset);
+static void emitLoop(Compiler* compiler, int loopStart);
 static void consume(Compiler* compiler, TokenType type, const char* errMsg);
 static void errorAt(Compiler* compiler, Token* token, const char* message);
 
@@ -76,5 +77,7 @@ static void sync(Compiler* compiler);
 static void printStmt(Compiler* compiler);
 
 static void ifStmt(Compiler* compiler);
+
+static void whileStmt(Compiler* compiler);
 
 #endif // PICO_COMPILER_H
