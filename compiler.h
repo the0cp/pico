@@ -79,5 +79,6 @@ static void printStmt(Compiler* compiler);
 static void ifStmt(Compiler* compiler);
 
 static void whileStmt(Compiler* compiler);
+static void forStmt(Compiler* compiler);
 
 #endif // PICO_COMPILER_H

@@ -182,6 +182,8 @@ static void stmt(Compiler* compiler){
         ifStmt(compiler);
     }else if(match(compiler, TOKEN_WHILE)){
         whileStmt(compiler);
+    }else if(match(compiler, TOKEN_FOR)){
+        forStmt(compiler);
     }else if(match(compiler, TOKEN_LEFT_BRACE)){
         beginScope(compiler);
         block(compiler);
@@ -241,6 +243,8 @@ static void printStmt(Compiler* compiler){
 static void ifStmt(Compiler* compiler){
     /*
     code: if (condition) { then_branch } else { else_branch }
+
+    Bytecode Layout & Jumps:
     
             +--------------------------------------------+
             |                                            |
@@ -269,8 +273,17 @@ static void ifStmt(Compiler* compiler){
 
 static void whileStmt(Compiler* compiler){
     /*
-    code: while (condition) { () }
-    
+    code: while (condition) { body }
+
+    Bytecode Layout & Jumps:
+
+                            +---------------------------------------+
+                            |                                       |
+                            |                                       v
+    | ---cond--- | OP_JUMP_IF_FALSE | OP_POP | ---body--- | OP_LOOP | OP_POP |
+    ^                                                           |
+    |                                                           |
+    +-----------------------------------------------------------+
     */
 
     int loopStart = compiler->chunk->count;
@@ -287,6 +300,66 @@ static void whileStmt(Compiler* compiler){
 
     patchJump(compiler, exitJump);
     emitByte(compiler, OP_POP);
+}
+
+static void forStmt(Compiler* compiler){
+    /*
+    code: for (init; condition; increment) { body }
+
+    Bytecode Layout & Jumps:
+
+                 +------------------------------------------------------------------+
+                 |                                                  +---------------|-------------------------------+
+                 |                                              +---|---------------|--------------+                |
+                 |                                              |   |               |              |                |
+                 v                                              |   v               |              v                |
+    | ---init--- | ---cond--- | OP_JUMP_IF_FALSE | OP_POP | OP_JUMP | ---inc--- | OP_LOOP | OP_POP | ---body--- | OP_LOOP | OP_POP |
+                                        |                                                                                 ^
+                                        |                                                                                 |
+                                        +---------------------------------------------------------------------------------+
+    */
+    beginScope(compiler);
+    consume(compiler, TOKEN_LEFT_PAREN, "Expect '(' after 'for'.");
+    if(match(compiler, TOKEN_SEMICOLON)){
+        // pass
+    }else if(match(compiler, TOKEN_VAR)){
+        varDecl(compiler);
+    }else{
+        expressionStmt(compiler);
+    }
+
+    int loopStart = compiler->chunk->count;
+
+    int exitJump = -1;
+    if(!match(compiler, TOKEN_SEMICOLON)){
+        expression(compiler);
+        consume(compiler, TOKEN_SEMICOLON, "Expect ';' after loop condition.");
+        exitJump = emitJump(compiler, OP_JUMP_IF_FALSE);
+        emitByte(compiler, OP_POP);
+    }
+
+    if(!match(compiler, TOKEN_SEMICOLON)){
+        int bodyJump = emitJump(compiler, OP_JUMP);
+        int incrementStart = compiler->chunk->count;
+
+        expression(compiler);
+        emitByte(compiler, OP_POP);
+        consume(compiler, TOKEN_RIGHT_PAREN, "Expect ')' after for clauses.");
+
+        emitLoop(compiler, loopStart);
+        loopStart = incrementStart;
+        patchJump(compiler, bodyJump);
+    }
+
+    stmt(compiler);
+    emitLoop(compiler, loopStart);
+
+    if(exitJump != -1){
+        patchJump(compiler, exitJump);
+        emitByte(compiler, OP_POP);
+    }
+
+    endScope(compiler);
 }
 
 static void parsePrecedence(Compiler* compiler, Precedence precedence){
