@@ -26,3 +26,5 @@ true,       TOKEN_TRUE
 while,      TOKEN_WHILE
 and,        TOKEN_AND
 or,         TOKEN_OR
+break,      TOKEN_BREAK
+continue,   TOKEN_CONTINUE

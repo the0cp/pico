@@ -6,6 +6,7 @@
 #include "common.h"
 
 #define LOCAL_MAX (UINT16_MAX + 1)
+#define LOOP_MAX 16
 
 typedef struct{
     Token name;
@@ -19,6 +20,13 @@ typedef struct{
     bool panic; // Flag to indicate if we are in panic mode
 }Parser;
 
+typedef struct{
+    int start;
+    int scopeDepth;
+    int breakJump[LOOP_MAX];
+    int breakCnt;
+}Loop;
+
 typedef struct Compiler{
     Parser parser;
     Chunk* chunk;
@@ -26,6 +34,8 @@ typedef struct Compiler{
     Local locals[LOCAL_MAX];
     int localCnt;
     int scopeDepth;
+    Loop loops[LOOP_MAX];
+    int loopCnt;
 }Compiler;
 
 bool compile(VM* vm, const char* code, Chunk* chunk);
@@ -80,5 +90,7 @@ static void ifStmt(Compiler* compiler);
 
 static void whileStmt(Compiler* compiler);
 static void forStmt(Compiler* compiler);
+static void breakStmt(Compiler* compiler);
+static void continueStmt(Compiler* compiler);
 
 #endif // PICO_COMPILER_H

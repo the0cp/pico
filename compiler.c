@@ -107,6 +107,7 @@ bool compile(VM* vm, const char* code, Chunk* chunk){
 
     compiler->localCnt = 0;
     compiler->scopeDepth = 0;
+    compiler->loopCnt = 0;
 
     advance(compiler);  // Initialize the first token
     if(compiler->parser.cur.type == TOKEN_EOF){
@@ -184,6 +185,10 @@ static void stmt(Compiler* compiler){
         whileStmt(compiler);
     }else if(match(compiler, TOKEN_FOR)){
         forStmt(compiler);
+    }else if(match(compiler, TOKEN_BREAK)){
+        breakStmt(compiler);
+    }else if(match(compiler, TOKEN_CONTINUE)){
+        continueStmt(compiler);
     }else if(match(compiler, TOKEN_LEFT_BRACE)){
         beginScope(compiler);
         block(compiler);
@@ -288,6 +293,16 @@ static void whileStmt(Compiler* compiler){
 
     int loopStart = compiler->chunk->count;
 
+    if(compiler->loopCnt == LOOP_MAX){
+        errorAt(compiler, &compiler->parser.pre, "Too many nested loops.");
+        return;
+    }
+    
+    Loop *loop = &compiler->loops[compiler->loopCnt++];
+    loop->start = loopStart;
+    loop->scopeDepth = compiler->scopeDepth;
+    loop->breakCnt = 0;
+
     consume(compiler, TOKEN_LEFT_PAREN, "Expect '(' after 'while'.");
     expression(compiler);
     consume(compiler, TOKEN_RIGHT_PAREN, "Expect ')' after condition.");
@@ -300,6 +315,11 @@ static void whileStmt(Compiler* compiler){
 
     patchJump(compiler, exitJump);
     emitByte(compiler, OP_POP);
+
+    for(int i = 0; i < loop->breakCnt; i++){
+        patchJump(compiler, loop->breakJump[i]);
+    }
+    compiler->loopCnt--;
 }
 
 static void forStmt(Compiler* compiler){
@@ -351,6 +371,16 @@ static void forStmt(Compiler* compiler){
         patchJump(compiler, bodyJump);
     }
 
+    if(compiler->loopCnt == LOOP_MAX){
+        errorAt(compiler, &compiler->parser.pre, "Too many nested loops.");
+        return;
+    }
+    
+    Loop *loop = &compiler->loops[compiler->loopCnt++];
+    loop->start = loopStart;
+    loop->scopeDepth = compiler->scopeDepth;
+    loop->breakCnt = 0;
+
     stmt(compiler);
     emitLoop(compiler, loopStart);
 
@@ -359,7 +389,50 @@ static void forStmt(Compiler* compiler){
         emitByte(compiler, OP_POP);
     }
 
+    for(int i = 0; i < loop->breakCnt; i++){
+        patchJump(compiler, loop->breakJump[i]);
+    }
+
+    compiler->loopCnt--;
     endScope(compiler);
+}
+
+static void breakStmt(Compiler* compiler){
+    if(compiler->loopCnt == 0){
+        errorAt(compiler, &compiler->parser.pre, "Cannot use 'break' outside of a loop.");
+        return;
+    }
+    consume(compiler, TOKEN_SEMICOLON, "Expect ';' after 'break'.");
+
+    while(compiler->localCnt > 0 && 
+          compiler->locals[compiler->localCnt-1].depth > compiler->loops[compiler->loopCnt - 1].scopeDepth){
+            emitByte(compiler, OP_POP);
+            compiler->localCnt--;
+    }
+
+    Loop *curLoop = &compiler->loops[compiler->loopCnt - 1];
+    if(curLoop->breakCnt == LOOP_MAX){
+        errorAt(compiler, &compiler->parser.pre, "Too many 'break' statements in one loop.");
+        return;
+    }
+    curLoop->breakJump[curLoop->breakCnt++] = emitJump(compiler, OP_JUMP);
+}
+
+static void continueStmt(Compiler* compiler){
+    if(compiler->loopCnt == 0){
+        errorAt(compiler, &compiler->parser.pre, "Cannot use 'continue' outside of a loop.");
+        return;
+    }
+    consume(compiler, TOKEN_SEMICOLON, "Expect ';' after 'continue'.");
+
+    while(compiler->localCnt > 0 && 
+          compiler->locals[compiler->localCnt-1].depth > compiler->loops[compiler->loopCnt - 1].scopeDepth){
+            emitByte(compiler, OP_POP);
+            compiler->localCnt--;
+    }
+
+    Loop *curLoop = &compiler->loops[compiler->loopCnt - 1];
+    emitLoop(compiler, curLoop->start);
 }
 
 static void parsePrecedence(Compiler* compiler, Precedence precedence){
