@@ -102,6 +102,7 @@ static InterpreterStatus run(VM* vm){
         [OP_TO_STRING]      = &&DO_OP_TO_STRING,
 
         [OP_POP]            = &&DO_OP_POP,
+        [OP_DUP]            = &&DO_OP_DUP,
 
         [OP_PRINT]          = &&DO_OP_PRINT,
         [OP_DEFINE_GLOBAL]  = &&DO_OP_DEFINE_GLOBAL,
@@ -333,6 +334,11 @@ static InterpreterStatus run(VM* vm){
         pop(vm);
     } DISPATCH();
 
+    DO_OP_DUP:
+    {
+        push(vm, peek(vm, 0));
+    } DISPATCH();
+
     DO_OP_PRINT:
     {
         printValue(pop(vm));
@@ -443,7 +449,7 @@ static InterpreterStatus run(VM* vm){
         if(!isTruthy(peek(vm, 0))){
             vm->ip += offset;
         }
-        
+        pop(vm);
     } DISPATCH();
 
     DO_OP_LOOP:

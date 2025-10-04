@@ -177,25 +177,25 @@ static void endScope(Compiler* compiler){
 }
 
 static void stmt(Compiler* compiler){
-    if(match(compiler, TOKEN_PRINT)){
+    if(match(compiler, TOKEN_PRINT))
         printStmt(compiler);
-    }else if(match(compiler, TOKEN_IF)){
+    else if(match(compiler, TOKEN_IF))
         ifStmt(compiler);
-    }else if(match(compiler, TOKEN_WHILE)){
+    else if(match(compiler, TOKEN_WHILE))
         whileStmt(compiler);
-    }else if(match(compiler, TOKEN_FOR)){
+    else if(match(compiler, TOKEN_FOR))
         forStmt(compiler);
-    }else if(match(compiler, TOKEN_BREAK)){
+    else if(match(compiler, TOKEN_BREAK))
         breakStmt(compiler);
-    }else if(match(compiler, TOKEN_CONTINUE)){
+    else if(match(compiler, TOKEN_SWITCH))
+        switchStmt(compiler);
+    else if(match(compiler, TOKEN_CONTINUE))
         continueStmt(compiler);
-    }else if(match(compiler, TOKEN_LEFT_BRACE)){
+    else if(match(compiler, TOKEN_LEFT_BRACE)){
         beginScope(compiler);
         block(compiler);
         endScope(compiler);
-    }else{
-        expressionStmt(compiler);
-    }
+    }else expressionStmt(compiler);
 }
 
 static void expressionStmt(Compiler* compiler){
@@ -433,6 +433,89 @@ static void continueStmt(Compiler* compiler){
 
     Loop *curLoop = &compiler->loops[compiler->loopCnt - 1];
     emitLoop(compiler, curLoop->start);
+}
+
+static void switchStmt(Compiler* compiler){
+    consume(compiler, TOKEN_LEFT_PAREN, "Expect '(' after 'switch'.");
+    expression(compiler);
+    consume(compiler, TOKEN_RIGHT_PAREN, "Expect ')' after switch condition.");
+    consume(compiler, TOKEN_LEFT_BRACE, "Expect '{' before switch cases.");
+
+    int endJumps[CASE_MAX];
+    int endJumpCnt = 0;
+    
+    int fallthroughJump = -1;
+    
+    int caseCnt = 0;
+    bool hasDefault = false;
+
+    while(!checkType(compiler, TOKEN_RIGHT_BRACE) && !checkType(compiler, TOKEN_EOF)){
+        if(fallthroughJump != -1){
+            patchJump(compiler, fallthroughJump);
+            fallthroughJump = -1; 
+        }
+
+        if(caseCnt++ >= CASE_MAX){
+            errorAt(compiler, &compiler->parser.pre, "Too many cases in one switch.");
+            while(!checkType(compiler, TOKEN_RIGHT_BRACE) && !checkType(compiler, TOKEN_EOF)) advance(compiler);
+            break;
+        }
+
+        if(match(compiler, TOKEN_DEFAULT)){
+            if(hasDefault){
+                errorAt(compiler, &compiler->parser.pre, "Multiple default cases in one switch.");
+            }
+            hasDefault = true;
+
+            consume(compiler, TOKEN_FAT_ARROW, "Expect '=>' after 'default'.");
+            emitByte(compiler, OP_POP);
+            stmt(compiler);
+        }else{
+            int bodyJumps[CASE_MAX];
+            int bodyJumpCount = 0;
+            do{
+                emitByte(compiler, OP_DUP);
+                expression(compiler);
+                emitByte(compiler, OP_EQUAL);
+                
+                int failedMatchJump = emitJump(compiler, OP_JUMP_IF_FALSE);
+
+                bodyJumps[bodyJumpCount++] = emitJump(compiler, OP_JUMP);
+                
+                patchJump(compiler, failedMatchJump);
+
+            }while(match(compiler, TOKEN_COMMA));
+            
+            fallthroughJump = emitJump(compiler, OP_JUMP);
+            
+            for(int i = 0; i < bodyJumpCount; i++){
+                patchJump(compiler, bodyJumps[i]);
+            }
+
+            consume(compiler, TOKEN_FAT_ARROW, "Expect '=>' after case value(s).");
+            
+            emitByte(compiler, OP_POP);
+            stmt(compiler);
+            
+            endJumps[endJumpCnt++] = emitJump(compiler, OP_JUMP);
+        }
+    }
+    
+    if(fallthroughJump != -1){
+        patchJump(compiler, fallthroughJump);
+    }
+
+    for(int i = 0; i < endJumpCnt; i++){
+        patchJump(compiler, endJumps[i]);
+    }
+
+    if(!hasDefault){
+        emitByte(compiler, OP_POP);
+    }else if(endJumpCnt == 0 && !hasDefault){ 
+        emitByte(compiler, OP_POP);
+    }
+
+    consume(compiler, TOKEN_RIGHT_BRACE, "Expect '}' after switch cases.");
 }
 
 static void parsePrecedence(Compiler* compiler, Precedence precedence){

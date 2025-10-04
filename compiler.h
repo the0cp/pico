@@ -7,6 +7,7 @@
 
 #define LOCAL_MAX (UINT16_MAX + 1)
 #define LOOP_MAX 16
+#define CASE_MAX 32
 
 typedef struct{
     Token name;
@@ -92,5 +93,6 @@ static void whileStmt(Compiler* compiler);
 static void forStmt(Compiler* compiler);
 static void breakStmt(Compiler* compiler);
 static void continueStmt(Compiler* compiler);
+static void switchStmt(Compiler* compiler);
 
 #endif // PICO_COMPILER_H

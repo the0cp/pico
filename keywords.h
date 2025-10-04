@@ -41,7 +41,7 @@ struct Keyword {
 #include <string.h>
 enum
   {
-    TOTAL_KEYWORDS = 17,
+    TOTAL_KEYWORDS = 19,
     MIN_WORD_LENGTH = 2,
     MAX_WORD_LENGTH = 8,
     MIN_HASH_VALUE = 2,
@@ -74,8 +74,8 @@ keywordHash (str, len)
       26, 26, 26, 26, 26, 26, 26, 26, 26, 26,
       26, 26, 26, 26, 26, 26, 26, 26, 26, 26,
       26, 26, 26, 26, 26, 26, 26,  5, 20,  0,
-      26,  0,  0, 26,  5,  5, 26, 26,  0, 26,
-       5,  0, 15, 26,  0, 26, 15,  5, 10,  5,
+       5,  0,  0, 26,  5,  5, 26, 26,  0, 26,
+       5,  0, 15, 26,  0,  0, 15,  5, 10,  5,
       26, 26, 26, 26, 26, 26, 26, 26, 26, 26,
       26, 26, 26, 26, 26, 26, 26, 26, 26, 26,
       26, 26, 26, 26, 26, 26, 26, 26, 26, 26,
@@ -115,7 +115,10 @@ static const struct Keyword wordlist[] =
     {"func",       TOKEN_FUNC},
 #line 16 "keywords.gperf"
     {"false",      TOKEN_FALSE},
-    {""}, {""},
+#line 31 "keywords.gperf"
+    {"switch",     TOKEN_SWITCH},
+#line 32 "keywords.gperf"
+    {"default",    TOKEN_DEFAULT},
 #line 27 "keywords.gperf"
     {"and",        TOKEN_AND},
 #line 21 "keywords.gperf"
