@@ -3,6 +3,8 @@
 
 #include <stddef.h>
 
+#include "chunk.h"
+
 typedef struct VM VM;
 
 #define OBJECT_TYPE(value) (AS_OBJECT(value)->type)
@@ -12,7 +14,7 @@ typedef struct VM VM;
 
 typedef enum{
     OBJECT_STRING,
-
+    OBJECT_FUNC,
 }ObjectType;
 
 typedef struct Object{
@@ -29,5 +31,14 @@ typedef struct ObjectString{
 }ObjectString;
 
 ObjectString* copyString(VM* vm, const char* chars, int len);
+
+typedef struct ObjectFunc{
+    Object obj;
+    int arity;
+    Chunk* chunk;
+    ObjectString* name;
+}ObjectFunc;
+
+ObjectFunc* newFunction(VM* vm);
 
 #endif // PICO_OBJECT_H

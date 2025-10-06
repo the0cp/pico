@@ -69,6 +69,14 @@ ObjectString* copyString(VM* vm, const char* chars, int len){
     return str;
 }
 
+ObjectFunc* newFunction(VM* vm){
+    ObjectFunc* func = (ObjectFunc*)resize(NULL, 0, sizeof(ObjectFunc));
+    func->arity = 0;
+    func->name = NULL;
+    initChunk(func->chunk);
+    return func;
+}
+
 void printObject(Value value){
     switch(OBJECT_TYPE(value)){
         case OBJECT_STRING:
