@@ -71,9 +71,13 @@ ObjectString* copyString(VM* vm, const char* chars, int len){
 
 ObjectFunc* newFunction(VM* vm){
     ObjectFunc* func = (ObjectFunc*)resize(NULL, 0, sizeof(ObjectFunc));
+    func->obj.type = OBJECT_FUNC;
     func->arity = 0;
     func->name = NULL;
-    initChunk(func->chunk);
+    initChunk(&func->chunk);
+
+    func->obj.next = vm->objects;
+    vm->objects = (Object*)func;
     return func;
 }
 
@@ -81,6 +85,13 @@ void printObject(Value value){
     switch(OBJECT_TYPE(value)){
         case OBJECT_STRING:
             printf("%s", AS_CSTRING(value));
+            break;
+        case OBJECT_FUNC:
+            if(AS_FUNC(value)->name == NULL){
+                printf("<script>");
+            }else{
+                printf("<fn %s>", AS_FUNC(value)->name->chars);
+            }
             break;
     }
 }

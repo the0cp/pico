@@ -11,6 +11,8 @@ typedef struct VM VM;
 #define IS_STRING(value) (IS_OBJECT(value) && OBJECT_TYPE(value) == OBJECT_STRING)
 #define AS_STRING(value) ((ObjectString*)AS_OBJECT(value))
 #define AS_CSTRING(value) (((ObjectString*)AS_OBJECT(value))->chars)
+#define IS_FUNC(value) (IS_OBJECT(value) && OBJECT_TYPE(value) == OBJECT_FUNC)
+#define AS_FUNC(value) ((ObjectFunc*)AS_OBJECT(value))
 
 typedef enum{
     OBJECT_STRING,
@@ -35,7 +37,7 @@ ObjectString* copyString(VM* vm, const char* chars, int len);
 typedef struct ObjectFunc{
     Object obj;
     int arity;
-    Chunk* chunk;
+    Chunk chunk;
     ObjectString* name;
 }ObjectFunc;
 

@@ -37,9 +37,10 @@ static void handleNum(Compiler* compiler, bool canAssign);
 static void handleString(Compiler* compiler, bool canAssign);
 static void handleAnd(Compiler* compiler, bool canAssign);
 static void handleOr(Compiler* compiler, bool canAssign);
+static void handleCall(Compiler* compiler, bool canAssign);
 
 ParseRule rules[] = {
-    [TOKEN_LEFT_PAREN]              = {handleGrouping,  NULL,           PREC_NONE},
+    [TOKEN_LEFT_PAREN]              = {handleGrouping,  handleCall,     PREC_CALL},
     [TOKEN_RIGHT_PAREN]             = {NULL,            NULL,           PREC_NONE},
     [TOKEN_LEFT_BRACE]              = {NULL,            NULL,           PREC_NONE},
     [TOKEN_RIGHT_BRACE]             = {NULL,            NULL,           PREC_NONE},
@@ -92,6 +93,17 @@ static void advance(Compiler* compiler){
     }
 }
 
+static void initCompiler(Compiler* compiler, struct Compiler* enclosing, VM* vm, Chunk* chunk){
+    compiler->enclosing = enclosing;
+    compiler->vm = vm;
+    compiler->chunk = chunk;
+
+    compiler->localCnt = 0;
+    compiler->scopeDepth = 0;
+    compiler->loopCnt = 0;
+    compiler->parser.hadError = false;
+    compiler->parser.panic = false;
+}
 
 bool compile(VM* vm, const char* code, Chunk* chunk){
     Compiler* compiler = (Compiler*)malloc(sizeof(Compiler));
@@ -108,6 +120,7 @@ bool compile(VM* vm, const char* code, Chunk* chunk){
     compiler->localCnt = 0;
     compiler->scopeDepth = 0;
     compiler->loopCnt = 0;
+    compiler->type = TYPE_SCRIPT;
 
     advance(compiler);  // Initialize the first token
     if(compiler->parser.cur.type == TOKEN_EOF){
@@ -132,11 +145,13 @@ static void expression(Compiler* compiler){
 }
 
 static void decl(Compiler* compiler){
-    if(match(compiler, TOKEN_VAR)){
+    if(match(compiler, TOKEN_VAR))
         varDecl(compiler);
-    }else{
+    else if(match(compiler, TOKEN_FUNC))
+        funcDecl(compiler);
+    else
         stmt(compiler);
-    }
+    
     if(compiler->parser.panic){
         sync(compiler);
     }
@@ -153,6 +168,16 @@ static void varDecl(Compiler* compiler){
 
     consume(compiler, TOKEN_SEMICOLON, "Expect ';' after declaration.");
 
+    defineVar(compiler, global);
+}
+
+static void compileFunc(Compiler* compiler, FuncType type){
+
+}
+
+static void funcDecl(Compiler* compiler){
+    int global = parseVar(compiler, "Expect function name.");
+    compileFunc(compiler, TYPE_FUNC);
     defineVar(compiler, global);
 }
 
@@ -848,6 +873,25 @@ static void handleOr(Compiler* compiler, bool canAssign){
     emitByte(compiler, OP_POP);
     parsePrecedence(compiler, PREC_OR);
     patchJump(compiler, endJump);
+}
+
+static uint8_t argList(Compiler* compiler){
+    uint8_t argCnt = 0;
+    if(!checkType(compiler, TOKEN_RIGHT_PAREN)){
+        do{
+            expression(compiler);
+            if(argCnt == 255){
+                errorAt(compiler, &compiler->parser.pre, "Cannot have more than 255 arguments.");
+            }
+            argCnt++;
+        }while(match(compiler, TOKEN_COMMA));
+    }
+    consume(compiler, TOKEN_RIGHT_PAREN, "Expect ')' after arguments.");
+    return argCnt;
+}
+
+static void handleCall(Compiler* compiler, bool canAssign){
+    consume(compiler, TOKEN_RIGHT_PAREN, "Expect ')' after arguments.");
 }
 
 static void consume(Compiler* compiler, TokenType type, const char* errMsg){

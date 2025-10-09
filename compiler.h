@@ -28,7 +28,13 @@ typedef struct{
     int breakCnt;
 }Loop;
 
+typedef enum{
+    TYPE_FUNC,
+    TYPE_SCRIPT,
+}FuncType;
+
 typedef struct Compiler{
+    struct Compiler* enclosing;  // Enclosing compiler for nested functions
     Parser parser;
     Chunk* chunk;
     VM* vm;
@@ -37,7 +43,9 @@ typedef struct Compiler{
     int scopeDepth;
     Loop loops[LOOP_MAX];
     int loopCnt;
+    FuncType type;
 }Compiler;
+
 
 bool compile(VM* vm, const char* code, Chunk* chunk);
 static void stopCompiler(Compiler* compiler);
@@ -65,6 +73,9 @@ static void handleString(Compiler* compiler, bool canAssign);
 static void handleAnd(Compiler* compiler, bool canAssign);
 static void handleOr(Compiler* compiler, bool canAssign);
 
+static uint8_t argList(Compiler* compiler);
+static void handleCall(Compiler* compiler, bool canAssign);
+
 static void advance(Compiler* compiler);
 
 static void expression(Compiler* compiler);
@@ -72,6 +83,7 @@ static void expression(Compiler* compiler);
 static void decl(Compiler* compiler);
 static void varDecl(Compiler* compiler);
 static void defineVar(Compiler* compiler, int global);
+static void funcDecl(Compiler* compiler);
 
 static void beginScope(Compiler* compiler);
 static void block(Compiler* compiler);

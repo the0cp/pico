@@ -22,6 +22,7 @@ typedef enum {
     OP_SET_LOCAL, OP_SET_LLOCAL,
     OP_JUMP, OP_JUMP_IF_FALSE,
     OP_LOOP,
+    OP_CALL,
 } OpCode;
 
 typedef struct Chunk {
