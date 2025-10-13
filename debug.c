@@ -89,6 +89,8 @@ int dasmInstruction(const Chunk* chunk, int offset){
             return dasmJump("OP_JUMP_IF_FALSE", 1, chunk, offset);
         case OP_LOOP:
             return dasmJump("OP_LOOP", -1, chunk, offset);
+        case OP_CALL:
+            return dasmLocal("OP_CALL", chunk, offset);
         default:
             printf("Unknown opcode %d\n", instruction);
             return offset + 1;
@@ -109,8 +111,7 @@ static int dasmConstant(const Chunk* chunk, int offset){
 
 static int dasmLConstant(const Chunk* chunk, int offset){
     uint32_t constantIndex = (uint32_t)chunk->code[offset + 1] | 
-                                      (chunk->code[offset + 2] << 8) |
-                                      (chunk->code[offset + 3] << 16);
+                                      (chunk->code[offset + 2] << 8);
     printf("OP_LCONSTANT %d '", constantIndex);
     if(constantIndex < chunk->constants.count){
         printValue(chunk->constants.values[constantIndex]);
@@ -136,8 +137,7 @@ static int dasmGlobal(const char* opName, const Chunk* chunk, int offset) {
 
 static int dasmLGlobal(const char* opName, const Chunk* chunk, int offset) {
     uint32_t constantIndex = (uint32_t)chunk->code[offset + 1] |
-                                    (chunk->code[offset + 2] << 8) |
-                                    (chunk->code[offset + 3] << 16);
+                                    (chunk->code[offset + 2] << 8);
     printf("%-22s %d '", opName, constantIndex); // Adjusted alignment
     if(constantIndex < chunk->constants.count){
         printValue(chunk->constants.values[constantIndex]);

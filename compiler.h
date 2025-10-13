@@ -36,7 +36,7 @@ typedef enum{
 typedef struct Compiler{
     struct Compiler* enclosing;  // Enclosing compiler for nested functions
     Parser parser;
-    Chunk* chunk;
+    // Chunk* chunk;
     VM* vm;
     Local locals[LOCAL_MAX];
     int localCnt;
@@ -44,11 +44,12 @@ typedef struct Compiler{
     Loop loops[LOOP_MAX];
     int loopCnt;
     FuncType type;
+    ObjectFunc* func;
 }Compiler;
 
 
-bool compile(VM* vm, const char* code, Chunk* chunk);
-static void stopCompiler(Compiler* compiler);
+ObjectFunc* compile(VM* vm, const char* code);
+static ObjectFunc* stopCompiler(Compiler* compiler);
 static void emitByte(Compiler* compiler, uint8_t byte);
 static void emitPair(Compiler* compiler, uint8_t byte1, uint8_t byte2);
 static int emitJump(Compiler* compiler, uint8_t instruction);

@@ -62,6 +62,5 @@ void writeConstant(Chunk* chunk, Value value, int line){
         writeChunk(chunk, OP_LCONSTANT, line);
         writeChunk(chunk, (uint8_t)(constantIndex & 0xff), line);
         writeChunk(chunk, (uint8_t)((constantIndex >> 8) & 0xff), line);
-        writeChunk(chunk, (uint8_t)((constantIndex >> 16) & 0xff), line);
     }
 }

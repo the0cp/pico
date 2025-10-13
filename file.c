@@ -47,10 +47,10 @@ void buildScript(VM* vm, const char* path){
     Chunk chunk;
     initChunk(&chunk);
 
-    if(!compile(vm, source, &chunk)){
-        free(source);
-        freeChunk(&chunk);
-        exit(65);   // format error
+    ObjectFunc* func = compile(vm, source);
+    free(source);
+    if(func == NULL){
+        exit(65);
     }
 
     char outputPath[1024];

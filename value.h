@@ -4,7 +4,9 @@
 #include <string.h>
 
 #include "common.h"
-#include "object.h"
+
+typedef struct Object Object;
+typedef struct ObjectString ObjectString;
 
 typedef uint64_t Value;
 

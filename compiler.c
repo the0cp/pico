@@ -93,38 +93,45 @@ static void advance(Compiler* compiler){
     }
 }
 
-static void initCompiler(Compiler* compiler, struct Compiler* enclosing, VM* vm, Chunk* chunk){
+static void initCompiler(Compiler* compiler, VM* vm, Compiler* enclosing, FuncType type){
     compiler->enclosing = enclosing;
     compiler->vm = vm;
-    compiler->chunk = chunk;
+    compiler->type = type;
+    compiler->func = newFunction(vm);
+
+    if(type != TYPE_SCRIPT){
+        compiler->func->name = copyString(vm, compiler->parser.pre.head, compiler->parser.pre.len);
+    }
 
     compiler->localCnt = 0;
     compiler->scopeDepth = 0;
     compiler->loopCnt = 0;
     compiler->parser.hadError = false;
     compiler->parser.panic = false;
+
+    Local *local = &compiler->locals[compiler->localCnt++];
+    local->depth = 0;
+    if(type != TYPE_SCRIPT){
+        local->name.head = compiler->parser.pre.head;
+        local->name.len = compiler->parser.pre.len;
+    }else{
+        local->name.head = "";
+        local->name.len = 0;
+    }
 }
 
-bool compile(VM* vm, const char* code, Chunk* chunk){
+ObjectFunc* compile(VM* vm, const char* code){
     Compiler* compiler = (Compiler*)malloc(sizeof(Compiler));
     if(compiler == NULL){
         fprintf(stderr, "Not enough memory to compile.\n");
         return false;
     }
     initScanner(code);
-    compiler->chunk = chunk;
-    compiler->vm = vm;
-    compiler->parser.hadError = false;
-    compiler->parser.panic = false;
-
-    compiler->localCnt = 0;
-    compiler->scopeDepth = 0;
-    compiler->loopCnt = 0;
-    compiler->type = TYPE_SCRIPT;
+    initCompiler(compiler, vm, NULL, TYPE_SCRIPT);
 
     advance(compiler);  // Initialize the first token
     if(compiler->parser.cur.type == TOKEN_EOF){
-        return true;  // No code to compile
+        return NULL;  // No code to compile
     }
     // expression(&compiler); // Start parsing the expression
 
@@ -132,12 +139,12 @@ bool compile(VM* vm, const char* code, Chunk* chunk){
         decl(compiler);
     }
     consume(compiler, TOKEN_EOF, "Expected end of file");
-    stopCompiler(compiler);
+    ObjectFunc* func = stopCompiler(compiler);
 
     bool hadError = compiler->parser.hadError;
     free(compiler);
     
-    return !hadError;
+    return hadError ? NULL : func;
 }
 
 static void expression(Compiler* compiler){
@@ -172,7 +179,36 @@ static void varDecl(Compiler* compiler){
 }
 
 static void compileFunc(Compiler* compiler, FuncType type){
+    Compiler* funcCompiler = (Compiler*)malloc(sizeof(Compiler));
+    if(funcCompiler == NULL){
+        errorAt(compiler, &compiler->parser.pre, "Not enough memory to compile function.");
+        return;
+    }
+    funcCompiler->parser = compiler->parser;
 
+    initCompiler(funcCompiler, compiler->vm, compiler, type);
+
+    beginScope(funcCompiler);
+    consume(funcCompiler, TOKEN_LEFT_PAREN, "Expect '(' after function name.");
+    if(!checkType(funcCompiler, TOKEN_RIGHT_PAREN)){
+        do{
+            funcCompiler->func->arity++;
+            if(funcCompiler->func->arity > 255){
+                errorAt(funcCompiler, &funcCompiler->parser.cur, "Too many function args.");
+            }
+            int constant = parseVar(funcCompiler, "Expect param name.");
+            defineVar(funcCompiler, constant);
+        }while(match(funcCompiler, TOKEN_COMMA));
+    }
+    consume(funcCompiler, TOKEN_RIGHT_PAREN, "Expect ')' after parameters.");
+    consume(funcCompiler, TOKEN_LEFT_BRACE, "Expect '{' before function body.");
+    block(funcCompiler);
+
+    ObjectFunc* func = stopCompiler(funcCompiler);
+    compiler->parser = funcCompiler->parser;
+    free(funcCompiler);
+    
+    emitConstant(compiler, OBJECT_VAL(func));
 }
 
 static void funcDecl(Compiler* compiler){
@@ -316,7 +352,7 @@ static void whileStmt(Compiler* compiler){
     +-----------------------------------------------------------+
     */
 
-    int loopStart = compiler->chunk->count;
+    int loopStart = compiler->func->chunk.count;
 
     if(compiler->loopCnt == LOOP_MAX){
         errorAt(compiler, &compiler->parser.pre, "Too many nested loops.");
@@ -373,7 +409,7 @@ static void forStmt(Compiler* compiler){
         expressionStmt(compiler);
     }
 
-    int loopStart = compiler->chunk->count;
+    int loopStart = compiler->func->chunk.count;
 
     int exitJump = -1;
     if(!match(compiler, TOKEN_SEMICOLON)){
@@ -385,7 +421,7 @@ static void forStmt(Compiler* compiler){
 
     if(!match(compiler, TOKEN_SEMICOLON)){
         int bodyJump = emitJump(compiler, OP_JUMP);
-        int incrementStart = compiler->chunk->count;
+        int incrementStart = compiler->func->chunk.count;
 
         expression(compiler);
         emitByte(compiler, OP_POP);
@@ -566,7 +602,7 @@ static void parsePrecedence(Compiler* compiler, Precedence precedence){
 static int identifierConst(Compiler* compiler){
     Token* name = &compiler->parser.pre;
     Value strVal = OBJECT_VAL(copyString(compiler->vm, name->head, name->len));
-    return addConstant(compiler->chunk, strVal);
+    return addConstant(&compiler->func->chunk, strVal);
 }
 
 static void addLocal(Compiler* compiler, Token name){
@@ -637,7 +673,7 @@ static int resolveLocal(Compiler* compiler, Token* name){
 }
 
 static void emitByte(Compiler* compiler, uint8_t byte){
-    writeChunk(compiler->chunk, byte, compiler->parser.pre.line);
+    writeChunk(&compiler->func->chunk, byte, compiler->parser.pre.line);
 }
 
 static void emitPair(Compiler* compiler, uint8_t byte1, uint8_t byte2){
@@ -648,12 +684,12 @@ static void emitPair(Compiler* compiler, uint8_t byte1, uint8_t byte2){
 static int emitJump(Compiler* compiler, uint8_t instruction){
     emitByte(compiler, instruction);
     emitPair(compiler, 0xff, 0xff);
-    return compiler->chunk->count - 2;
+    return compiler->func->chunk.count - 2;
 }
 
 static void emitLoop(Compiler* compiler, int loopStart){
     emitByte(compiler, OP_LOOP);
-    int offset = compiler->chunk->count - loopStart + 2;
+    int offset = compiler->func->chunk.count - loopStart + 2;
     if(offset > UINT16_MAX){
         errorAt(compiler, &compiler->parser.pre, "Loop too large.");
     }
@@ -661,23 +697,28 @@ static void emitLoop(Compiler* compiler, int loopStart){
 }
 
 static void patchJump(Compiler* compiler, int offset){
-    int jump = compiler->chunk->count - (offset + 2);
+    int jump = compiler->func->chunk.count - (offset + 2);
     if(jump > UINT16_MAX){
         errorAt(compiler, &compiler->parser.pre, "Jump too long.");
     }
-    compiler->chunk->code[offset] = (jump >> 8) & 0xff;
-    compiler->chunk->code[offset+1] = jump & 0xff;
+    compiler->func->chunk.code[offset] = (jump >> 8) & 0xff;
+    compiler->func->chunk.code[offset+1] = jump & 0xff;
 }
 
-static void stopCompiler(Compiler* compiler){
+static ObjectFunc* stopCompiler(Compiler* compiler){
+    emitByte(compiler, OP_NULL);
     emitByte(compiler, OP_RETURN);
+
+    ObjectFunc* func = compiler->func;
 
     #ifdef DEBUG_PRINT_CODE
     if(!compiler->parser.hadError){
         printf("== Compiled code ==\n");
-        dasmChunk(compiler->chunk, "code");
+        dasmChunk(&compiler->func->chunk, "code");
     }
     #endif
+
+    return func;
 }
 
 static void handleNum(Compiler* compiler, bool canAssign){
@@ -690,7 +731,7 @@ static void handleNum(Compiler* compiler, bool canAssign){
 }
 
 static void emitConstant(Compiler* compiler, Value value){
-    int constantIndex = addConstant(compiler->chunk, value);
+    int constantIndex = addConstant(&compiler->func->chunk, value);
     if(constantIndex < 0){
         fprintf(stderr, "Failed to add constant\n");
         return;
@@ -891,7 +932,9 @@ static uint8_t argList(Compiler* compiler){
 }
 
 static void handleCall(Compiler* compiler, bool canAssign){
-    consume(compiler, TOKEN_RIGHT_PAREN, "Expect ')' after arguments.");
+    uint8_t argCount = argList(compiler);
+    emitByte(compiler, OP_CALL);
+    emitByte(compiler, argCount);
 }
 
 static void consume(Compiler* compiler, TokenType type, const char* errMsg){

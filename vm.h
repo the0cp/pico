@@ -2,20 +2,30 @@
 #define PICO_VM_H
 
 #include "hashtable.h"
+#include "object.h"
 
 typedef struct Chunk Chunk;
 typedef struct Object Object;
 
-#define STACK_MAX 256
+#define FRAMES_MAX 64
+#define STACK_MAX (FRAMES_MAX * 256)
+
+typedef struct CallFrame{
+    ObjectFunc* func;
+    uint8_t* ip;
+    Value* slots;
+}CallFrame;
 
 typedef struct VM{
-    Chunk* chunk;
-    uint8_t* ip;  // Instruction pointer
+    // Chunk* chunk;
+    // uint8_t* ip;  // Instruction pointer
     Value stack[STACK_MAX];  // Stack for values
     Value* stackTop;
     HashTable strings;
     HashTable globals;
     Object* objects;
+    CallFrame frames[FRAMES_MAX];
+    int frameCount;
 }VM;
 
 typedef enum{
@@ -35,6 +45,9 @@ static bool isTruthy(Value value);
 
 InterpreterStatus interpret(VM* vm, const char* code);
 static InterpreterStatus run(VM* vm);
+
+static bool call(VM* vm, ObjectFunc* func, int argCnt);
+static bool callValue(VM* vm, Value callee, int argCnt);
 
 static void runtimeError(VM* vm, const char* format, ...);
 

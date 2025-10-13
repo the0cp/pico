@@ -2,6 +2,7 @@
 
 #include "mem.h"
 #include "value.h"
+#include "object.h"
 
 char* valueToString(Value value){
     if(IS_BOOL(value)){

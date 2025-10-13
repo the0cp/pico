@@ -19,6 +19,7 @@ void resetStack(VM* vm){
 void initVM(VM* vm){
     resetStack(vm);
     vm->objects = NULL;
+    vm->frameCount = 0;
     initHashTable(&vm->strings);
     initHashTable(&vm->globals);
 }
@@ -54,29 +55,21 @@ static bool isTruthy(Value value){
 }
 
 InterpreterStatus interpret(VM* vm, const char* code){
-    Chunk chunk;
-    initChunk(&chunk);
+    ObjectFunc* function = compile(vm, code);
+    if (function == NULL) return VM_COMPILE_ERROR;
 
-    if(!compile(vm, code, &chunk)){
-        freeChunk(&chunk);
-        return VM_COMPILE_ERROR;
-    }
-
-    if(chunk.count == 0){
-        freeChunk(&chunk);
-        return VM_OK;  // No code to execute
-    }
-
-    vm->chunk = &chunk;
-    vm->ip = vm->chunk->code;
+    push(vm, OBJECT_VAL(function));
+    call(vm, function, 0);
 
     InterpreterStatus status = run(vm);
-
-    freeChunk(&chunk);
     return status;
 }
 
 static InterpreterStatus run(VM* vm){
+    CallFrame* frame = &vm->frames[vm->frameCount - 1];
+
+    #define READ_BYTE() (*frame->ip++)
+
     static void* dispatchTable[] = {
         [OP_CONSTANT]       = &&DO_OP_CONSTANT,
         [OP_LCONSTANT]      = &&DO_OP_LCONSTANT,
@@ -121,19 +114,20 @@ static InterpreterStatus run(VM* vm){
         [OP_JUMP_IF_FALSE]  = &&DO_OP_JUMP_IF_FALSE,
 
         [OP_LOOP]           = &&DO_OP_LOOP,
+        [OP_CALL]           = &&DO_OP_CALL,
     };
 
     #ifdef DEBUG_TRACE
         #define DISPATCH() \
         do{ \
             printf(">> "); \
-            dasmInstruction(vm->chunk, (int)(vm->ip - vm->chunk->code)); \
-            goto *dispatchTable[*vm->ip++]; \
+            dasmInstruction(&frame->func->chunk, (int)(frame->ip - frame->function->chunk.code)); \
+            goto *dispatchTable[READ_BYTE()]; \
         }while(0)
     #else
         #define DISPATCH() \
         do{ \
-            goto *dispatchTable[*vm->ip++]; \
+            goto *dispatchTable[READ_BYTE()]; \
         }while(0)
     #endif
 
@@ -155,17 +149,17 @@ static InterpreterStatus run(VM* vm){
 
     DO_OP_CONSTANT:
     {
-        Value constant = vm->chunk->constants.values[*vm->ip++];
+        Value constant = frame->func->chunk.constants.values[READ_BYTE()];
         push(vm, constant);
     } DISPATCH();
 
     DO_OP_LCONSTANT:
     {
-        Value constant = vm->chunk->constants.values[
-            (uint16_t)(vm->ip[0] << 8) | 
-            vm->ip[1]
+        Value constant = frame->func->chunk.constants.values[
+            (uint16_t)(frame->ip[0] << 8) | 
+            frame->ip[1]
         ];
-        vm->ip += 2; // Move past the index
+        frame->ip += 2; // Move past the index
         push(vm, constant);
     } DISPATCH();
 
@@ -347,24 +341,24 @@ static InterpreterStatus run(VM* vm){
 
     DO_OP_DEFINE_GLOBAL:
     {
-        ObjectString* name = AS_STRING(vm->chunk->constants.values[*vm->ip++]);
+        ObjectString* name = AS_STRING(frame->func->chunk.constants.values[READ_BYTE()]);
         tableSet(&vm->globals, name, peek(vm, 0));
         pop(vm);
     } DISPATCH();
 
     DO_OP_DEFINE_LGLOBAL:
     {
-        uint16_t index = (uint16_t)(vm->ip[0] << 8) | vm->ip[1];
+        uint16_t index = (uint16_t)(frame->ip[0] << 8) | frame->ip[1];
                          
-        vm->ip += 2;
-        ObjectString* name = AS_STRING(vm->chunk->constants.values[index]);
+        frame->ip += 2;
+        ObjectString* name = AS_STRING(frame->func->chunk.constants.values[index]);
         tableSet(&vm->globals, name, peek(vm, 0));
         pop(vm);
     } DISPATCH();
 
     DO_OP_GET_GLOBAL:
     {
-        ObjectString* name = AS_STRING(vm->chunk->constants.values[*vm->ip++]);
+        ObjectString* name = AS_STRING(frame->func->chunk.constants.values[READ_BYTE()]);
         Value value;
         if (!tableGet(&vm->globals, name, &value)) {
             runtimeError(vm, "Undefined variable '%.*s'.", name->length, name->chars);
@@ -375,9 +369,9 @@ static InterpreterStatus run(VM* vm){
 
     DO_OP_GET_LGLOBAL:
     {
-        uint16_t index = (uint16_t)(vm->ip[0] << 8) | vm->ip[1];
-        vm->ip += 2;
-        ObjectString* name = AS_STRING(vm->chunk->constants.values[index]);
+        uint16_t index = (uint16_t)(frame->ip[0] << 8) | frame->ip[1];
+        frame->ip += 2;
+        ObjectString* name = AS_STRING(frame->func->chunk.constants.values[index]);
         Value value;
         if(!tableGet(&vm->globals, name, &value)){
             runtimeError(vm, "Undefined variable '%.*s'.", name->length, name->chars);
@@ -388,7 +382,7 @@ static InterpreterStatus run(VM* vm){
 
     DO_OP_SET_GLOBAL:
     {
-        ObjectString* name = AS_STRING(vm->chunk->constants.values[*vm->ip++]);
+        ObjectString* name = AS_STRING(frame->func->chunk.constants.values[READ_BYTE()]);
         if(tableSet(&vm->globals, name, peek(vm, 0))){
             // empty bucket, undefined
             tableRemove(&vm->globals, name);
@@ -399,9 +393,9 @@ static InterpreterStatus run(VM* vm){
 
     DO_OP_SET_LGLOBAL:
     {
-        uint16_t index = (uint16_t)(vm->ip[0] << 8) | vm->ip[1];
-        vm->ip += 2;
-        ObjectString* name = AS_STRING(vm->chunk->constants.values[index]);
+        uint16_t index = (uint16_t)(frame->ip[0] << 8) | frame->ip[1];
+        frame->ip += 2;
+        ObjectString* name = AS_STRING(frame->func->chunk.constants.values[index]);
         if(tableSet(&vm->globals, name, peek(vm, 0))){
             tableRemove(&vm->globals, name);
             runtimeError(vm, "Undefined variable '%.*s'.", name->length, name->chars);
@@ -411,67 +405,85 @@ static InterpreterStatus run(VM* vm){
 
     DO_OP_GET_LOCAL:
     {
-        uint8_t slot = *vm->ip++;
-        push(vm, vm->stack[slot]);
+        uint8_t slot = READ_BYTE();
+        push(vm, frame->slots[slot]);
     } DISPATCH();
 
     DO_OP_SET_LOCAL:
     {
-        uint8_t slot = *vm->ip++;
-        vm->stack[slot] = peek(vm, 0);
+        uint8_t slot = READ_BYTE();
+        frame->slots[slot] = peek(vm, 0);
     } DISPATCH();
 
     DO_OP_GET_LLOCAL:
     {
-        uint16_t slot = (uint16_t)(vm->ip[0] << 8) | vm->ip[1];
-        vm->ip += 2;
-        push(vm, vm->stack[slot]);
+        uint16_t slot = (uint16_t)(frame->ip[0] << 8) | frame->ip[1];
+        frame->ip += 2;
+        push(vm, frame->slots[slot]);
     } DISPATCH();
 
     DO_OP_SET_LLOCAL:
     {
-        uint16_t slot = (uint16_t)(vm->ip[0] << 8) | vm->ip[1];
-        vm->ip += 2;
-        vm->stack[slot] = peek(vm, 0);
+        uint16_t slot = (uint16_t)(frame->ip[0] << 8) | frame->ip[1];
+        frame->ip += 2;
+        frame->slots[slot] = peek(vm, 0);
     } DISPATCH();
 
     DO_OP_JUMP:
     {
-        uint16_t offset = (uint16_t)(vm->ip[0] << 8) | vm->ip[1];
-        vm->ip += 2;
-        vm->ip += offset;
+        uint16_t offset = (uint16_t)(frame->ip[0] << 8) | frame->ip[1];
+        frame->ip += 2;
+        frame->ip += offset;
     } DISPATCH();
 
     DO_OP_JUMP_IF_FALSE:
     {
-        uint16_t offset = (uint16_t)(vm->ip[0] << 8) | vm->ip[1];
-        vm->ip += 2;
+        uint16_t offset = (uint16_t)(frame->ip[0] << 8) | frame->ip[1];
+        frame->ip += 2;
         if(!isTruthy(peek(vm, 0))){
-            vm->ip += offset;
+            frame->ip += offset;
         }
-        pop(vm);
+        //pop(vm);
     } DISPATCH();
 
     DO_OP_LOOP:
     {
-        uint16_t offset = (uint16_t)(vm->ip[0] << 8) | vm->ip[1];
-        vm->ip += 2;
-        vm->ip -= offset;
+        uint16_t offset = (uint16_t)(frame->ip[0] << 8) | frame->ip[1];
+        frame->ip += 2;
+        frame->ip -= offset;
+    } DISPATCH();
+
+    DO_OP_CALL:
+    {
+        int argCount = READ_BYTE();
+        if(!callValue(vm, peek(vm, argCount), argCount)){
+            return VM_RUNTIME_ERROR;
+        }
+        frame = &vm->frames[vm->frameCount - 1];
     } DISPATCH();
 
     DO_OP_RETURN:
     {
-        // printValue(pop(vm));
-        // printf("\n");
-        return VM_OK;
-    }
+        Value result = pop(vm);
+        vm->frameCount--;
+
+        if(vm->frameCount == 0){
+            pop(vm);
+            return VM_OK;
+        }
+
+        vm->stackTop = frame->slots;
+        push(vm, result);
+
+        frame = &vm->frames[vm->frameCount - 1];
+    } DISPATCH();
     
     #undef DISPATCH
 
     /*
     while(true){
         uint8_t instruction;
-        switch(instruction = *vm->ip++){
+        switch(instruction = READ_BYTE()){
             case OP_RETURN:
                 return VM_OK;
         }
@@ -480,7 +492,39 @@ static InterpreterStatus run(VM* vm){
 
 }
 
-static void runtimeError(VM* vm, const char* format, ...) {
+static bool call(VM* vm, ObjectFunc* func, int argCnt){
+    if(argCnt != func->arity){
+        runtimeError(vm, "Expected %d args but got %d.", func->arity, argCnt);
+        return false;
+    }
+
+    if(vm->frameCount == FRAMES_MAX){
+        runtimeError(vm, "Stack overflow.");
+        return false;
+    }
+
+    CallFrame* frame = &vm->frames[vm->frameCount++];   // 0-indexing++ to actual count
+    frame->func = func;
+    frame->ip = func->chunk.code;
+
+    frame->slots = vm->stackTop - argCnt - 1;   // -1 to skip func self
+    return true;
+}
+
+static bool callValue(VM* vm, Value callee, int argCnt){
+    if(IS_OBJECT(callee)){
+        switch(OBJECT_TYPE(callee)){
+            case OBJECT_FUNC:
+                return call(vm, AS_FUNC(callee), argCnt);
+            default:
+                break;
+        }
+    }
+    runtimeError(vm, "Can only call functions and classes.");
+    return false;
+}
+
+static void runtimeError(VM* vm, const char* format, ...){
     va_list args;
     va_start(args, format);
     vfprintf(stderr, format, args);
@@ -488,7 +532,8 @@ static void runtimeError(VM* vm, const char* format, ...) {
     fputs("\n", stderr);
 
     #ifdef DEBUG_TRACE
-    size_t instructionOffset = vm->ip - vm->chunk->code;
+    CallFrame* frame = &vm->frames[vm->frameCount - 1];
+    size_t instructionOffset = frame->ip - frame->func->chunk.code -1;
     int line = getLine(vm->chunk, instructionOffset);
     fprintf(stderr, "Runtime error at line %d\n", line);
     #endif
