@@ -516,6 +516,13 @@ static bool callValue(VM* vm, Value callee, int argCnt){
         switch(OBJECT_TYPE(callee)){
             case OBJECT_FUNC:
                 return call(vm, AS_FUNC(callee), argCnt);
+            case OBJECT_CFUNC:{
+                CFunc cfunc = AS_CFUNC(callee);
+                Value result = cfunc(argCnt, vm->stackTop - argCnt);
+                vm->stackTop -= argCnt + 1;
+                push(vm, result);
+                return true;
+            }
             default:
                 break;
         }

@@ -7,16 +7,21 @@
 
 typedef struct VM VM;
 
-#define OBJECT_TYPE(value) (AS_OBJECT(value)->type)
-#define IS_STRING(value) (IS_OBJECT(value) && OBJECT_TYPE(value) == OBJECT_STRING)
-#define AS_STRING(value) ((ObjectString*)AS_OBJECT(value))
-#define AS_CSTRING(value) (((ObjectString*)AS_OBJECT(value))->chars)
-#define IS_FUNC(value) (IS_OBJECT(value) && OBJECT_TYPE(value) == OBJECT_FUNC)
-#define AS_FUNC(value) ((ObjectFunc*)AS_OBJECT(value))
+typedef Value (*CFunc)(int argCount, Value* args);
+
+#define OBJECT_TYPE(value)  (AS_OBJECT(value)->type)
+#define IS_STRING(value)    (IS_OBJECT(value) && OBJECT_TYPE(value) == OBJECT_STRING)
+#define AS_STRING(value)    ((ObjectString*)AS_OBJECT(value))
+#define AS_CSTRING(value)   (((ObjectString*)AS_OBJECT(value))->chars)
+#define IS_FUNC(value)      (IS_OBJECT(value) && OBJECT_TYPE(value) == OBJECT_FUNC)
+#define AS_FUNC(value)      ((ObjectFunc*)AS_OBJECT(value))
+#define IS_CFUNC(value)     (IS_OBJECT(value) && OBJECT_TYPE(value) == OBJECT_CFUNC)
+#define AS_CFUNC(value)     (((ObjectCFunc*)AS_OBJECT(value))->func)
 
 typedef enum{
     OBJECT_STRING,
     OBJECT_FUNC,
+    OBJECT_CFUNC,
 }ObjectType;
 
 typedef struct Object{
@@ -42,5 +47,12 @@ typedef struct ObjectFunc{
 }ObjectFunc;
 
 ObjectFunc* newFunction(VM* vm);
+
+typedef struct ObjectCFunc{
+    Object obj;
+    CFunc func;
+}ObjectCFunc;
+
+ObjectCFunc* newCFunc(VM* vm, CFunc* func);
 
 #endif // PICO_OBJECT_H

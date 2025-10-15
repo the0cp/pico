@@ -81,6 +81,16 @@ ObjectFunc* newFunction(VM* vm){
     return func;
 }
 
+ObjectCFunc* newCFunc(VM* vm, CFunc* func){
+    ObjectCFunc* cfunc = (ObjectCFunc*)resize(NULL, 0, sizeof(ObjectCFunc));
+    cfunc->obj.type = OBJECT_CFUNC;
+    cfunc->func = func;
+
+    cfunc->obj.next = vm->objects;
+    vm->objects = (Object*)cfunc;
+    return cfunc;
+}
+
 void printObject(Value value){
     switch(OBJECT_TYPE(value)){
         case OBJECT_STRING:
@@ -92,6 +102,9 @@ void printObject(Value value){
             }else{
                 printf("<fn %s>", AS_FUNC(value)->name->chars);
             }
+            break;
+        case OBJECT_CFUNC:
+            printf("<cfunc>");
             break;
     }
 }
