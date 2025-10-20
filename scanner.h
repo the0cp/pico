@@ -33,6 +33,7 @@ typedef enum{
     TOKEN_LEFT_BRACE, TOKEN_RIGHT_BRACE,
     TOKEN_COMMA, TOKEN_SEMICOLON,
     TOKEN_PRINT,
+    TOKEN_IMPORT,
 }TokenType;
 
 typedef struct{

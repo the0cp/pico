@@ -107,5 +107,6 @@ static void forStmt(Compiler* compiler);
 static void breakStmt(Compiler* compiler);
 static void continueStmt(Compiler* compiler);
 static void switchStmt(Compiler* compiler);
+static void importStmt(Compiler* compiler);
 
 #endif // PICO_COMPILER_H

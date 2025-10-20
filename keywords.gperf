@@ -30,3 +30,4 @@ break,      TOKEN_BREAK
 continue,   TOKEN_CONTINUE
 switch,     TOKEN_SWITCH
 default,    TOKEN_DEFAULT
+import,     TOKEN_IMPORT

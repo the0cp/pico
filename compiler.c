@@ -156,6 +156,8 @@ static void decl(Compiler* compiler){
         varDecl(compiler);
     else if(match(compiler, TOKEN_FUNC))
         funcDecl(compiler);
+    else if(match(compiler, TOKEN_IMPORT))
+        importStmt(compiler);
     else
         stmt(compiler);
     
@@ -577,6 +579,16 @@ static void switchStmt(Compiler* compiler){
     }
 
     consume(compiler, TOKEN_RIGHT_BRACE, "Expect '}' after switch cases.");
+}
+
+static void importStmt(Compiler* compiler){
+    consume(compiler, TOKEN_STRING_START, "Expect a string after 'import'.");
+    if(compiler->parser.cur.type == TOKEN_STRING_END){
+        errorAt(compiler, &compiler->parser.pre, "import path cannot be empty.");
+    }else{
+        Token *token = &compiler->parser.cur;
+        Value valStr = OBJECT_VAL(copyString(&compiler->vm, token->head, token->len));
+    }
 }
 
 static void parsePrecedence(Compiler* compiler, Precedence precedence){
