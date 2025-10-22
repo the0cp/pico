@@ -23,11 +23,13 @@ void initVM(VM* vm){
     vm->frameCount = 0;
     initHashTable(&vm->strings);
     initHashTable(&vm->globals);
+    initHashTable(&vm->modules);
 }
 
 void freeVM(VM* vm){
     freeHashTable(&vm->strings);
     freeHashTable(&vm->globals);
+    freeHashTable(&vm->modules);
     freeObjects(vm);
 }
 

@@ -77,6 +77,8 @@ static void handleOr(Compiler* compiler, bool canAssign);
 static uint8_t argList(Compiler* compiler);
 static void handleCall(Compiler* compiler, bool canAssign);
 
+static void handleImport(Compiler* compiler, bool canAssign);
+
 static void advance(Compiler* compiler);
 
 static void expression(Compiler* compiler);
@@ -107,7 +109,6 @@ static void forStmt(Compiler* compiler);
 static void breakStmt(Compiler* compiler);
 static void continueStmt(Compiler* compiler);
 static void switchStmt(Compiler* compiler);
-static void importStmt(Compiler* compiler);
 static void returnStmt(Compiler* compiler);
 
 #endif // PICO_COMPILER_H

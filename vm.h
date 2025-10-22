@@ -17,12 +17,11 @@ typedef struct CallFrame{
 }CallFrame;
 
 typedef struct VM{
-    // Chunk* chunk;
-    // uint8_t* ip;  // Instruction pointer
     Value stack[STACK_MAX];  // Stack for values
     Value* stackTop;
     HashTable strings;
     HashTable globals;
+    HashTable modules;
     Object* objects;
     CallFrame frames[FRAMES_MAX];
     int frameCount;

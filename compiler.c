@@ -38,6 +38,7 @@ static void handleString(Compiler* compiler, bool canAssign);
 static void handleAnd(Compiler* compiler, bool canAssign);
 static void handleOr(Compiler* compiler, bool canAssign);
 static void handleCall(Compiler* compiler, bool canAssign);
+static void handleImport(Compiler* compiler, bool canAssign);
 
 ParseRule rules[] = {
     [TOKEN_LEFT_PAREN]              = {handleGrouping,  handleCall,     PREC_CALL},
@@ -74,6 +75,8 @@ ParseRule rules[] = {
 
     [TOKEN_AND]                     = {NULL,            handleAnd,      PREC_AND},
     [TOKEN_OR]                      = {NULL,            handleOr,       PREC_OR},
+
+    [TOKEN_IMPORT]                  = {handleImport,    NULL,           PREC_NONE},
 
     [TOKEN_EOF]                     = {NULL,            NULL,           PREC_NONE},
 };
@@ -158,8 +161,6 @@ static void decl(Compiler* compiler){
         varDecl(compiler);
     else if(match(compiler, TOKEN_FUNC))
         funcDecl(compiler);
-    else if(match(compiler, TOKEN_IMPORT))
-        importStmt(compiler);
     else
         stmt(compiler);
     
@@ -585,31 +586,6 @@ static void switchStmt(Compiler* compiler){
     consume(compiler, TOKEN_RIGHT_BRACE, "Expect '}' after switch cases.");
 }
 
-static void importStmt(Compiler* compiler){
-    consume(compiler, TOKEN_STRING_START, "Expect a string after 'import'.");
-
-    if(compiler->parser.cur.type == TOKEN_STRING_END){
-        errorAt(compiler, &compiler->parser.pre, "import path cannot be empty.");
-    }else{
-        Token *token = &compiler->parser.cur;
-        Value valStr = OBJECT_VAL(copyString(compiler->vm, token->head, token->len));
-        int index = addConstant(&compiler->func->chunk, valStr);
-        if(index < 256){
-            emitPair(compiler, OP_IMPORT, (uint8_t)index);
-        }else if(index < 0xffff){
-            emitByte(compiler, OP_LIMPORT);
-            emitByte(compiler, (uint8_t)((index >> 8) & 0xff));
-            emitByte(compiler, (uint8_t)(index & 0xff));
-        }else{
-            errorAt(compiler, &compiler->parser.pre, "Too many constants.");
-        }
-        advance(compiler);
-    }
-
-    consume(compiler, TOKEN_STRING_END, "Expected '\"' after import path.");
-    consume(compiler, TOKEN_SEMICOLON, "Expected ';' after import statement.");
-}
-
 static void returnStmt(Compiler* compiler){
     if(compiler->type == TYPE_SCRIPT){
         errorAt(compiler, &compiler->parser.pre, "Cannot return from the top-level.");
@@ -980,6 +956,30 @@ static void handleCall(Compiler* compiler, bool canAssign){
     uint8_t argCount = argList(compiler);
     emitByte(compiler, OP_CALL);
     emitByte(compiler, argCount);
+}
+
+static void handleImport(Compiler* compiler, bool canAssign){
+    consume(compiler, TOKEN_STRING_START, "Expect a string after 'import'.");
+
+    if(compiler->parser.cur.type == TOKEN_STRING_END){
+        errorAt(compiler, &compiler->parser.pre, "import path cannot be empty.");
+    }else{
+        Token *token = &compiler->parser.cur;
+        Value valStr = OBJECT_VAL(copyString(compiler->vm, token->head, token->len));
+        int index = addConstant(&compiler->func->chunk, valStr);
+        if(index < 256){
+            emitPair(compiler, OP_IMPORT, (uint8_t)index);
+        }else if(index < 0xffff){
+            emitByte(compiler, OP_LIMPORT);
+            emitByte(compiler, (uint8_t)((index >> 8) & 0xff));
+            emitByte(compiler, (uint8_t)(index & 0xff));
+        }else{
+            errorAt(compiler, &compiler->parser.pre, "Too many constants.");
+        }
+        advance(compiler);
+    }
+
+    consume(compiler, TOKEN_STRING_END, "Expected '\"' after import path.");
 }
 
 static void consume(Compiler* compiler, TokenType type, const char* errMsg){

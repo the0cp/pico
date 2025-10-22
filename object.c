@@ -91,6 +91,18 @@ ObjectCFunc* newCFunc(VM* vm, CFunc func){
     return cfunc;
 }
 
+ObjectModule* newModule(VM* vm, ObjectString* name){
+    ObjectModule* module = (ObjectModule*)resize(NULL, 0, sizeof(ObjectModule));
+    module->obj.type = OBJECT_MODULE;
+    module->name = name;
+    initHashTable(&module->members);
+    
+    module->obj.next = vm->objects;
+    vm->objects = (Object*)module;
+
+    return module;
+}
+
 static void freeObject(Object* object){
     switch(object->type){
         case OBJECT_STRING:{
@@ -106,6 +118,12 @@ static void freeObject(Object* object){
         }
         case OBJECT_CFUNC:{
             resize(object, sizeof(ObjectCFunc), 0);
+            break;
+        }
+        case OBJECT_MODULE:{
+            ObjectModule* module = (ObjectModule*)object;
+            freeHashTable(&module->members);
+            resize(module, sizeof(ObjectModule), 0);
             break;
         }
     }
@@ -126,14 +144,16 @@ void printObject(Value value){
             printf("%s", AS_CSTRING(value));
             break;
         case OBJECT_FUNC:
-            if(AS_FUNC(value)->name == NULL){
+            if(AS_FUNC(value)->name == NULL)
                 printf("<script>");
-            }else{
+            else
                 printf("<fn %s>", AS_FUNC(value)->name->chars);
-            }
             break;
         case OBJECT_CFUNC:
             printf("<cfunc>");
+            break;
+        case OBJECT_MODULE:
+            printf("<module '%s'>", AS_MODULE(value)->name->chars);
             break;
     }
 }
