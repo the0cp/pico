@@ -44,6 +44,7 @@ typedef struct ObjectFunc{
     int arity;
     Chunk chunk;
     ObjectString* name;
+    ObjectString* srcName;
 }ObjectFunc;
 
 ObjectFunc* newFunction(VM* vm);
@@ -53,6 +54,8 @@ typedef struct ObjectCFunc{
     CFunc func;
 }ObjectCFunc;
 
-ObjectCFunc* newCFunc(VM* vm, CFunc* func);
+ObjectCFunc* newCFunc(VM* vm, CFunc func);
+
+void freeObjects(VM* vm);
 
 #endif // PICO_OBJECT_H

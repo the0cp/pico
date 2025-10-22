@@ -48,7 +48,7 @@ typedef struct Compiler{
 }Compiler;
 
 
-ObjectFunc* compile(VM* vm, const char* code);
+ObjectFunc* compile(VM* vm, const char* code, const char* srcName);
 static ObjectFunc* stopCompiler(Compiler* compiler);
 static void emitByte(Compiler* compiler, uint8_t byte);
 static void emitPair(Compiler* compiler, uint8_t byte1, uint8_t byte2);
@@ -108,5 +108,6 @@ static void breakStmt(Compiler* compiler);
 static void continueStmt(Compiler* compiler);
 static void switchStmt(Compiler* compiler);
 static void importStmt(Compiler* compiler);
+static void returnStmt(Compiler* compiler);
 
 #endif // PICO_COMPILER_H

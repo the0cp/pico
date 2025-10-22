@@ -93,11 +93,12 @@ static void advance(Compiler* compiler){
     }
 }
 
-static void initCompiler(Compiler* compiler, VM* vm, Compiler* enclosing, FuncType type){
+static void initCompiler(Compiler* compiler, VM* vm, Compiler* enclosing, FuncType type, ObjectString* srcName){
     compiler->enclosing = enclosing;
     compiler->vm = vm;
     compiler->type = type;
     compiler->func = newFunction(vm);
+    compiler->func->srcName = srcName;
 
     if(type != TYPE_SCRIPT){
         compiler->func->name = copyString(vm, compiler->parser.pre.head, compiler->parser.pre.len);
@@ -120,14 +121,15 @@ static void initCompiler(Compiler* compiler, VM* vm, Compiler* enclosing, FuncTy
     }
 }
 
-ObjectFunc* compile(VM* vm, const char* code){
+ObjectFunc* compile(VM* vm, const char* code, const char* srcNameStr){
     Compiler* compiler = (Compiler*)malloc(sizeof(Compiler));
     if(compiler == NULL){
         fprintf(stderr, "Not enough memory to compile.\n");
         return false;
     }
     initScanner(code);
-    initCompiler(compiler, vm, NULL, TYPE_SCRIPT);
+    ObjectString* srcName = copyString(vm, srcNameStr, (int)strlen(srcNameStr));
+    initCompiler(compiler, vm, NULL, TYPE_SCRIPT, srcName);
 
     advance(compiler);  // Initialize the first token
     if(compiler->parser.cur.type == TOKEN_EOF){
@@ -188,7 +190,7 @@ static void compileFunc(Compiler* compiler, FuncType type){
     }
     funcCompiler->parser = compiler->parser;
 
-    initCompiler(funcCompiler, compiler->vm, compiler, type);
+    initCompiler(funcCompiler, compiler->vm, compiler, type, compiler->func->srcName);
 
     beginScope(funcCompiler);
     consume(funcCompiler, TOKEN_LEFT_PAREN, "Expect '(' after function name.");
@@ -254,6 +256,8 @@ static void stmt(Compiler* compiler){
         switchStmt(compiler);
     else if(match(compiler, TOKEN_CONTINUE))
         continueStmt(compiler);
+    else if(match(compiler, TOKEN_RETURN))
+        returnStmt(compiler);
     else if(match(compiler, TOKEN_LEFT_BRACE)){
         beginScope(compiler);
         block(compiler);
@@ -583,11 +587,40 @@ static void switchStmt(Compiler* compiler){
 
 static void importStmt(Compiler* compiler){
     consume(compiler, TOKEN_STRING_START, "Expect a string after 'import'.");
+
     if(compiler->parser.cur.type == TOKEN_STRING_END){
         errorAt(compiler, &compiler->parser.pre, "import path cannot be empty.");
     }else{
         Token *token = &compiler->parser.cur;
-        Value valStr = OBJECT_VAL(copyString(&compiler->vm, token->head, token->len));
+        Value valStr = OBJECT_VAL(copyString(compiler->vm, token->head, token->len));
+        int index = addConstant(&compiler->func->chunk, valStr);
+        if(index < 256){
+            emitPair(compiler, OP_IMPORT, (uint8_t)index);
+        }else if(index < 0xffff){
+            emitByte(compiler, OP_LIMPORT);
+            emitByte(compiler, (uint8_t)((index >> 8) & 0xff));
+            emitByte(compiler, (uint8_t)(index & 0xff));
+        }else{
+            errorAt(compiler, &compiler->parser.pre, "Too many constants.");
+        }
+        advance(compiler);
+    }
+
+    consume(compiler, TOKEN_STRING_END, "Expected '\"' after import path.");
+    consume(compiler, TOKEN_SEMICOLON, "Expected ';' after import statement.");
+}
+
+static void returnStmt(Compiler* compiler){
+    if(compiler->type == TYPE_SCRIPT){
+        errorAt(compiler, &compiler->parser.pre, "Cannot return from the top-level.");
+    }
+
+    if(match(compiler, TOKEN_SEMICOLON)){
+        emitPair(compiler, OP_NULL, OP_RETURN);
+    }else{
+        expression(compiler);
+        consume(compiler, TOKEN_SEMICOLON, "Expected ';' after return value.");
+        emitByte(compiler, OP_RETURN);
     }
 }
 
@@ -958,7 +991,11 @@ static void consume(Compiler* compiler, TokenType type, const char* errMsg){
 }
 
 static void errorAt(Compiler* compiler, Token* token, const char* message){
-    fprintf(stderr, "Error [line %d] ", compiler->parser.cur.line);
+    const char* srcName = compiler->func->srcName != NULL 
+                            ? compiler->func->srcName->chars 
+                            : "<script>";
+
+    fprintf(stderr, "Error [%s, line %d] ",srcName, compiler->parser.cur.line);
     if(token->type != TOKEN_EOF){
         fprintf(stderr, "at '%.*s': ", token->len, token->head);
     }else{

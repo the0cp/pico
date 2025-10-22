@@ -81,7 +81,7 @@ ObjectFunc* newFunction(VM* vm){
     return func;
 }
 
-ObjectCFunc* newCFunc(VM* vm, CFunc* func){
+ObjectCFunc* newCFunc(VM* vm, CFunc func){
     ObjectCFunc* cfunc = (ObjectCFunc*)resize(NULL, 0, sizeof(ObjectCFunc));
     cfunc->obj.type = OBJECT_CFUNC;
     cfunc->func = func;
@@ -89,6 +89,35 @@ ObjectCFunc* newCFunc(VM* vm, CFunc* func){
     cfunc->obj.next = vm->objects;
     vm->objects = (Object*)cfunc;
     return cfunc;
+}
+
+static void freeObject(Object* object){
+    switch(object->type){
+        case OBJECT_STRING:{
+            ObjectString* string = (ObjectString*)object;
+            resize(object, sizeof(ObjectString) + string->length + 1, 0);
+            break;
+        }
+        case OBJECT_FUNC:{
+            ObjectFunc* func = (ObjectFunc*)object;
+            freeChunk(&func->chunk);
+            resize(object, sizeof(ObjectFunc), 0);
+            break;
+        }
+        case OBJECT_CFUNC:{
+            resize(object, sizeof(ObjectCFunc), 0);
+            break;
+        }
+    }
+}
+
+void freeObjects(VM* vm){
+    Object* object = vm->objects;
+    while(object != NULL){
+        Object* next = object->next;
+        freeObject(object);
+        object = next;
+    }
 }
 
 void printObject(Value value){

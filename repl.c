@@ -11,6 +11,6 @@ void repl(VM* vm){
         }
         line[strcspn(line, "\n")] = 0;
         if(line[0] == '\n') continue;
-        interpret(vm, line);
+        interpret(vm, line, "<stdin>");
     }
 }

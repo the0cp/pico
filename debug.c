@@ -91,6 +91,10 @@ int dasmInstruction(const Chunk* chunk, int offset){
             return dasmJump("OP_LOOP", -1, chunk, offset);
         case OP_CALL:
             return dasmLocal("OP_CALL", chunk, offset);
+        case OP_IMPORT:
+            return dasmLocal("OP_IMPORT", chunk, offset);
+        case OP_LIMPORT:
+            return dasmLocal("OP_LIMPORT", chunk, offset);
         default:
             printf("Unknown opcode %d\n", instruction);
             return offset + 1;

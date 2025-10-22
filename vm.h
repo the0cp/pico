@@ -43,7 +43,7 @@ static Value peek(VM* vm, int distance);
 
 static bool isTruthy(Value value);
 
-InterpreterStatus interpret(VM* vm, const char* code);
+InterpreterStatus interpret(VM* vm, const char* code, const char* srcName);
 static InterpreterStatus run(VM* vm);
 
 static bool call(VM* vm, ObjectFunc* func, int argCnt);

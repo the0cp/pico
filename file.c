@@ -34,7 +34,7 @@ char* read(const char* path){
 
 void runScript(VM* vm, const char* path) {
     char* content = read(path);
-    InterpreterStatus status = interpret(vm, content);
+    InterpreterStatus status = interpret(vm, content, path);
     free(content);
 
     if(status == VM_COMPILE_ERROR) exit(EXIT_FAILURE);
@@ -47,7 +47,7 @@ void buildScript(VM* vm, const char* path){
     Chunk chunk;
     initChunk(&chunk);
 
-    ObjectFunc* func = compile(vm, source);
+    ObjectFunc* func = compile(vm, source, path);
     free(source);
     if(func == NULL){
         exit(65);

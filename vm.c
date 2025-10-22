@@ -7,6 +7,7 @@
 #include "vm.h"
 #include "compiler.h"
 #include "mem.h"
+#include "file.h"
 
 #ifdef DEBUG_TRACE
 #include "debug.h"
@@ -27,7 +28,7 @@ void initVM(VM* vm){
 void freeVM(VM* vm){
     freeHashTable(&vm->strings);
     freeHashTable(&vm->globals);
-    // freeObjects(vm);
+    freeObjects(vm);
 }
 
 void push(VM* vm, Value value){
@@ -54,8 +55,8 @@ static bool isTruthy(Value value){
     // NULL is considered falsy
 }
 
-InterpreterStatus interpret(VM* vm, const char* code){
-    ObjectFunc* function = compile(vm, code);
+InterpreterStatus interpret(VM* vm, const char* code, const char* srcName){
+    ObjectFunc* function = compile(vm, code, srcName);
     if (function == NULL) return VM_COMPILE_ERROR;
 
     push(vm, OBJECT_VAL(function));
@@ -115,13 +116,16 @@ static InterpreterStatus run(VM* vm){
 
         [OP_LOOP]           = &&DO_OP_LOOP,
         [OP_CALL]           = &&DO_OP_CALL,
+
+        [OP_IMPORT]         = &&DO_OP_IMPORT,
+        [OP_LIMPORT]        = &&DO_OP_LIMPORT,
     };
 
     #ifdef DEBUG_TRACE
         #define DISPATCH() \
         do{ \
             printf(">> "); \
-            dasmInstruction(&frame->func->chunk, (int)(frame->ip - frame->function->chunk.code)); \
+            dasmInstruction(&frame->func->chunk, (int)(frame->ip - frame->func->chunk.code)); \
             goto *dispatchTable[READ_BYTE()]; \
         }while(0)
     #else
@@ -462,6 +466,54 @@ static InterpreterStatus run(VM* vm){
         frame = &vm->frames[vm->frameCount - 1];
     } DISPATCH();
 
+    DO_OP_IMPORT:
+    {
+        ObjectString* path = AS_STRING(frame->func->chunk.constants.values[READ_BYTE()]);
+        char* source = read(path->chars);
+        if(source == NULL){
+            runtimeError(vm, "Could not read import file '%s'.", path->chars);
+            return VM_RUNTIME_ERROR;
+        }
+        ObjectFunc* func = compile(vm, source, path->chars);
+        free(source);
+        if(func == NULL){
+            return VM_COMPILE_ERROR; 
+        }
+
+        push(vm, OBJECT_VAL(func));
+        
+        if(!call(vm, func, 0)){
+            return VM_RUNTIME_ERROR;
+        }
+
+        frame = &vm->frames[vm->frameCount - 1];
+
+    } DISPATCH();
+
+    DO_OP_LIMPORT:
+    {
+        uint16_t index = (uint16_t)(frame->ip[0] << 8 | frame->ip[1]);
+        frame += 2;
+        ObjectString* path = AS_STRING(frame->func->chunk.constants.values[index]);
+        char* source = read(path->chars);
+        if(source == NULL){
+            return VM_RUNTIME_ERROR;
+        }
+        ObjectFunc* func = compile(vm, source, path->chars);
+        free(source);
+        if(func == NULL){
+            return VM_COMPILE_ERROR; 
+        }
+
+        push(vm, OBJECT_VAL(func));
+        
+        if(!call(vm, func, 0)){
+            return VM_RUNTIME_ERROR;
+        }
+
+        frame = &vm->frames[vm->frameCount - 1];
+    }
+
     DO_OP_RETURN:
     {
         Value result = pop(vm);
@@ -541,8 +593,13 @@ static void runtimeError(VM* vm, const char* format, ...){
     #ifdef DEBUG_TRACE
     CallFrame* frame = &vm->frames[vm->frameCount - 1];
     size_t instructionOffset = frame->ip - frame->func->chunk.code -1;
-    int line = getLine(vm->chunk, instructionOffset);
-    fprintf(stderr, "Runtime error at line %d\n", line);
+    
+    int line = getLine(&frame->func->chunk, instructionOffset); 
+
+    const char* srcName = frame->func->srcName != NULL 
+                             ? frame->func->srcName->chars 
+                             : "<script>";
+    fprintf(stderr, "Runtime error [%s, line %d]\n", srcName, line);
     #endif
     
     resetStack(vm);

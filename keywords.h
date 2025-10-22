@@ -1,5 +1,5 @@
 /* C code produced by gperf version 3.1 */
-/* Command-line: 'C:\\Users\\Admin\\AppData\\Local\\Microsoft\\WinGet\\Packages\\oss-winget.gperf_Microsoft.Winget.Source_8wekyb3d8bbwe\\gperf.exe' -L C -E -t -C -G -N findKeyword -H keywordHash keywords.gperf  */
+/* Command-line: gperf -L C -E -t -C -G -N findKeyword -H keywordHash keywords.gperf  */
 /* Computed positions: -k'1-2' */
 
 #if !((' ' == 32) && ('!' == 33) && ('"' == 34) && ('#' == 35) \
@@ -41,7 +41,7 @@ struct Keyword {
 #include <string.h>
 enum
   {
-    TOTAL_KEYWORDS = 19,
+    TOTAL_KEYWORDS = 20,
     MIN_WORD_LENGTH = 2,
     MAX_WORD_LENGTH = 8,
     MIN_HASH_VALUE = 2,
@@ -74,7 +74,7 @@ keywordHash (str, len)
       26, 26, 26, 26, 26, 26, 26, 26, 26, 26,
       26, 26, 26, 26, 26, 26, 26, 26, 26, 26,
       26, 26, 26, 26, 26, 26, 26,  5, 20,  0,
-       5,  0,  0, 26,  5,  5, 26, 26,  0, 26,
+       5,  0,  0, 26,  5,  5, 26, 26,  0,  5,
        5,  0, 15, 26,  0,  0, 15,  5, 10,  5,
       26, 26, 26, 26, 26, 26, 26, 26, 26, 26,
       26, 26, 26, 26, 26, 26, 26, 26, 26, 26,
@@ -125,7 +125,9 @@ static const struct Keyword wordlist[] =
     {"null",       TOKEN_NULL},
 #line 26 "keywords.gperf"
     {"while",      TOKEN_WHILE},
-    {""}, {""},
+#line 33 "keywords.gperf"
+    {"import",     TOKEN_IMPORT},
+    {""},
 #line 19 "keywords.gperf"
     {"var",        TOKEN_VAR},
 #line 25 "keywords.gperf"
