@@ -213,6 +213,7 @@ static Token scanDefault(){
             return pack(TOKEN_RIGHT_BRACE, sc.head, 1, sc.line);
         case ',': return pack(TOKEN_COMMA, sc.head, 1, sc.line);
         case ';': return pack(TOKEN_SEMICOLON, sc.head, 1, sc.line);
+        case '.': return pack(TOKEN_DOT, sc.head, 1, sc.line);
         case '*':
             return pack(is_next('=') ? TOKEN_EQUAL : TOKEN_STAR, sc.head, (int)(sc.cur - sc.head), sc.line);
         case '=':

@@ -144,6 +144,11 @@ static InterpreterStatus run(VM* vm){
 
         [OP_IMPORT]         = &&DO_OP_IMPORT,
         [OP_LIMPORT]        = &&DO_OP_LIMPORT,
+
+        [OP_GET_PROPERTY]   = &&DO_OP_GET_PROPERTY,
+        [OP_GET_LPROPERTY]  = &&DO_OP_GET_LPROPERTY,
+        [OP_SET_PROPERTY]   = &&DO_OP_SET_PROPERTY,
+        [OP_SET_LPROPERTY]  = &&DO_OP_SET_LPROPERTY,
     };
 
     #ifdef DEBUG_TRACE
@@ -569,6 +574,90 @@ static InterpreterStatus run(VM* vm){
 
         frame = &vm->frames[vm->frameCount - 1];
     }
+
+    DO_OP_GET_PROPERTY:
+    {
+        if(!IS_OBJECT(peek(vm, 0))){
+            runtimeError(vm, "Only modules and objects have properties.");
+            return VM_RUNTIME_ERROR;
+        }
+
+        if(IS_MODULE(peek(vm, 0))){
+            ObjectModule* module = AS_MODULE(peek(vm, 0));
+            ObjectString* name = AS_STRING(frame->func->chunk.constants.values[READ_BYTE()]);
+
+            Value value;
+            if(!tableGet(&module->members, name, &value)){
+                runtimeError(vm, "Undefined property '%s' on module '%s'.", name->chars, module->name->chars);
+                return VM_RUNTIME_ERROR;
+            }
+            
+            pop(vm);
+            push(vm, value);
+        }
+    } DISPATCH();
+
+    DO_OP_GET_LPROPERTY:
+    {
+        if(!IS_OBJECT(peek(vm, 0))){
+            runtimeError(vm, "Only modules and objects have properties.");
+            return VM_RUNTIME_ERROR;
+        }
+
+        if(IS_MODULE(peek(vm, 0))){
+            ObjectModule* module = AS_MODULE(peek(vm, 0));
+            uint16_t index = (uint16_t)((frame->ip[0] << 8) | frame->ip[1]);
+            frame->ip += 2;
+            ObjectString* name = AS_STRING(frame->func->chunk.constants.values[index]);
+
+            Value value;
+            if(!tableGet(&module->members, name, &value)){
+                runtimeError(vm, "Undefined property '%s' on module '%s'.", name->chars, module->name->chars);
+                return VM_RUNTIME_ERROR;
+            }
+            
+            pop(vm);
+            push(vm, value);
+        }
+    } DISPATCH();
+
+    DO_OP_SET_PROPERTY:
+    {
+        if(!IS_OBJECT(peek(vm, 1))){    // stack top is a value, -1 for object
+            runtimeError(vm, "Only modules and objects have properties.");
+            return VM_RUNTIME_ERROR;
+        }
+
+        if(IS_MODULE(peek(vm, 1))){
+            ObjectModule* module = AS_MODULE(peek(vm, 1));
+            ObjectString* name = AS_STRING(frame->func->chunk.constants.values[READ_BYTE()]);
+            tableSet(&module->members, name, peek(vm, 0));
+
+            Value value = pop(vm);
+            pop(vm);    // pop module
+            push(vm, value);
+        }
+    } DISPATCH();
+
+    DO_OP_SET_LPROPERTY:
+    {
+        if(!IS_OBJECT(peek(vm, 1))){    // stack top is a value, -1 for object
+            runtimeError(vm, "Only modules and objects have properties.");
+            return VM_RUNTIME_ERROR;
+        }
+
+        if(IS_MODULE(peek(vm, 1))){
+            ObjectModule* module = AS_MODULE(peek(vm, 1));
+            uint16_t index = (uint16_t)((frame->ip[0] << 8) | frame->ip[1]);
+            frame->ip += 2;
+            ObjectString* name = AS_STRING(frame->func->chunk.constants.values[index]);
+            tableSet(&module->members, name, peek(vm, 0));
+
+            Value value = pop(vm);
+            pop(vm);    // pop module
+            push(vm, value);
+        }
+    } DISPATCH();
 
     DO_OP_RETURN:
     {

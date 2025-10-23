@@ -73,6 +73,7 @@ static uint8_t argList(Compiler* compiler);
 static void handleCall(Compiler* compiler, bool canAssign);
 
 static void handleImport(Compiler* compiler, bool canAssign);
+static void handleDot(Compiler* compiler, bool canAssign);
 
 static void advance(Compiler* compiler);
 

@@ -39,6 +39,7 @@ static void handleAnd(Compiler* compiler, bool canAssign);
 static void handleOr(Compiler* compiler, bool canAssign);
 static void handleCall(Compiler* compiler, bool canAssign);
 static void handleImport(Compiler* compiler, bool canAssign);
+static void handleDot(Compiler* compiler, bool canAssign);
 
 ParseRule rules[] = {
     [TOKEN_LEFT_PAREN]              = {handleGrouping,  handleCall,     PREC_CALL},
@@ -77,6 +78,7 @@ ParseRule rules[] = {
     [TOKEN_OR]                      = {NULL,            handleOr,       PREC_OR},
 
     [TOKEN_IMPORT]                  = {handleImport,    NULL,           PREC_NONE},
+    [TOKEN_DOT]                     = {NULL,            handleDot,      PREC_CALL},
 
     [TOKEN_EOF]                     = {NULL,            NULL,           PREC_NONE},
 };
@@ -981,6 +983,35 @@ static void handleImport(Compiler* compiler, bool canAssign){
     }
 
     consume(compiler, TOKEN_STRING_END, "Expected '\"' after import path.");
+}
+
+static void handleDot(Compiler* compiler, bool canAssign){
+    consume(compiler, TOKEN_IDENTIFIER, "Expect property name after '.'.");
+
+    Token* name = &compiler->parser.pre;
+    Value strVal = OBJECT_VAL(copyString(compiler->vm, name->head, name->len));
+    int index = addConstant(&compiler->func->chunk, strVal);
+
+    uint8_t finalOp, finalLOp;
+
+    if(canAssign && match(compiler, TOKEN_ASSIGN)){
+        expression(compiler);
+        finalOp = OP_SET_PROPERTY;
+        finalLOp = OP_SET_LPROPERTY;
+    }else{
+        finalOp = OP_GET_PROPERTY;
+        finalLOp = OP_GET_LPROPERTY;
+    }
+
+    if(index < 256){
+        emitPair(compiler, finalOp, (uint8_t)index);
+    }else if(index < 0xffff){
+        emitByte(compiler, finalLOp);
+        emitByte(compiler, (uint8_t)((index >> 8) & 0xff));
+        emitByte(compiler, (uint8_t)(index & 0xff));
+    }else{
+        errorAt(compiler, &compiler->parser.pre, "Too many constants.");
+    }
 }
 
 static void consume(Compiler* compiler, TokenType type, const char* errMsg){
