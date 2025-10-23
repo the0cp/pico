@@ -44,12 +44,19 @@ typedef struct ObjectString{
 
 ObjectString* copyString(VM* vm, const char* chars, int len);
 
+typedef enum{
+    TYPE_FUNC,
+    TYPE_SCRIPT,
+    TYPE_MODULE,
+}FuncType;
+
 typedef struct ObjectFunc{
     Object obj;
     int arity;
     Chunk chunk;
     ObjectString* name;
     ObjectString* srcName;
+    FuncType type;
 }ObjectFunc;
 
 ObjectFunc* newFunction(VM* vm);

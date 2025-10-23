@@ -24,12 +24,18 @@ void initVM(VM* vm){
     initHashTable(&vm->strings);
     initHashTable(&vm->globals);
     initHashTable(&vm->modules);
+
+    vm->globalCnt = 0;
+    vm->curGlobal = &vm->globals;
 }
 
 void freeVM(VM* vm){
     freeHashTable(&vm->strings);
     freeHashTable(&vm->globals);
     freeHashTable(&vm->modules);
+
+    vm->globalCnt = 0;
+    vm->curGlobal = NULL;
     freeObjects(vm);
 }
 
@@ -48,6 +54,23 @@ Value pop(VM* vm){
 
 static Value peek(VM* vm, int distance){
     return vm->stackTop[-1 - distance];
+}
+
+static void pushGlobal(VM* vm, HashTable* globals){
+    if(vm->globalCnt >= GLOBAL_STATCK_MAX){
+        runtimeError(vm, "Too many nested imports, globals stack overflow.");
+        return;
+    }
+    vm->globalStack[vm->globalCnt++] = vm->curGlobal;
+    vm->curGlobal = globals;
+}
+
+static void popGlobal(VM* vm){
+    if(vm->globalCnt <= 0){
+        runtimeError(vm, "Global statck underflow.");
+        return;
+    }
+    vm->curGlobal = vm->globalStack[--vm->globalCnt];
 }
 
 static bool isTruthy(Value value){
@@ -348,7 +371,7 @@ static InterpreterStatus run(VM* vm){
     DO_OP_DEFINE_GLOBAL:
     {
         ObjectString* name = AS_STRING(frame->func->chunk.constants.values[READ_BYTE()]);
-        tableSet(&vm->globals, name, peek(vm, 0));
+        tableSet(vm->curGlobal, name, peek(vm, 0));
         pop(vm);
     } DISPATCH();
 
@@ -358,7 +381,7 @@ static InterpreterStatus run(VM* vm){
                          
         frame->ip += 2;
         ObjectString* name = AS_STRING(frame->func->chunk.constants.values[index]);
-        tableSet(&vm->globals, name, peek(vm, 0));
+        tableSet(vm->curGlobal, name, peek(vm, 0));
         pop(vm);
     } DISPATCH();
 
@@ -366,7 +389,7 @@ static InterpreterStatus run(VM* vm){
     {
         ObjectString* name = AS_STRING(frame->func->chunk.constants.values[READ_BYTE()]);
         Value value;
-        if (!tableGet(&vm->globals, name, &value)) {
+        if (!tableGet(vm->curGlobal, name, &value)) {
             runtimeError(vm, "Undefined variable '%.*s'.", name->length, name->chars);
             return VM_RUNTIME_ERROR;
         }
@@ -379,7 +402,7 @@ static InterpreterStatus run(VM* vm){
         frame->ip += 2;
         ObjectString* name = AS_STRING(frame->func->chunk.constants.values[index]);
         Value value;
-        if(!tableGet(&vm->globals, name, &value)){
+        if(!tableGet(vm->curGlobal, name, &value)){
             runtimeError(vm, "Undefined variable '%.*s'.", name->length, name->chars);
             return VM_RUNTIME_ERROR;
         }
@@ -389,7 +412,7 @@ static InterpreterStatus run(VM* vm){
     DO_OP_SET_GLOBAL:
     {
         ObjectString* name = AS_STRING(frame->func->chunk.constants.values[READ_BYTE()]);
-        if(tableSet(&vm->globals, name, peek(vm, 0))){
+        if(tableSet(vm->curGlobal, name, peek(vm, 0))){
             // empty bucket, undefined
             tableRemove(&vm->globals, name);
             runtimeError(vm, "Undefined variable '%.*s'.", name->length, name->chars);
@@ -402,7 +425,7 @@ static InterpreterStatus run(VM* vm){
         uint16_t index = (uint16_t)(frame->ip[0] << 8) | frame->ip[1];
         frame->ip += 2;
         ObjectString* name = AS_STRING(frame->func->chunk.constants.values[index]);
-        if(tableSet(&vm->globals, name, peek(vm, 0))){
+        if(tableSet(vm->curGlobal, name, peek(vm, 0))){
             tableRemove(&vm->globals, name);
             runtimeError(vm, "Undefined variable '%.*s'.", name->length, name->chars);
             return VM_RUNTIME_ERROR;
@@ -471,18 +494,34 @@ static InterpreterStatus run(VM* vm){
     DO_OP_IMPORT:
     {
         ObjectString* path = AS_STRING(frame->func->chunk.constants.values[READ_BYTE()]);
+        
+        Value modVal;
+        if(tableGet(&vm->modules, path, &modVal)){
+            push(vm, modVal);
+            return true;
+        }
+
         char* source = read(path->chars);
         if(source == NULL){
             runtimeError(vm, "Could not read import file '%s'.", path->chars);
             return VM_RUNTIME_ERROR;
         }
+
         ObjectFunc* func = compile(vm, source, path->chars);
         free(source);
         if(func == NULL){
             return VM_COMPILE_ERROR; 
         }
 
+        func->type = TYPE_MODULE;
+
         push(vm, OBJECT_VAL(func));
+
+        ObjectModule* module = newModule(vm, path);
+        push(vm, OBJECT_VAL(module));
+        tableSet(&vm->modules, path, OBJECT_VAL(module));
+
+        pushGlobal(vm, &module->members);
         
         if(!call(vm, func, 0)){
             return VM_RUNTIME_ERROR;
@@ -497,6 +536,13 @@ static InterpreterStatus run(VM* vm){
         uint16_t index = (uint16_t)(frame->ip[0] << 8 | frame->ip[1]);
         frame += 2;
         ObjectString* path = AS_STRING(frame->func->chunk.constants.values[index]);
+        
+        Value modVal;
+        if(tableGet(&vm->modules, path, &modVal)){
+            push(vm, modVal);
+            return true;
+        }
+
         char* source = read(path->chars);
         if(source == NULL){
             return VM_RUNTIME_ERROR;
@@ -507,7 +553,15 @@ static InterpreterStatus run(VM* vm){
             return VM_COMPILE_ERROR; 
         }
 
+        func->type = TYPE_MODULE;
+
         push(vm, OBJECT_VAL(func));
+
+        ObjectModule* module = newModule(vm, path);
+        push(vm, OBJECT_VAL(module));
+        tableSet(&vm->modules, path, OBJECT_VAL(module));
+
+        pushGlobal(vm, &module->members);
         
         if(!call(vm, func, 0)){
             return VM_RUNTIME_ERROR;
@@ -519,6 +573,12 @@ static InterpreterStatus run(VM* vm){
     DO_OP_RETURN:
     {
         Value result = pop(vm);
+
+        if(frame->func->type == TYPE_MODULE){
+            popGlobal(vm);
+            result = frame->slots[0];
+        }
+
         vm->frameCount--;
 
         if(vm->frameCount == 0){

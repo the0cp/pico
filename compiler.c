@@ -102,6 +102,7 @@ static void initCompiler(Compiler* compiler, VM* vm, Compiler* enclosing, FuncTy
     compiler->type = type;
     compiler->func = newFunction(vm);
     compiler->func->srcName = srcName;
+    compiler->func->type = type;
 
     if(type != TYPE_SCRIPT){
         compiler->func->name = copyString(vm, compiler->parser.pre.head, compiler->parser.pre.len);

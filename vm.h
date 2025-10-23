@@ -9,6 +9,7 @@ typedef struct Object Object;
 
 #define FRAMES_MAX 64
 #define STACK_MAX (FRAMES_MAX * 256)
+#define GLOBAL_STATCK_MAX 64
 
 typedef struct CallFrame{
     ObjectFunc* func;
@@ -21,6 +22,9 @@ typedef struct VM{
     Value* stackTop;
     HashTable strings;
     HashTable globals;
+    HashTable* curGlobal;
+    HashTable* globalStack[GLOBAL_STATCK_MAX];
+    int globalCnt;
     HashTable modules;
     Object* objects;
     CallFrame frames[FRAMES_MAX];

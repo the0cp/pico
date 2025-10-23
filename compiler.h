@@ -28,11 +28,6 @@ typedef struct{
     int breakCnt;
 }Loop;
 
-typedef enum{
-    TYPE_FUNC,
-    TYPE_SCRIPT,
-}FuncType;
-
 typedef struct Compiler{
     struct Compiler* enclosing;  // Enclosing compiler for nested functions
     Parser parser;
