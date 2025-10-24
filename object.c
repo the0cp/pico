@@ -73,6 +73,7 @@ ObjectFunc* newFunction(VM* vm){
     ObjectFunc* func = (ObjectFunc*)resize(NULL, 0, sizeof(ObjectFunc));
     func->obj.type = OBJECT_FUNC;
     func->arity = 0;
+    func->upvalueCnt = 0;
     func->name = NULL;
     initChunk(&func->chunk);
 
@@ -103,6 +104,35 @@ ObjectModule* newModule(VM* vm, ObjectString* name){
     return module;
 }
 
+ObjectUpvalue* newUpvalue(VM* vm, Value* slot){
+    ObjectUpvalue* upvalue = (ObjectUpvalue*)resize(NULL, 0, sizeof(ObjectUpvalue));
+    upvalue->obj.type = OBJECT_UPVALUE;
+    upvalue->location = slot;   // value on stack
+    upvalue->closed = NULL_VAL;
+    upvalue->next = NULL;
+
+    upvalue->obj.next = vm->objects;
+    vm->objects = (Object*)upvalue;
+    return upvalue;
+}
+
+ObjectClosure* newClosure(VM* vm, ObjectFunc* func){
+    ObjectUpvalue** upvalues = (ObjectUpvalue**)resize(NULL, 0, sizeof(ObjectUpvalue*) * func->upvalueCnt);
+    for(int i = 0; i < func->upvalueCnt; i++){
+        upvalues[i] = NULL;
+    }
+
+    ObjectClosure* closure = (ObjectClosure*)resize(NULL, 0, sizeof(ObjectClosure));
+    closure->obj.type = OBJECT_CLOSURE;
+    closure->func = func;
+    closure->upvalues = upvalues;
+    closure->upvalueCnt = func->upvalueCnt;
+
+    closure->obj.next = vm->objects;
+    vm->objects = (Object*)closure;
+    return closure;
+}
+
 static void freeObject(Object* object){
     switch(object->type){
         case OBJECT_STRING:{
@@ -124,6 +154,17 @@ static void freeObject(Object* object){
             ObjectModule* module = (ObjectModule*)object;
             freeHashTable(&module->members);
             resize(module, sizeof(ObjectModule), 0);
+            break;
+        }
+        case OBJECT_CLOSURE:{
+            ObjectClosure* closure = (ObjectClosure*)object;
+            // gc todo
+            resize(closure->upvalues, sizeof(ObjectUpvalue*) * closure->upvalueCnt, 0);
+            resize(object, sizeof(ObjectClosure), 0);
+            break;
+        }
+        case OBJECT_UPVALUE:{
+            resize(object, sizeof(ObjectUpvalue), 0);
             break;
         }
     }
@@ -154,6 +195,15 @@ void printObject(Value value){
             break;
         case OBJECT_MODULE:
             printf("<module '%s'>", AS_MODULE(value)->name->chars);
+            break;
+        case OBJECT_CLOSURE:
+            if(AS_CLOSURE(value)->func->name == NULL)
+                printf("<script>");
+            else
+                printf("<fn %s>", AS_CLOSURE(value)->func->name->chars);
+            break;
+        case OBJECT_UPVALUE:
+            printf("<upvalue>");
             break;
     }
 }

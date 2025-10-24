@@ -11,15 +11,22 @@ typedef struct VM VM;
 typedef Value (*CFunc)(int argCount, Value* args);
 
 #define OBJECT_TYPE(value)  (AS_OBJECT(value)->type)
+
 #define IS_STRING(value)    (IS_OBJECT(value) && OBJECT_TYPE(value) == OBJECT_STRING)
 #define AS_STRING(value)    ((ObjectString*)AS_OBJECT(value))
 #define AS_CSTRING(value)   (((ObjectString*)AS_OBJECT(value))->chars)
+
 #define IS_FUNC(value)      (IS_OBJECT(value) && OBJECT_TYPE(value) == OBJECT_FUNC)
 #define AS_FUNC(value)      ((ObjectFunc*)AS_OBJECT(value))
+
 #define IS_CFUNC(value)     (IS_OBJECT(value) && OBJECT_TYPE(value) == OBJECT_CFUNC)
 #define AS_CFUNC(value)     (((ObjectCFunc*)AS_OBJECT(value))->func)
+
 #define IS_MODULE(value)    (IS_OBJECT(value) && OBJECT_TYPE(value) == OBJECT_MODULE)
 #define AS_MODULE(value)    ((ObjectModule*)AS_OBJECT(value))
+
+#define IS_CLOSURE(value)   (IS_OBJECT(value) && OBJECT_TYPE(value) == OBJECT_CLOSURE)
+#define AS_CLOSURE(value)   ((ObjectClosure*)AS_OBJECT(value))
 
 
 typedef enum{
@@ -27,6 +34,8 @@ typedef enum{
     OBJECT_FUNC,
     OBJECT_CFUNC,
     OBJECT_MODULE,
+    OBJECT_CLOSURE,
+    OBJECT_UPVALUE,
 }ObjectType;
 
 typedef struct Object{
@@ -53,6 +62,7 @@ typedef enum{
 typedef struct ObjectFunc{
     Object obj;
     int arity;
+    int upvalueCnt;
     Chunk chunk;
     ObjectString* name;
     ObjectString* srcName;
@@ -75,6 +85,23 @@ typedef struct ObjectModule{
 }ObjectModule;
 
 ObjectModule* newModule(VM* vm, ObjectString* name);
+
+typedef struct ObjectUpvalue{
+    Object obj;
+    Value* location; // pointing to local on stack when upvalue is opened
+    Value closed;    // value when upvalue is closed
+    struct ObjectUpvalue* next;
+}ObjectUpvalue;
+
+typedef struct ObjectClosure{
+    Object obj;
+    ObjectFunc* func; // point to func template
+    ObjectUpvalue** upvalues; // pointer array
+    int upvalueCnt;
+}ObjectClosure;
+
+ObjectUpvalue* newUpvalue(VM* vm, Value* slot);
+ObjectClosure* newClosure(VM* vm, ObjectFunc* func);
 
 void freeObjects(VM* vm);
 
