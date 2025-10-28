@@ -12,7 +12,8 @@ typedef struct Object Object;
 #define GLOBAL_STATCK_MAX 64
 
 typedef struct CallFrame{
-    ObjectFunc* func;
+    // ObjectFunc* func;
+    ObjectClosure* closure;
     uint8_t* ip;
     Value* slots;
 }CallFrame;
@@ -27,6 +28,7 @@ typedef struct VM{
     int globalCnt;
     HashTable modules;
     Object* objects;
+    ObjectUpvalue* openUpvalues;    // descending locations
     CallFrame frames[FRAMES_MAX];
     int frameCount;
 }VM;
@@ -49,7 +51,7 @@ static bool isTruthy(Value value);
 InterpreterStatus interpret(VM* vm, const char* code, const char* srcName);
 static InterpreterStatus run(VM* vm);
 
-static bool call(VM* vm, ObjectFunc* func, int argCnt);
+static bool call(VM* vm, ObjectClosure* closure, int argCnt);
 static bool callValue(VM* vm, Value callee, int argCnt);
 
 static void runtimeError(VM* vm, const char* format, ...);

@@ -95,6 +95,23 @@ int dasmInstruction(const Chunk* chunk, int offset){
             return dasmLocal("OP_IMPORT", chunk, offset);
         case OP_LIMPORT:
             return dasmLocal("OP_LIMPORT", chunk, offset);
+
+        case OP_CLOSURE:
+            return dasmConstant(chunk, offset);
+        case OP_LCLOSURE:
+            return dasmLConstant(chunk, offset);
+        case OP_GET_UPVALUE:
+            return dasmLocal("OP_GET_UPVALUE", chunk, offset);
+        case OP_SET_UPVALUE:
+            return dasmLocal("OP_SET_UPVALUE", chunk, offset);
+        case OP_GET_LUPVALUE:
+            return dasmLLocal("OP_GET_LUPVALUE", chunk, offset);
+        case OP_SET_LUPVALUE:
+            return dasmLLocal("OP_SET_LUPVALUE", chunk, offset);
+        case OP_CLOSE_UPVALUE:
+            printf("OP_CLOSE_UPVALUE\n");
+            return offset + 1;
+
         default:
             printf("Unknown opcode %d\n", instruction);
             return offset + 1;

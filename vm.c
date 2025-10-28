@@ -20,6 +20,7 @@ void resetStack(VM* vm){
 void initVM(VM* vm){
     resetStack(vm);
     vm->objects = NULL;
+    vm->openUpvalues = NULL;
     vm->frameCount = 0;
     initHashTable(&vm->strings);
     initHashTable(&vm->globals);
@@ -36,6 +37,7 @@ void freeVM(VM* vm){
 
     vm->globalCnt = 0;
     vm->curGlobal = NULL;
+    vm->openUpvalues = NULL;
     freeObjects(vm);
 }
 
@@ -80,12 +82,50 @@ static bool isTruthy(Value value){
     // NULL is considered falsy
 }
 
-InterpreterStatus interpret(VM* vm, const char* code, const char* srcName){
-    ObjectFunc* function = compile(vm, code, srcName);
-    if (function == NULL) return VM_COMPILE_ERROR;
+static ObjectUpvalue* captureUpvalue(VM* vm, Value* local){
+    ObjectUpvalue* prevUpvalue = NULL;
+    ObjectUpvalue* upvalue = vm->openUpvalues;
 
-    push(vm, OBJECT_VAL(function));
-    call(vm, function, 0);
+    while(upvalue != NULL && upvalue->location > local){
+        prevUpvalue = upvalue;
+        upvalue = upvalue->next;
+    }
+
+    if(upvalue != NULL && upvalue->location == local){
+        return upvalue;
+    }
+
+    ObjectUpvalue* createdUpvalue = newUpvalue(vm, local);
+    createdUpvalue->next = upvalue;
+
+    if(prevUpvalue == NULL){
+        vm->openUpvalues = createdUpvalue;
+    }else{
+        prevUpvalue->next = createdUpvalue;
+    }
+    return createdUpvalue;
+}
+
+static void closeUpvalues(VM* vm, Value* last){
+    while(vm->openUpvalues != NULL && vm->openUpvalues->location >= last){
+        ObjectUpvalue* upvalue = vm->openUpvalues;
+        upvalue->closed = *upvalue->location;
+        upvalue->location = &upvalue->closed;
+        vm->openUpvalues = upvalue->next;
+    }
+}
+
+InterpreterStatus interpret(VM* vm, const char* code, const char* srcName){
+    ObjectFunc* func = compile(vm, code, srcName);
+    if(func == NULL) return VM_COMPILE_ERROR;
+
+    push(vm, OBJECT_VAL(func));
+
+    ObjectClosure* closure = newClosure(vm, func);
+    pop(vm);    // pop func
+    push(vm, OBJECT_VAL(closure));
+
+    call(vm, closure, 0);
 
     InterpreterStatus status = run(vm);
     return status;
@@ -149,13 +189,21 @@ static InterpreterStatus run(VM* vm){
         [OP_GET_LPROPERTY]  = &&DO_OP_GET_LPROPERTY,
         [OP_SET_PROPERTY]   = &&DO_OP_SET_PROPERTY,
         [OP_SET_LPROPERTY]  = &&DO_OP_SET_LPROPERTY,
+
+        [OP_CLOSURE]        = &&DO_OP_CLOSURE,
+        [OP_LCLOSURE]       = &&DO_OP_LCLOSURE,
+        [OP_GET_UPVALUE]    = &&DO_OP_GET_UPVALUE,
+        [OP_GET_LUPVALUE]   = &&DO_OP_GET_LUPVALUE,
+        [OP_SET_UPVALUE]    = &&DO_OP_SET_UPVALUE,
+        [OP_SET_LUPVALUE]   = &&DO_OP_SET_LUPVALUE,
+        [OP_CLOSE_UPVALUE]  = &&DO_OP_CLOSE_UPVALUE,
     };
 
     #ifdef DEBUG_TRACE
         #define DISPATCH() \
         do{ \
             printf(">> "); \
-            dasmInstruction(&frame->func->chunk, (int)(frame->ip - frame->func->chunk.code)); \
+            dasmInstruction(&frame->closure->func->chunk, (int)(frame->ip - frame->closure->func->chunk.code)); \
             goto *dispatchTable[READ_BYTE()]; \
         }while(0)
     #else
@@ -183,13 +231,13 @@ static InterpreterStatus run(VM* vm){
 
     DO_OP_CONSTANT:
     {
-        Value constant = frame->func->chunk.constants.values[READ_BYTE()];
+        Value constant = frame->closure->func->chunk.constants.values[READ_BYTE()];
         push(vm, constant);
     } DISPATCH();
 
     DO_OP_LCONSTANT:
     {
-        Value constant = frame->func->chunk.constants.values[
+        Value constant = frame->closure->func->chunk.constants.values[
             (uint16_t)(frame->ip[0] << 8) | 
             frame->ip[1]
         ];
@@ -375,7 +423,7 @@ static InterpreterStatus run(VM* vm){
 
     DO_OP_DEFINE_GLOBAL:
     {
-        ObjectString* name = AS_STRING(frame->func->chunk.constants.values[READ_BYTE()]);
+        ObjectString* name = AS_STRING(frame->closure->func->chunk.constants.values[READ_BYTE()]);
         tableSet(vm->curGlobal, name, peek(vm, 0));
         pop(vm);
     } DISPATCH();
@@ -385,14 +433,14 @@ static InterpreterStatus run(VM* vm){
         uint16_t index = (uint16_t)(frame->ip[0] << 8) | frame->ip[1];
                          
         frame->ip += 2;
-        ObjectString* name = AS_STRING(frame->func->chunk.constants.values[index]);
+        ObjectString* name = AS_STRING(frame->closure->func->chunk.constants.values[index]);
         tableSet(vm->curGlobal, name, peek(vm, 0));
         pop(vm);
     } DISPATCH();
 
     DO_OP_GET_GLOBAL:
     {
-        ObjectString* name = AS_STRING(frame->func->chunk.constants.values[READ_BYTE()]);
+        ObjectString* name = AS_STRING(frame->closure->func->chunk.constants.values[READ_BYTE()]);
         Value value;
         if (!tableGet(vm->curGlobal, name, &value)) {
             runtimeError(vm, "Undefined variable '%.*s'.", name->length, name->chars);
@@ -405,7 +453,7 @@ static InterpreterStatus run(VM* vm){
     {
         uint16_t index = (uint16_t)(frame->ip[0] << 8) | frame->ip[1];
         frame->ip += 2;
-        ObjectString* name = AS_STRING(frame->func->chunk.constants.values[index]);
+        ObjectString* name = AS_STRING(frame->closure->func->chunk.constants.values[index]);
         Value value;
         if(!tableGet(vm->curGlobal, name, &value)){
             runtimeError(vm, "Undefined variable '%.*s'.", name->length, name->chars);
@@ -416,7 +464,7 @@ static InterpreterStatus run(VM* vm){
 
     DO_OP_SET_GLOBAL:
     {
-        ObjectString* name = AS_STRING(frame->func->chunk.constants.values[READ_BYTE()]);
+        ObjectString* name = AS_STRING(frame->closure->func->chunk.constants.values[READ_BYTE()]);
         if(tableSet(vm->curGlobal, name, peek(vm, 0))){
             // empty bucket, undefined
             tableRemove(&vm->globals, name);
@@ -429,7 +477,7 @@ static InterpreterStatus run(VM* vm){
     {
         uint16_t index = (uint16_t)(frame->ip[0] << 8) | frame->ip[1];
         frame->ip += 2;
-        ObjectString* name = AS_STRING(frame->func->chunk.constants.values[index]);
+        ObjectString* name = AS_STRING(frame->closure->func->chunk.constants.values[index]);
         if(tableSet(vm->curGlobal, name, peek(vm, 0))){
             tableRemove(&vm->globals, name);
             runtimeError(vm, "Undefined variable '%.*s'.", name->length, name->chars);
@@ -498,12 +546,12 @@ static InterpreterStatus run(VM* vm){
 
     DO_OP_IMPORT:
     {
-        ObjectString* path = AS_STRING(frame->func->chunk.constants.values[READ_BYTE()]);
+        ObjectString* path = AS_STRING(frame->closure->func->chunk.constants.values[READ_BYTE()]);
         
         Value modVal;
         if(tableGet(&vm->modules, path, &modVal)){
             push(vm, modVal);
-            return true;
+            DISPATCH(); // next dispatch
         }
 
         char* source = read(path->chars);
@@ -522,13 +570,17 @@ static InterpreterStatus run(VM* vm){
 
         push(vm, OBJECT_VAL(func));
 
+        ObjectClosure* closure = newClosure(vm, func);
+        pop(vm);    // pop ObjectFunc
+        push(vm, OBJECT_VAL(closure));
+
         ObjectModule* module = newModule(vm, path);
         push(vm, OBJECT_VAL(module));
         tableSet(&vm->modules, path, OBJECT_VAL(module));
 
         pushGlobal(vm, &module->members);
         
-        if(!call(vm, func, 0)){
+        if(!call(vm, closure, 0)){ // Call the 'closure'
             return VM_RUNTIME_ERROR;
         }
 
@@ -539,13 +591,13 @@ static InterpreterStatus run(VM* vm){
     DO_OP_LIMPORT:
     {
         uint16_t index = (uint16_t)(frame->ip[0] << 8 | frame->ip[1]);
-        frame += 2;
-        ObjectString* path = AS_STRING(frame->func->chunk.constants.values[index]);
+        frame->ip += 2;
+        ObjectString* path = AS_STRING(frame->closure->func->chunk.constants.values[index]);
         
         Value modVal;
         if(tableGet(&vm->modules, path, &modVal)){
             push(vm, modVal);
-            return true;
+            DISPATCH(); // next dispatch
         }
 
         char* source = read(path->chars);
@@ -562,13 +614,17 @@ static InterpreterStatus run(VM* vm){
 
         push(vm, OBJECT_VAL(func));
 
+        ObjectClosure* closure = newClosure(vm, func);
+        pop(vm); // pop ObjectFunc
+        push(vm, OBJECT_VAL(closure));
+
         ObjectModule* module = newModule(vm, path);
         push(vm, OBJECT_VAL(module));
         tableSet(&vm->modules, path, OBJECT_VAL(module));
 
         pushGlobal(vm, &module->members);
         
-        if(!call(vm, func, 0)){
+        if(!call(vm, closure, 0)){
             return VM_RUNTIME_ERROR;
         }
 
@@ -584,7 +640,7 @@ static InterpreterStatus run(VM* vm){
 
         if(IS_MODULE(peek(vm, 0))){
             ObjectModule* module = AS_MODULE(peek(vm, 0));
-            ObjectString* name = AS_STRING(frame->func->chunk.constants.values[READ_BYTE()]);
+            ObjectString* name = AS_STRING(frame->closure->func->chunk.constants.values[READ_BYTE()]);
 
             Value value;
             if(!tableGet(&module->members, name, &value)){
@@ -608,7 +664,7 @@ static InterpreterStatus run(VM* vm){
             ObjectModule* module = AS_MODULE(peek(vm, 0));
             uint16_t index = (uint16_t)((frame->ip[0] << 8) | frame->ip[1]);
             frame->ip += 2;
-            ObjectString* name = AS_STRING(frame->func->chunk.constants.values[index]);
+            ObjectString* name = AS_STRING(frame->closure->func->chunk.constants.values[index]);
 
             Value value;
             if(!tableGet(&module->members, name, &value)){
@@ -630,7 +686,7 @@ static InterpreterStatus run(VM* vm){
 
         if(IS_MODULE(peek(vm, 1))){
             ObjectModule* module = AS_MODULE(peek(vm, 1));
-            ObjectString* name = AS_STRING(frame->func->chunk.constants.values[READ_BYTE()]);
+            ObjectString* name = AS_STRING(frame->closure->func->chunk.constants.values[READ_BYTE()]);
             tableSet(&module->members, name, peek(vm, 0));
 
             Value value = pop(vm);
@@ -650,7 +706,7 @@ static InterpreterStatus run(VM* vm){
             ObjectModule* module = AS_MODULE(peek(vm, 1));
             uint16_t index = (uint16_t)((frame->ip[0] << 8) | frame->ip[1]);
             frame->ip += 2;
-            ObjectString* name = AS_STRING(frame->func->chunk.constants.values[index]);
+            ObjectString* name = AS_STRING(frame->closure->func->chunk.constants.values[index]);
             tableSet(&module->members, name, peek(vm, 0));
 
             Value value = pop(vm);
@@ -659,11 +715,81 @@ static InterpreterStatus run(VM* vm){
         }
     } DISPATCH();
 
+    DO_OP_CLOSURE:
+    {
+        uint8_t constIndex = READ_BYTE();
+        ObjectFunc* func = AS_FUNC(frame->closure->func->chunk.constants.values[constIndex]);
+
+        ObjectClosure* closure = newClosure(vm, func);
+        push(vm, OBJECT_VAL(closure));
+
+        for(int i = 0; i < closure->upvalueCnt; i++){
+            uint8_t isLocal = READ_BYTE();
+            uint16_t index = (uint16_t)((READ_BYTE() << 8 ) | READ_BYTE());
+            if(isLocal){
+                closure->upvalues[i] = captureUpvalue(vm, frame->slots + index);
+            }else{
+                closure->upvalues[i] = frame->closure->upvalues[index];
+            }
+        }
+    } DISPATCH();
+
+    DO_OP_LCLOSURE:
+    {
+        uint16_t constIndex = (uint16_t)((READ_BYTE() << 8) | READ_BYTE());
+        ObjectFunc* func = AS_FUNC(frame->closure->func->chunk.constants.values[constIndex]);
+
+        ObjectClosure* closure = newClosure(vm, func);
+        push(vm, OBJECT_VAL(closure));
+
+        for(int i = 0; i < closure->upvalueCnt; i++){
+            uint8_t isLocal = READ_BYTE();
+            uint16_t index = (uint16_t)((READ_BYTE() << 8 ) | READ_BYTE());
+            if(isLocal){
+                closure->upvalues[i] = captureUpvalue(vm, frame->slots + index);
+            }else{
+                closure->upvalues[i] = frame->closure->upvalues[index];
+            }
+        }
+    } DISPATCH();
+
+    DO_OP_GET_UPVALUE:
+    {
+        uint8_t index = READ_BYTE();
+        push(vm, *frame->closure->upvalues[index]->location);
+    } DISPATCH();
+
+    DO_OP_GET_LUPVALUE:
+    {
+        uint16_t index = (uint16_t)((READ_BYTE() << 8) | READ_BYTE());
+        push(vm, *frame->closure->upvalues[index]->location);
+    } DISPATCH();
+
+    DO_OP_SET_UPVALUE:
+    {
+        uint8_t index = READ_BYTE();
+        *frame->closure->upvalues[index]->location = peek(vm, 0);
+    } DISPATCH();
+
+    DO_OP_SET_LUPVALUE:
+    {
+        uint16_t index = (uint16_t)((READ_BYTE() << 8) | READ_BYTE());
+        *frame->closure->upvalues[index]->location = peek(vm, 0);
+    } DISPATCH();
+
+    DO_OP_CLOSE_UPVALUE:
+    {
+        closeUpvalues(vm, vm->stackTop - 1);
+        pop(vm);
+    } DISPATCH();
+
     DO_OP_RETURN:
     {
         Value result = pop(vm);
 
-        if(frame->func->type == TYPE_MODULE){
+        closeUpvalues(vm, frame->slots);
+
+        if(frame->closure->func->type == TYPE_MODULE){
             popGlobal(vm);
             result = frame->slots[0];
         }
@@ -695,9 +821,9 @@ static InterpreterStatus run(VM* vm){
 
 }
 
-static bool call(VM* vm, ObjectFunc* func, int argCnt){
-    if(argCnt != func->arity){
-        runtimeError(vm, "Expected %d args but got %d.", func->arity, argCnt);
+static bool call(VM* vm, ObjectClosure* closure, int argCnt){
+    if(argCnt != closure->func->arity){
+        runtimeError(vm, "Expected %d args but got %d.", closure->func->arity, argCnt);
         return false;
     }
 
@@ -707,18 +833,21 @@ static bool call(VM* vm, ObjectFunc* func, int argCnt){
     }
 
     CallFrame* frame = &vm->frames[vm->frameCount++];   // 0-indexing++ to actual count
-    frame->func = func;
-    frame->ip = func->chunk.code;
-
+    frame->closure = closure;
+    frame->ip = closure->func->chunk.code;
     frame->slots = vm->stackTop - argCnt - 1;   // -1 to skip func self
+
     return true;
 }
 
 static bool callValue(VM* vm, Value callee, int argCnt){
     if(IS_OBJECT(callee)){
         switch(OBJECT_TYPE(callee)){
-            case OBJECT_FUNC:
-                return call(vm, AS_FUNC(callee), argCnt);
+            // case OBJECT_FUNC:
+            //     return call(vm, AS_FUNC(callee), argCnt);
+            // function cannot be called directly.
+            case OBJECT_CLOSURE:
+                return call(vm, AS_CLOSURE(callee), argCnt);
             case OBJECT_CFUNC:{
                 CFunc cfunc = AS_CFUNC(callee);
                 Value result = cfunc(argCnt, vm->stackTop - argCnt);
@@ -743,12 +872,12 @@ static void runtimeError(VM* vm, const char* format, ...){
 
     #ifdef DEBUG_TRACE
     CallFrame* frame = &vm->frames[vm->frameCount - 1];
-    size_t instructionOffset = frame->ip - frame->func->chunk.code -1;
+    size_t instructionOffset = frame->ip - frame->closure->func->chunk.code -1;
     
-    int line = getLine(&frame->func->chunk, instructionOffset); 
+    int line = getLine(&frame->closure->func->chunk, instructionOffset); 
 
-    const char* srcName = frame->func->srcName != NULL 
-                             ? frame->func->srcName->chars 
+    const char* srcName = frame->closure->func->srcName != NULL 
+                             ? frame->closure->func->srcName->chars 
                              : "<script>";
     fprintf(stderr, "Runtime error [%s, line %d]\n", srcName, line);
     #endif

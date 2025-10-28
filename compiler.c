@@ -110,6 +110,7 @@ static void initCompiler(Compiler* compiler, VM* vm, Compiler* enclosing, FuncTy
         compiler->func->name = copyString(vm, compiler->parser.pre.head, compiler->parser.pre.len);
     }
 
+    compiler->upvalueCnt = 0;
     compiler->localCnt = 0;
     compiler->scopeDepth = 0;
     compiler->loopCnt = 0;
@@ -213,15 +214,38 @@ static void compileFunc(Compiler* compiler, FuncType type){
     block(funcCompiler);
 
     ObjectFunc* func = stopCompiler(funcCompiler);
+    
+    int constIndex = addConstant(&compiler->func->chunk, OBJECT_VAL(func));
+    if(constIndex < 0){
+        errorAt(compiler, &compiler->parser.pre, "Failed to add function constant.");
+        compiler->parser = funcCompiler->parser;
+        free(funcCompiler);
+        return;
+    }
+
+    if(constIndex <= 0xff){
+        emitPair(compiler, OP_CLOSURE, (uint8_t)constIndex);
+    }else if(constIndex <= 0xffff){
+        emitByte(compiler, OP_LCLOSURE);
+        emitPair(compiler, (uint8_t)((constIndex >> 8) & 0xff), (uint8_t)(constIndex & 0xff));
+    }else{
+        errorAt(compiler, &compiler->parser.pre, "Too many constants (index exceeds 16-bit limit).");
+    }
+    
+    for(int i = 0; i < func->upvalueCnt; i++){
+        emitByte(compiler, funcCompiler->upvalues[i].isLocal ? 1 : 0); // 1-byte flag
+        emitPair(compiler, (uint8_t)((funcCompiler->upvalues[i].index >> 8) & 0xff), // 2-byte index
+                           (uint8_t)(funcCompiler->upvalues[i].index & 0xff));
+    }
+
     compiler->parser = funcCompiler->parser;
     free(funcCompiler);
-    
-    emitConstant(compiler, OBJECT_VAL(func));
 }
 
 static void funcDecl(Compiler* compiler){
     int global = parseVar(compiler, "Expect function name.");
     compileFunc(compiler, TYPE_FUNC);
+    
     defineVar(compiler, global);
 }
 
@@ -240,7 +264,7 @@ static void endScope(Compiler* compiler){
     compiler->scopeDepth--;
     while(compiler->localCnt > 0 && 
         compiler->locals[compiler->localCnt-1].depth > compiler->scopeDepth){
-            emitByte(compiler, OP_POP);
+            emitByte(compiler, OP_CLOSE_UPVALUE);
             compiler->localCnt--;
         }
 }
@@ -696,6 +720,41 @@ static int resolveLocal(Compiler* compiler, Token* name){
     return -1;
 }
 
+static int addUpvalue(Compiler* compiler, uint16_t index, bool isLocal){
+    for(int i = 0; i < compiler->upvalueCnt; i++){
+        if(compiler->upvalues[i].index == index && compiler->upvalues[i].isLocal == isLocal){
+            return i;
+        }
+    }
+
+    if(compiler->upvalueCnt == LOCAL_MAX){
+        errorAt(compiler, &compiler->parser.pre, "Too many upvalues.");
+        return 0;
+    }
+
+    compiler->upvalues[compiler->upvalueCnt].isLocal = isLocal;
+    compiler->upvalues[compiler->upvalueCnt].index = index;
+    compiler->func->upvalueCnt = compiler->upvalueCnt + 1;
+    return compiler->upvalueCnt++;    // return current upvalue count
+}
+
+static int resolveUpvalue(Compiler* compiler, Token* name){
+    if(compiler->enclosing == NULL) return -1;  // top compiler
+    
+    int localIndex = resolveLocal(compiler->enclosing, name);
+    if(localIndex != -1){
+        return addUpvalue(compiler, (uint16_t)localIndex, true);
+    }
+
+    int upvalueIndex = resolveUpvalue(compiler->enclosing, name);
+    // recursive
+    if(upvalueIndex != -1){
+        return addUpvalue(compiler, (uint16_t)upvalueIndex, false);
+    }
+
+    return -1;
+}
+
 static void emitByte(Compiler* compiler, uint8_t byte){
     writeChunk(&compiler->func->chunk, byte, compiler->parser.pre.line);
 }
@@ -774,16 +833,20 @@ static void emitConstant(Compiler* compiler, Value value){
 
 static void handleVar(Compiler* compiler, bool canAssign){
     Token* name = &compiler->parser.pre;
-    int localIndex = resolveLocal(compiler, name);
+
     uint8_t getOp, setOp, getLOp, setLOp;
     int index;
-    bool isLocal = (localIndex != -1);
-    if(isLocal){
-        index = localIndex;
+
+    if((index = resolveLocal(compiler, name)) != -1){
         getOp = OP_GET_LOCAL;
         setOp = OP_SET_LOCAL;
         getLOp = OP_GET_LLOCAL;
         setLOp = OP_SET_LLOCAL;
+    }else if((index = resolveUpvalue(compiler, name)) != -1){
+        getOp = OP_GET_UPVALUE;
+        setOp = OP_SET_UPVALUE;
+        getLOp = OP_GET_LUPVALUE; 
+        setLOp = OP_SET_LUPVALUE;
     }else{
         index = identifierConst(compiler);
         getOp = OP_GET_GLOBAL;

@@ -28,13 +28,19 @@ typedef struct{
     int breakCnt;
 }Loop;
 
+typedef struct{
+    uint16_t index; // pointing to local or upvalue
+    bool isLocal;   // T: local; F: upvalue
+}Upvalue;
+
 typedef struct Compiler{
     struct Compiler* enclosing;  // Enclosing compiler for nested functions
     Parser parser;
-    // Chunk* chunk;
     VM* vm;
     Local locals[LOCAL_MAX];
     int localCnt;
+    Upvalue upvalues[LOCAL_MAX];
+    int upvalueCnt;
     int scopeDepth;
     Loop loops[LOOP_MAX];
     int loopCnt;
