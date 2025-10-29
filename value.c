@@ -25,11 +25,12 @@ void initValueArray(ValueArray* array){
     array->capacity = 0;
 }
 
-void writeValueArray(ValueArray* array, Value value){
+void writeValueArray(VM* vm, ValueArray* array, Value value){
     if(array->count + 1 > array->capacity){
         size_t oldCapacity = array->capacity;
         array->capacity = oldCapacity < 8 ? 8 : oldCapacity * 2;
-        array->values = (Value*)resize(
+        array->values = (Value*)reallocate(
+            vm,
             array->values,
             sizeof(Value) * oldCapacity,
             sizeof(Value) * array->capacity
@@ -38,8 +39,8 @@ void writeValueArray(ValueArray* array, Value value){
     array->values[array->count++] = value;
 }
 
-void freeValueArray(ValueArray* array){
-    resize(array->values, sizeof(Value) * array->capacity, 0);
+void freeValueArray(VM* vm, ValueArray* array){
+    reallocate(vm, array->values, sizeof(Value) * array->capacity, 0);
     initValueArray(array);
 }
 

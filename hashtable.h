@@ -18,12 +18,12 @@ typedef struct{
 }HashTable;
 
 void initHashTable(HashTable* table);
-void freeHashTable(HashTable* table);
+void freeHashTable(VM* vm, HashTable* table);
 
 bool tableGet(HashTable* table, ObjectString* key, Value* value);
-bool tableSet(HashTable* table, ObjectString* key, Value value);
+bool tableSet(VM* vm, HashTable* table, ObjectString* key, Value value);
 bool tableRemove(HashTable* table, ObjectString *key);
-bool tableMerge(HashTable* from, HashTable* to);
+bool tableMerge(VM* vm, HashTable* from, HashTable* to);
 
 ObjectString* tableGetInternedString(HashTable* table, const char* chars, int len, uint64_t hash);
 // void tableRemoveWhite(HashTable* table);

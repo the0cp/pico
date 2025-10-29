@@ -15,9 +15,9 @@ void initHashTable(HashTable* table){
 }
 
 
-void freeHashTable(HashTable* table){
+void freeHashTable(VM* vm, HashTable* table){
     // free array
-    resize(table->entries, sizeof(Entry) * table->capacity, 0);
+    reallocate(vm, table->entries, sizeof(Entry) * table->capacity, 0);
     initHashTable(table);
 }
 
@@ -73,12 +73,12 @@ bool tableGet(HashTable* table, ObjectString* key, Value* value){
     return true;
 }
 
-static void adjustCapacity(HashTable* table, int capacity);
+static void adjustCapacity(VM* vm, HashTable* table, int capacity);
 
-bool tableSet(HashTable* table, ObjectString* key, Value value){
+bool tableSet(VM* vm, HashTable* table, ObjectString* key, Value value){
     if(table->count + 1 > table->capacity * TABLE_MAX_LOAD){
         int new_capacity = (table->capacity) < 8 ? 8 : 2 * (table->capacity);
-        adjustCapacity(table, new_capacity);
+        adjustCapacity(vm, table, new_capacity);
     }
 
     Entry entryToInsert;
@@ -156,8 +156,8 @@ bool tableRemove(HashTable* table, ObjectString* key){
     return true;
 }
 
-static void adjustCapacity(HashTable* table, int capacity){
-    Entry* entries = (Entry*)resize(NULL, 0, sizeof(Entry) * capacity);
+static void adjustCapacity(VM* vm, HashTable* table, int capacity){
+    Entry* entries = (Entry*)reallocate(vm, NULL, 0, sizeof(Entry) * capacity);
     for(int i = 0; i < capacity; i++){
         entries[i].key = NULL;
         entries[i].value = NULL_VAL;
@@ -169,7 +169,8 @@ static void adjustCapacity(HashTable* table, int capacity){
         if(entry->key == NULL){
             continue;
         }
-        tableSet(&(HashTable){
+        tableSet(vm, 
+                &(HashTable){
                     .count = 0,
                     .capacity = capacity,
                     .entries = entries
@@ -178,7 +179,7 @@ static void adjustCapacity(HashTable* table, int capacity){
                 entry->value);
     }
 
-    resize(table->entries, sizeof(Entry) * table->capacity, 0);
+    reallocate(vm, table->entries, sizeof(Entry) * table->capacity, 0);
     table->entries = entries;
     table->capacity = capacity;
 
@@ -189,11 +190,11 @@ static void adjustCapacity(HashTable* table, int capacity){
     }
 }
 
-bool tableMerge(HashTable* from, HashTable* to){
+bool tableMerge(VM* vm, HashTable* from, HashTable* to){
     for(int i = 0; i < from->capacity; i++){
         Entry* entry = &from->entries[i];
         if(entry->key != NULL){
-            tableSet(to, entry->key, entry->value);
+            tableSet(vm, to, entry->key, entry->value);
         }
     }
     return true;

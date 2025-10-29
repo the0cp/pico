@@ -28,12 +28,15 @@ void initVM(VM* vm){
 
     vm->globalCnt = 0;
     vm->curGlobal = &vm->globals;
+
+    vm->bytesAllocated = 0;
+    vm->nextGC = 1024 * 1024;   // 1MB
 }
 
 void freeVM(VM* vm){
-    freeHashTable(&vm->strings);
-    freeHashTable(&vm->globals);
-    freeHashTable(&vm->modules);
+    freeHashTable(vm, &vm->strings);
+    freeHashTable(vm, &vm->globals);
+    freeHashTable(vm, &vm->modules);
 
     vm->globalCnt = 0;
     vm->curGlobal = NULL;
@@ -352,13 +355,13 @@ static InterpreterStatus run(VM* vm){
             size_t lenB = strlen(strB);
             size_t len = lenA + lenB;
 
-            char* chars = (char*)resize(NULL, 0, len + 1);
+            char* chars = (char*)reallocate(vm, NULL, 0, len + 1);
             memcpy(chars, strA, lenA);
             memcpy(chars + lenA, strB, lenB);
             chars[len] = '\0';
 
             push(vm, OBJECT_VAL(copyString(vm, chars, len)));
-            resize(chars, len + 1, 0);
+            reallocate(vm, chars, len + 1, 0);
         }else if(IS_NUM(peek(vm, 0)) && IS_NUM(peek(vm, 1))){
             double b = AS_NUM(pop(vm));
             double a =AS_NUM(pop(vm));
@@ -424,7 +427,7 @@ static InterpreterStatus run(VM* vm){
     DO_OP_DEFINE_GLOBAL:
     {
         ObjectString* name = AS_STRING(frame->closure->func->chunk.constants.values[READ_BYTE()]);
-        tableSet(vm->curGlobal, name, peek(vm, 0));
+        tableSet(vm, vm->curGlobal, name, peek(vm, 0));
         pop(vm);
     } DISPATCH();
 
@@ -434,7 +437,7 @@ static InterpreterStatus run(VM* vm){
                          
         frame->ip += 2;
         ObjectString* name = AS_STRING(frame->closure->func->chunk.constants.values[index]);
-        tableSet(vm->curGlobal, name, peek(vm, 0));
+        tableSet(vm, vm->curGlobal, name, peek(vm, 0));
         pop(vm);
     } DISPATCH();
 
@@ -465,7 +468,7 @@ static InterpreterStatus run(VM* vm){
     DO_OP_SET_GLOBAL:
     {
         ObjectString* name = AS_STRING(frame->closure->func->chunk.constants.values[READ_BYTE()]);
-        if(tableSet(vm->curGlobal, name, peek(vm, 0))){
+        if(tableSet(vm, vm->curGlobal, name, peek(vm, 0))){
             // empty bucket, undefined
             tableRemove(&vm->globals, name);
             runtimeError(vm, "Undefined variable '%.*s'.", name->length, name->chars);
@@ -478,7 +481,7 @@ static InterpreterStatus run(VM* vm){
         uint16_t index = (uint16_t)(frame->ip[0] << 8) | frame->ip[1];
         frame->ip += 2;
         ObjectString* name = AS_STRING(frame->closure->func->chunk.constants.values[index]);
-        if(tableSet(vm->curGlobal, name, peek(vm, 0))){
+        if(tableSet(vm, vm->curGlobal, name, peek(vm, 0))){
             tableRemove(&vm->globals, name);
             runtimeError(vm, "Undefined variable '%.*s'.", name->length, name->chars);
             return VM_RUNTIME_ERROR;
@@ -576,7 +579,7 @@ static InterpreterStatus run(VM* vm){
 
         ObjectModule* module = newModule(vm, path);
         push(vm, OBJECT_VAL(module));
-        tableSet(&vm->modules, path, OBJECT_VAL(module));
+        tableSet(vm, &vm->modules, path, OBJECT_VAL(module));
 
         pushGlobal(vm, &module->members);
         
@@ -620,7 +623,7 @@ static InterpreterStatus run(VM* vm){
 
         ObjectModule* module = newModule(vm, path);
         push(vm, OBJECT_VAL(module));
-        tableSet(&vm->modules, path, OBJECT_VAL(module));
+        tableSet(vm, &vm->modules, path, OBJECT_VAL(module));
 
         pushGlobal(vm, &module->members);
         
@@ -687,7 +690,7 @@ static InterpreterStatus run(VM* vm){
         if(IS_MODULE(peek(vm, 1))){
             ObjectModule* module = AS_MODULE(peek(vm, 1));
             ObjectString* name = AS_STRING(frame->closure->func->chunk.constants.values[READ_BYTE()]);
-            tableSet(&module->members, name, peek(vm, 0));
+            tableSet(vm, &module->members, name, peek(vm, 0));
 
             Value value = pop(vm);
             pop(vm);    // pop module
@@ -707,7 +710,7 @@ static InterpreterStatus run(VM* vm){
             uint16_t index = (uint16_t)((frame->ip[0] << 8) | frame->ip[1]);
             frame->ip += 2;
             ObjectString* name = AS_STRING(frame->closure->func->chunk.constants.values[index]);
-            tableSet(&module->members, name, peek(vm, 0));
+            tableSet(vm, &module->members, name, peek(vm, 0));
 
             Value value = pop(vm);
             pop(vm);    // pop module

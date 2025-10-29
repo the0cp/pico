@@ -31,6 +31,8 @@ typedef struct VM{
     ObjectUpvalue* openUpvalues;    // descending locations
     CallFrame frames[FRAMES_MAX];
     int frameCount;
+    size_t bytesAllocated;
+    size_t nextGC;
 }VM;
 
 typedef enum{

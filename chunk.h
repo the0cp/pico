@@ -42,10 +42,10 @@ typedef struct Chunk {
 } Chunk;
 
 void initChunk(Chunk* chunk);
-void writeChunk(Chunk* chunk, uint8_t byte, int line);
-void freeChunk(Chunk* chunk);
+void writeChunk(VM* vm, Chunk* chunk, uint8_t byte, int line);
+void freeChunk(VM* vm, Chunk* chunk);
 
-int addConstant(Chunk* chunk, Value value);
-void writeConstant(Chunk* chunk, Value value, int line);
+int addConstant(VM* vm, Chunk* chunk, Value value);
+void writeConstant(VM* vm, Chunk* chunk, Value value, int line);
 
 #endif  // PICO_CHUNK_H

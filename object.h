@@ -40,13 +40,13 @@ typedef enum{
 
 typedef struct Object{
     ObjectType type;
+    bool isMarked;
     struct Object* next;
 }Object;
 
 typedef struct ObjectString{
     Object obj;
     size_t length;
-    // char* chars;  // Pointer to the string characters
     uint64_t hash;
     char chars[];   // Flexible array member
 }ObjectString;

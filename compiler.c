@@ -215,7 +215,7 @@ static void compileFunc(Compiler* compiler, FuncType type){
 
     ObjectFunc* func = stopCompiler(funcCompiler);
     
-    int constIndex = addConstant(&compiler->func->chunk, OBJECT_VAL(func));
+    int constIndex = addConstant(compiler->vm, &compiler->func->chunk, OBJECT_VAL(func));
     if(constIndex < 0){
         errorAt(compiler, &compiler->parser.pre, "Failed to add function constant.");
         compiler->parser = funcCompiler->parser;
@@ -650,7 +650,7 @@ static void parsePrecedence(Compiler* compiler, Precedence precedence){
 static int identifierConst(Compiler* compiler){
     Token* name = &compiler->parser.pre;
     Value strVal = OBJECT_VAL(copyString(compiler->vm, name->head, name->len));
-    return addConstant(&compiler->func->chunk, strVal);
+    return addConstant(compiler->vm, &compiler->func->chunk, strVal);
 }
 
 static void addLocal(Compiler* compiler, Token name){
@@ -756,7 +756,7 @@ static int resolveUpvalue(Compiler* compiler, Token* name){
 }
 
 static void emitByte(Compiler* compiler, uint8_t byte){
-    writeChunk(&compiler->func->chunk, byte, compiler->parser.pre.line);
+    writeChunk(compiler->vm, &compiler->func->chunk, byte, compiler->parser.pre.line);
 }
 
 static void emitPair(Compiler* compiler, uint8_t byte1, uint8_t byte2){
@@ -814,7 +814,7 @@ static void handleNum(Compiler* compiler, bool canAssign){
 }
 
 static void emitConstant(Compiler* compiler, Value value){
-    int constantIndex = addConstant(&compiler->func->chunk, value);
+    int constantIndex = addConstant(compiler->vm, &compiler->func->chunk, value);
     if(constantIndex < 0){
         fprintf(stderr, "Failed to add constant\n");
         return;
@@ -1032,7 +1032,7 @@ static void handleImport(Compiler* compiler, bool canAssign){
     }else{
         Token *token = &compiler->parser.cur;
         Value valStr = OBJECT_VAL(copyString(compiler->vm, token->head, token->len));
-        int index = addConstant(&compiler->func->chunk, valStr);
+        int index = addConstant(compiler->vm, &compiler->func->chunk, valStr);
         if(index < 256){
             emitPair(compiler, OP_IMPORT, (uint8_t)index);
         }else if(index < 0xffff){
@@ -1053,7 +1053,7 @@ static void handleDot(Compiler* compiler, bool canAssign){
 
     Token* name = &compiler->parser.pre;
     Value strVal = OBJECT_VAL(copyString(compiler->vm, name->head, name->len));
-    int index = addConstant(&compiler->func->chunk, strVal);
+    int index = addConstant(compiler->vm, &compiler->func->chunk, strVal);
 
     uint8_t finalOp, finalLOp;
 
