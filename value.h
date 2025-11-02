@@ -9,6 +9,7 @@ typedef struct Object Object;
 typedef struct ObjectString ObjectString;
 
 typedef uint64_t Value;
+typedef struct VM VM;
 
 typedef enum{
     VALUE_NULL,

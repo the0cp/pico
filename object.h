@@ -96,13 +96,14 @@ typedef struct ObjectUpvalue{
 typedef struct ObjectClosure{
     Object obj;
     ObjectFunc* func; // point to func template
-    ObjectUpvalue** upvalues; // pointer array
     int upvalueCnt;
+    ObjectUpvalue* upvalues[]; // pointer array
 }ObjectClosure;
 
 ObjectUpvalue* newUpvalue(VM* vm, Value* slot);
 ObjectClosure* newClosure(VM* vm, ObjectFunc* func);
 
+void freeObject(VM* vm, Object* object);
 void freeObjects(VM* vm);
 
 #endif // PICO_OBJECT_H

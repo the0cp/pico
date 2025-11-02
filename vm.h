@@ -6,6 +6,7 @@
 
 typedef struct Chunk Chunk;
 typedef struct Object Object;
+typedef struct Compiler Compiler;
 
 #define FRAMES_MAX 64
 #define STACK_MAX (FRAMES_MAX * 256)
@@ -33,6 +34,7 @@ typedef struct VM{
     int frameCount;
     size_t bytesAllocated;
     size_t nextGC;
+    Compiler* compiler;
 }VM;
 
 typedef enum{

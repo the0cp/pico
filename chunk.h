@@ -4,6 +4,8 @@
 #include "common.h"
 #include "value.h"
 
+typedef struct VM VM;
+
 typedef enum {
     OP_CONSTANT, OP_LCONSTANT,
     OP_NULL,

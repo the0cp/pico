@@ -50,6 +50,7 @@ typedef struct Compiler{
 
 
 ObjectFunc* compile(VM* vm, const char* code, const char* srcName);
+void markCompilerRoots(VM* vm);
 static ObjectFunc* stopCompiler(Compiler* compiler);
 static void emitByte(Compiler* compiler, uint8_t byte);
 static void emitPair(Compiler* compiler, uint8_t byte1, uint8_t byte2);

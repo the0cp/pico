@@ -69,7 +69,7 @@ void buildScript(VM* vm, const char* path){
     if(written < 0 || written >= sizeof(outputPath)){
         fprintf(stderr, "Error: Could not generate output path");
         free(source);
-        freeChunk(&chunk);
+        freeChunk(vm, &chunk);
         exit(70);
     }
 
@@ -78,6 +78,6 @@ void buildScript(VM* vm, const char* path){
     // serializeChunk();
 
     free(source);
-    freeChunk(&chunk);
+    freeChunk(vm, &chunk);
     printf("Compilation successful.\n");
 }

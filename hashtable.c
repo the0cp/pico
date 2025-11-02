@@ -119,7 +119,7 @@ bool tableSet(VM* vm, HashTable* table, ObjectString* key, Value value){
     }
 }
 
-bool tableRemove(HashTable* table, ObjectString* key){
+bool tableRemove(VM* vm, HashTable* table, ObjectString* key){
     if(table->count == 0){
         return false;
     }
@@ -232,5 +232,26 @@ ObjectString* tableGetInternedString(HashTable* table, const char* chars, int le
             return entry->key;
         }
         probe_dist++;
+    }
+}
+
+void markTable(VM* vm, HashTable* table){
+    for(int i = 0; i < table->capacity; i++){
+        Entry* entry = &table->entries[i];
+        markObject(vm, (Object*)entry->key);
+        markValue(vm, entry->value);
+    }
+}
+
+void tableRemoveWhite(VM* vm, HashTable* table){
+    int i = 0;
+    while(i < table->capacity){
+        Entry* entry = &table->entries[i];
+
+        if(entry->key != NULL && !entry->key->obj.isMarked){
+            tableRemove(vm, table, entry->key);
+        }else{
+            i++;
+        }
     }
 }

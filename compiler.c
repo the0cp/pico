@@ -3,6 +3,7 @@
 
 #include "compiler.h"
 #include "chunk.h"
+#include "mem.h"
 
 #ifdef DEBUG_PRINT_CODE
 #include "debug.h"
@@ -129,14 +130,16 @@ static void initCompiler(Compiler* compiler, VM* vm, Compiler* enclosing, FuncTy
 }
 
 ObjectFunc* compile(VM* vm, const char* code, const char* srcNameStr){
-    Compiler* compiler = (Compiler*)malloc(sizeof(Compiler));
+    Compiler* compiler = (Compiler*)reallocate(vm, NULL, 0, sizeof(Compiler));
     if(compiler == NULL){
         fprintf(stderr, "Not enough memory to compile.\n");
         return false;
     }
     initScanner(code);
     ObjectString* srcName = copyString(vm, srcNameStr, (int)strlen(srcNameStr));
-    initCompiler(compiler, vm, NULL, TYPE_SCRIPT, srcName);
+    compiler->enclosing = vm->compiler;
+    vm->compiler = compiler;
+    initCompiler(compiler, vm, compiler->enclosing, TYPE_SCRIPT, srcName);
 
     advance(compiler);  // Initialize the first token
     if(compiler->parser.cur.type == TOKEN_EOF){
@@ -151,9 +154,19 @@ ObjectFunc* compile(VM* vm, const char* code, const char* srcNameStr){
     ObjectFunc* func = stopCompiler(compiler);
 
     bool hadError = compiler->parser.hadError;
-    free(compiler);
+    vm->compiler = compiler->enclosing;
+    reallocate(vm, compiler, sizeof(Compiler), 0);
     
     return hadError ? NULL : func;
+}
+
+void markCompilerRoots(VM* vm){
+    markObject(vm, (Object*)vm->compiler->func);
+    Compiler* enclosing = vm->compiler->enclosing;
+    while(enclosing != NULL){
+        markObject(vm, (Object*)enclosing->func);
+        enclosing = enclosing->enclosing;
+    }
 }
 
 static void expression(Compiler* compiler){
@@ -188,12 +201,15 @@ static void varDecl(Compiler* compiler){
 }
 
 static void compileFunc(Compiler* compiler, FuncType type){
-    Compiler* funcCompiler = (Compiler*)malloc(sizeof(Compiler));
+    Compiler* funcCompiler = (Compiler*)reallocate(compiler->vm, NULL, 0, sizeof(Compiler));    
     if(funcCompiler == NULL){
         errorAt(compiler, &compiler->parser.pre, "Not enough memory to compile function.");
         return;
     }
     funcCompiler->parser = compiler->parser;
+
+    funcCompiler->enclosing = compiler;
+    compiler->vm->compiler = funcCompiler;
 
     initCompiler(funcCompiler, compiler->vm, compiler, type, compiler->func->srcName);
 
@@ -219,7 +235,8 @@ static void compileFunc(Compiler* compiler, FuncType type){
     if(constIndex < 0){
         errorAt(compiler, &compiler->parser.pre, "Failed to add function constant.");
         compiler->parser = funcCompiler->parser;
-        free(funcCompiler);
+        compiler->vm->compiler = compiler;
+        reallocate(compiler->vm, funcCompiler, sizeof(Compiler), 0);
         return;
     }
 
@@ -239,7 +256,8 @@ static void compileFunc(Compiler* compiler, FuncType type){
     }
 
     compiler->parser = funcCompiler->parser;
-    free(funcCompiler);
+    compiler->vm->compiler = compiler;
+    reallocate(compiler->vm, funcCompiler, sizeof(Compiler), 0);
 }
 
 static void funcDecl(Compiler* compiler){

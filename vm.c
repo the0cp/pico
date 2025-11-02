@@ -31,6 +31,8 @@ void initVM(VM* vm){
 
     vm->bytesAllocated = 0;
     vm->nextGC = 1024 * 1024;   // 1MB
+
+    vm->compiler = NULL;
 }
 
 void freeVM(VM* vm){
@@ -470,7 +472,7 @@ static InterpreterStatus run(VM* vm){
         ObjectString* name = AS_STRING(frame->closure->func->chunk.constants.values[READ_BYTE()]);
         if(tableSet(vm, vm->curGlobal, name, peek(vm, 0))){
             // empty bucket, undefined
-            tableRemove(&vm->globals, name);
+            tableRemove(vm, &vm->globals, name);
             runtimeError(vm, "Undefined variable '%.*s'.", name->length, name->chars);
             return VM_RUNTIME_ERROR;
         }
@@ -482,7 +484,7 @@ static InterpreterStatus run(VM* vm){
         frame->ip += 2;
         ObjectString* name = AS_STRING(frame->closure->func->chunk.constants.values[index]);
         if(tableSet(vm, vm->curGlobal, name, peek(vm, 0))){
-            tableRemove(&vm->globals, name);
+            tableRemove(vm, &vm->globals, name);
             runtimeError(vm, "Undefined variable '%.*s'.", name->length, name->chars);
             return VM_RUNTIME_ERROR;
         }

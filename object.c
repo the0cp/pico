@@ -47,11 +47,11 @@ static uint64_t hashString(const char* key, int len){
 static ObjectString* allocString(VM* vm, int len, uint64_t hash){
     ObjectString* str = (ObjectString*)reallocate(vm, NULL, 0, sizeof(ObjectString) + len + 1);
     str->obj.type = OBJECT_STRING;
+    str->obj.isMarked = false;
     str->length = len;
     str->hash = hash;
     str->obj.next = vm->objects;
     vm->objects = (Object*)str;
-    tableSet(&vm->strings, str, NULL_VAL);
     return str;
 }
 
@@ -66,6 +66,11 @@ ObjectString* copyString(VM* vm, const char* chars, int len){
     ObjectString* str = allocString(vm, len, hash);
     memcpy(str->chars, chars, len);
     str->chars[len] = '\0';
+
+    push(vm, OBJECT_VAL(str));
+    tableSet(vm, &vm->strings, str, NULL_VAL);
+    pop(vm);
+
     return str;
 }
 
@@ -86,6 +91,7 @@ ObjectFunc* newFunction(VM* vm){
 ObjectCFunc* newCFunc(VM* vm, CFunc func){
     ObjectCFunc* cfunc = (ObjectCFunc*)reallocate(vm, NULL, 0, sizeof(ObjectCFunc));
     cfunc->obj.type = OBJECT_CFUNC;
+    cfunc->obj.isMarked = false;
     cfunc->func = func;
     cfunc->obj.isMarked = false;
 
@@ -121,24 +127,25 @@ ObjectUpvalue* newUpvalue(VM* vm, Value* slot){
 }
 
 ObjectClosure* newClosure(VM* vm, ObjectFunc* func){
-    ObjectUpvalue** upvalues = (ObjectUpvalue**)reallocate(vm, NULL, 0, sizeof(ObjectUpvalue*) * func->upvalueCnt);
-    for(int i = 0; i < func->upvalueCnt; i++){
-        upvalues[i] = NULL;
-    }
+    size_t size = sizeof(ObjectClosure) + sizeof(ObjectUpvalue*) * func->upvalueCnt;
+    ObjectClosure* closure = (ObjectClosure*)reallocate(vm, NULL, 0, size);
 
-    ObjectClosure* closure = (ObjectClosure*)reallocate(vm, NULL, 0, sizeof(ObjectClosure));
     closure->obj.type = OBJECT_CLOSURE;
     closure->obj.isMarked = false;
     closure->func = func;
-    closure->upvalues = upvalues;
     closure->upvalueCnt = func->upvalueCnt;
+
+    for(int i = 0; i < func->upvalueCnt; i++){
+        closure->upvalues[i] = NULL;
+    }
 
     closure->obj.next = vm->objects;
     vm->objects = (Object*)closure;
+
     return closure;
 }
 
-static void freeObject(VM* vm, Object* object){
+void freeObject(VM* vm, Object* object){
     switch(object->type){
         case OBJECT_STRING:{
             ObjectString* string = (ObjectString*)object;
@@ -157,15 +164,14 @@ static void freeObject(VM* vm, Object* object){
         }
         case OBJECT_MODULE:{
             ObjectModule* module = (ObjectModule*)object;
-            freeHashTable(&module->members);
+            freeHashTable(vm, &module->members);
             reallocate(vm, module, sizeof(ObjectModule), 0);
             break;
         }
         case OBJECT_CLOSURE:{
             ObjectClosure* closure = (ObjectClosure*)object;
-            // gc todo
-            reallocate(vm, closure->upvalues, sizeof(ObjectUpvalue*) * closure->upvalueCnt, 0);
-            reallocate(vm, object, sizeof(ObjectClosure), 0);
+            size_t size = sizeof(ObjectClosure) + sizeof(ObjectUpvalue*) * closure->upvalueCnt;
+            reallocate(vm, object, size, 0);
             break;
         }
         case OBJECT_UPVALUE:{
