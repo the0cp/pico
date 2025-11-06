@@ -64,6 +64,7 @@ void freeValueArray(VM* vm, ValueArray* array);
 void printValue(Value value);
 
 char* valueToString(Value value);
+ObjectString* toString(VM* vm, Value value);
 
 void printObject(Value value);
 

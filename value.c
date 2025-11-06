@@ -19,6 +19,14 @@ char* valueToString(Value value){
     return "Unknown";
 }
 
+ObjectString* toString(VM* vm, Value value){
+    if(IS_STRING(value)){
+        return AS_STRING(value);
+    }
+    char* str = valueToString(value);
+    return copyString(vm, str, (int)strlen(str));
+}
+
 void initValueArray(ValueArray* array){
     array->values = NULL;
     array->count = 0;

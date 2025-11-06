@@ -46,12 +46,14 @@ static uint64_t hashString(const char* key, int len){
 
 static ObjectString* allocString(VM* vm, int len, uint64_t hash){
     ObjectString* str = (ObjectString*)reallocate(vm, NULL, 0, sizeof(ObjectString) + len + 1);
+    
     str->obj.type = OBJECT_STRING;
     str->obj.isMarked = false;
     str->length = len;
     str->hash = hash;
     str->obj.next = vm->objects;
     vm->objects = (Object*)str;
+
     return str;
 }
 
@@ -72,6 +74,25 @@ ObjectString* copyString(VM* vm, const char* chars, int len){
     pop(vm);
 
     return str;
+}
+
+ObjectString* takeString(VM* vm, char* chars, int length){
+    uint64_t hash = hashString(chars, length);
+    ObjectString* interned = tableGetInternedString(&vm->strings, chars, length, hash);
+    if (interned != NULL) {
+        reallocate(vm, chars, length + 1, 0); 
+        return interned;
+    }
+
+    ObjectString* string = allocString(vm, length, hash);
+    memcpy(string->chars, chars, length);
+    string->chars[length] = '\0';
+
+    push(vm, OBJECT_VAL(string));
+    tableSet(vm, &vm->strings, string, NULL_VAL);
+    pop(vm);
+
+    return string;
 }
 
 ObjectFunc* newFunction(VM* vm){

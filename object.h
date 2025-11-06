@@ -52,6 +52,7 @@ typedef struct ObjectString{
 }ObjectString;
 
 ObjectString* copyString(VM* vm, const char* chars, int len);
+ObjectString* takeString(VM* vm, char* chars, int length);
 
 typedef enum{
     TYPE_FUNC,

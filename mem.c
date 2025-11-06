@@ -7,14 +7,24 @@
 #define GC_HEAP_GROW_FACTOR 2
 
 void collectGarbage(VM* vm){
+    if(vm->bytesAllocated == 0) return;
+    printf("\n-- gc begin\n");
     size_t before = vm->bytesAllocated;
-    printf("[GC Begin] size: %zu, next: %zu\n", before, vm->nextGC);
+
     markRoots(vm);
-    //tableRemoveWhite(vm, &vm->strings);
+    
+    printf("-- mark phase complete\n");
+
+    tableRemoveWhite(vm, &vm->strings);
     sweep(vm);
+
+    printf("-- sweep phase complete\n");
+    printf("   collected %zu bytes (from %zu to %zu) next at %zu\n",
+           before - vm->bytesAllocated, before, vm->bytesAllocated,
+           vm->nextGC);
+    
     vm->nextGC = vm->bytesAllocated * GC_HEAP_GROW_FACTOR;
-    printf("[GC End]   Freed: %zu, new size: %zu, next: %zu\n",
-           before - vm->bytesAllocated, vm->bytesAllocated, vm->nextGC);
+    if(vm->nextGC < 1024) vm->nextGC = 1024;
 }
 
 static void traceRef(VM* vm, Object* object){
@@ -91,8 +101,6 @@ static void markRoots(VM* vm){
 
     markTable(vm, &vm->modules);
 
-    markTable(vm, &vm->strings);
-
     if(vm->compiler != NULL){
         markCompilerRoots(vm);
     }
@@ -101,9 +109,9 @@ static void markRoots(VM* vm){
 static void sweep(VM* vm){
     Object* prev = NULL;
     Object* object = vm->objects;
+    
     while(object != NULL){
         if(object->isMarked){
-            object->isMarked = false;
             prev = object;
             object = object->next;
         }else{
@@ -111,25 +119,36 @@ static void sweep(VM* vm){
             object = object->next;
             if(prev != NULL){
                 prev->next = object;
-            }else{  // prev is head
+            }else{
                 vm->objects = object;
             }
             freeObject(vm, unreached);
         }
     }
+    
+    object = vm->objects;
+    while(object != NULL){
+        object->isMarked = false;
+        object = object->next;
+    }
 }
 
 void* reallocate(VM* vm, void* ptr, size_t oldSize, size_t newSize){
     vm->bytesAllocated += newSize - oldSize;
-    if(newSize > oldSize){
-        #ifdef DEBUG_STRESS_GC
+    static bool gc_running = false;
+   
+    #ifdef DEBUG_STRESS_GC
+    if(!gc_running && newSize > oldSize){
+        gc_running = true;
         collectGarbage(vm);
-        #else
-        if(vm->bytesAllocated > vm->nextGC){
-            collectGarbage(vm);
-        }
-        #endif
+        gc_running = false;
     }
+    #else
+    if(vm->bytesAllocated > vm->nextGC){
+        collectGarbage(vm);
+    }
+    #endif
+    
 
     if(newSize == 0){
         free(ptr);

@@ -137,9 +137,14 @@ ObjectFunc* compile(VM* vm, const char* code, const char* srcNameStr){
     }
     initScanner(code);
     ObjectString* srcName = copyString(vm, srcNameStr, (int)strlen(srcNameStr));
-    compiler->enclosing = vm->compiler;
+
+    push(vm, OBJECT_VAL(srcName));
+    Compiler* enclosing = vm->compiler;
+    compiler->vm = vm;
+    compiler->func = NULL;
     vm->compiler = compiler;
-    initCompiler(compiler, vm, compiler->enclosing, TYPE_SCRIPT, srcName);
+    initCompiler(compiler, vm, enclosing, TYPE_SCRIPT, srcName);
+    pop(vm);    // pop srcName
 
     advance(compiler);  // Initialize the first token
     if(compiler->parser.cur.type == TOKEN_EOF){
@@ -209,9 +214,12 @@ static void compileFunc(Compiler* compiler, FuncType type){
     funcCompiler->parser = compiler->parser;
 
     funcCompiler->enclosing = compiler;
+    funcCompiler->vm = compiler->vm;
+    funcCompiler->func = NULL;  
     compiler->vm->compiler = funcCompiler;
 
     initCompiler(funcCompiler, compiler->vm, compiler, type, compiler->func->srcName);
+
 
     beginScope(funcCompiler);
     consume(funcCompiler, TOKEN_LEFT_PAREN, "Expect '(' after function name.");
@@ -231,7 +239,10 @@ static void compileFunc(Compiler* compiler, FuncType type){
 
     ObjectFunc* func = stopCompiler(funcCompiler);
     
+    push(compiler->vm, OBJECT_VAL(func));
     int constIndex = addConstant(compiler->vm, &compiler->func->chunk, OBJECT_VAL(func));
+    pop(compiler->vm);
+
     if(constIndex < 0){
         errorAt(compiler, &compiler->parser.pre, "Failed to add function constant.");
         compiler->parser = funcCompiler->parser;
@@ -668,7 +679,12 @@ static void parsePrecedence(Compiler* compiler, Precedence precedence){
 static int identifierConst(Compiler* compiler){
     Token* name = &compiler->parser.pre;
     Value strVal = OBJECT_VAL(copyString(compiler->vm, name->head, name->len));
-    return addConstant(compiler->vm, &compiler->func->chunk, strVal);
+
+    push(compiler->vm, strVal);
+    int index = addConstant(compiler->vm, &compiler->func->chunk, strVal);
+    pop(compiler->vm);
+
+    return index;
 }
 
 static void addLocal(Compiler* compiler, Token name){
@@ -832,7 +848,10 @@ static void handleNum(Compiler* compiler, bool canAssign){
 }
 
 static void emitConstant(Compiler* compiler, Value value){
+    push(compiler->vm, value);
     int constantIndex = addConstant(compiler->vm, &compiler->func->chunk, value);
+    pop(compiler->vm);
+
     if(constantIndex < 0){
         fprintf(stderr, "Failed to add constant\n");
         return;
@@ -1050,7 +1069,11 @@ static void handleImport(Compiler* compiler, bool canAssign){
     }else{
         Token *token = &compiler->parser.cur;
         Value valStr = OBJECT_VAL(copyString(compiler->vm, token->head, token->len));
+        
+        push(compiler->vm, valStr);
         int index = addConstant(compiler->vm, &compiler->func->chunk, valStr);
+        pop(compiler->vm);
+
         if(index < 256){
             emitPair(compiler, OP_IMPORT, (uint8_t)index);
         }else if(index < 0xffff){
@@ -1071,7 +1094,10 @@ static void handleDot(Compiler* compiler, bool canAssign){
 
     Token* name = &compiler->parser.pre;
     Value strVal = OBJECT_VAL(copyString(compiler->vm, name->head, name->len));
+
+    push(compiler->vm, strVal);
     int index = addConstant(compiler->vm, &compiler->func->chunk, strVal);
+    pop(compiler->vm);
 
     uint8_t finalOp, finalLOp;
 

@@ -1,5 +1,6 @@
 #include <stdlib.h>
 #include <string.h>
+#include <stdio.h>
 
 #include "mem.h"
 #include "object.h"
@@ -236,22 +237,31 @@ ObjectString* tableGetInternedString(HashTable* table, const char* chars, int le
 }
 
 void markTable(VM* vm, HashTable* table){
+    if(table == NULL || table->count == 0) return;
+    
     for(int i = 0; i < table->capacity; i++){
         Entry* entry = &table->entries[i];
-        markObject(vm, (Object*)entry->key);
-        markValue(vm, entry->value);
+        if(entry->key != NULL) {
+            markObject(vm, (Object*)entry->key);
+            markValue(vm, entry->value);
+        }
     }
 }
 
-void tableRemoveWhite(VM* vm, HashTable* table){
-    int i = 0;
-    while(i < table->capacity){
-        Entry* entry = &table->entries[i];
+void tableRemoveWhite(VM* vm, HashTable* table) {
+    if(table->count == 0) return;
 
-        if(entry->key != NULL && !entry->key->obj.isMarked){
-            tableRemove(vm, table, entry->key);
-        }else{
-            i++;
+    HashTable newTable;
+    initHashTable(&newTable);
+
+    for(int i = 0; i < table->capacity; i++){
+        Entry* entry = &table->entries[i];
+        if(entry->key != NULL && entry->key->obj.isMarked){
+            tableSet(vm, &newTable, entry->key, entry->value);
         }
     }
+
+    freeHashTable(vm, table);
+
+    *table = newTable;
 }

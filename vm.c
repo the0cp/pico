@@ -28,9 +28,10 @@ void initVM(VM* vm){
 
     vm->globalCnt = 0;
     vm->curGlobal = &vm->globals;
+    vm->globalStack[0] = vm->curGlobal;
 
     vm->bytesAllocated = 0;
-    vm->nextGC = 1024 * 1024;   // 1MB
+    vm->nextGC = 1024;   // 1KB
 
     vm->compiler = NULL;
 }
@@ -60,6 +61,10 @@ Value pop(VM* vm){
 }
 
 static Value peek(VM* vm, int distance){
+    if(vm->stackTop - vm->stack - 1 - distance < 0){
+        runtimeError(vm, "Stack underflow");
+        exit(EXIT_FAILURE);
+    }
     return vm->stackTop[-1 - distance];
 }
 
@@ -254,8 +259,8 @@ static InterpreterStatus run(VM* vm){
     {
         if(!IS_STRING(peek(vm, 0))){
             Value value = pop(vm);
-            char* str = valueToString(value);
-            push(vm, OBJECT_VAL(copyString(vm, str, strlen(str))));
+            ObjectString* str = toString(vm, value);
+            push(vm, OBJECT_VAL(str));
         }
     } DISPATCH();
 
@@ -346,25 +351,34 @@ static InterpreterStatus run(VM* vm){
 
     DO_OP_ADD: 
     {
+        Value vb = peek(vm, 0);
+        Value va = peek(vm, 1);
+
         if(IS_STRING(peek(vm, 0)) || IS_STRING(peek(vm, 1))){
-            Value b = pop(vm);
-            Value a = pop(vm);
+            ObjectString* strA = toString(vm, va);
+            push(vm, OBJECT_VAL(strA));
+            ObjectString* strB = toString(vm, vb);
+            
+            push(vm, OBJECT_VAL(strB));
 
-            char* strA = valueToString(a);
-            char* strB = valueToString(b);
-
-            size_t lenA = strlen(strA);
-            size_t lenB = strlen(strB);
+            size_t lenA = strA->length;
+            size_t lenB = strB->length;
             size_t len = lenA + lenB;
 
             char* chars = (char*)reallocate(vm, NULL, 0, len + 1);
-            memcpy(chars, strA, lenA);
-            memcpy(chars + lenA, strB, lenB);
+            if(chars == NULL){
+                runtimeError(vm, "Memory allocation failed for string concatenation.");
+                return VM_RUNTIME_ERROR;
+            }
+            memcpy(chars, strA->chars, lenA);
+            memcpy(chars + lenA, strB->chars, lenB);
             chars[len] = '\0';
 
-            push(vm, OBJECT_VAL(copyString(vm, chars, len)));
+            ObjectString* result = copyString(vm, chars, len);
             reallocate(vm, chars, len + 1, 0);
-        }else if(IS_NUM(peek(vm, 0)) && IS_NUM(peek(vm, 1))){
+            pop(vm); pop(vm); pop(vm); pop(vm); // pop strB, strA, vb, va
+            push(vm, OBJECT_VAL(result));
+        }else if(IS_NUM(va) && IS_NUM(vb)){
             double b = AS_NUM(pop(vm));
             double a =AS_NUM(pop(vm));
             push(vm, NUM_VAL(a + b));
@@ -551,16 +565,20 @@ static InterpreterStatus run(VM* vm){
 
     DO_OP_IMPORT:
     {
-        ObjectString* path = AS_STRING(frame->closure->func->chunk.constants.values[READ_BYTE()]);
-        
+        uint8_t index = READ_BYTE();
+        ObjectString* path = AS_STRING(frame->closure->func->chunk.constants.values[index]);
+        push(vm, OBJECT_VAL(path));
+
         Value modVal;
         if(tableGet(&vm->modules, path, &modVal)){
+            pop(vm);
             push(vm, modVal);
             DISPATCH(); // next dispatch
         }
 
         char* source = read(path->chars);
         if(source == NULL){
+            pop(vm);
             runtimeError(vm, "Could not read import file '%s'.", path->chars);
             return VM_RUNTIME_ERROR;
         }
@@ -568,6 +586,7 @@ static InterpreterStatus run(VM* vm){
         ObjectFunc* func = compile(vm, source, path->chars);
         free(source);
         if(func == NULL){
+            pop(vm);
             return VM_COMPILE_ERROR; 
         }
 
@@ -577,18 +596,32 @@ static InterpreterStatus run(VM* vm){
 
         ObjectClosure* closure = newClosure(vm, func);
         pop(vm);    // pop ObjectFunc
+        if(closure == NULL){
+            pop(vm);
+            runtimeError(vm, "Out of memory creating closure");
+            return VM_RUNTIME_ERROR;
+        }
         push(vm, OBJECT_VAL(closure));
 
         ObjectModule* module = newModule(vm, path);
+        if(module == NULL){
+            pop(vm);  // closure
+            pop(vm);  // path
+            runtimeError(vm, "Out of memory creating module");
+            return VM_RUNTIME_ERROR;
+        }
         push(vm, OBJECT_VAL(module));
         tableSet(vm, &vm->modules, path, OBJECT_VAL(module));
 
         pushGlobal(vm, &module->members);
         
-        if(!call(vm, closure, 0)){ // Call the 'closure'
+        if(!call(vm, closure, 0)){
+            popGlobal(vm);
+            pop(vm); pop(vm); pop(vm); // module, closure, path
             return VM_RUNTIME_ERROR;
         }
 
+        pop(vm); // path
         frame = &vm->frames[vm->frameCount - 1];
 
     } DISPATCH();
@@ -599,19 +632,25 @@ static InterpreterStatus run(VM* vm){
         frame->ip += 2;
         ObjectString* path = AS_STRING(frame->closure->func->chunk.constants.values[index]);
         
+        push(vm, OBJECT_VAL(path));
+
         Value modVal;
         if(tableGet(&vm->modules, path, &modVal)){
+            pop(vm);
             push(vm, modVal);
             DISPATCH(); // next dispatch
         }
 
         char* source = read(path->chars);
         if(source == NULL){
+            pop(vm);
+            runtimeError(vm, "Could not read import file '%s'.", path->chars);
             return VM_RUNTIME_ERROR;
         }
         ObjectFunc* func = compile(vm, source, path->chars);
         free(source);
         if(func == NULL){
+            pop(vm);
             return VM_COMPILE_ERROR; 
         }
 
@@ -626,10 +665,12 @@ static InterpreterStatus run(VM* vm){
         ObjectModule* module = newModule(vm, path);
         push(vm, OBJECT_VAL(module));
         tableSet(vm, &vm->modules, path, OBJECT_VAL(module));
+        pop(vm);
 
         pushGlobal(vm, &module->members);
         
         if(!call(vm, closure, 0)){
+            popGlobal(vm);
             return VM_RUNTIME_ERROR;
         }
 
@@ -726,6 +767,10 @@ static InterpreterStatus run(VM* vm){
         ObjectFunc* func = AS_FUNC(frame->closure->func->chunk.constants.values[constIndex]);
 
         ObjectClosure* closure = newClosure(vm, func);
+        if(!closure){
+            runtimeError(vm, "Out of memory creating closure");
+            return VM_RUNTIME_ERROR;
+        }
         push(vm, OBJECT_VAL(closure));
 
         for(int i = 0; i < closure->upvalueCnt; i++){
@@ -734,6 +779,10 @@ static InterpreterStatus run(VM* vm){
             if(isLocal){
                 closure->upvalues[i] = captureUpvalue(vm, frame->slots + index);
             }else{
+                if(index >= frame->closure->upvalueCnt){
+                    runtimeError(vm, "Upvalue index out of bounds");
+                    return VM_RUNTIME_ERROR;
+                }
                 closure->upvalues[i] = frame->closure->upvalues[index];
             }
         }
@@ -742,9 +791,17 @@ static InterpreterStatus run(VM* vm){
     DO_OP_LCLOSURE:
     {
         uint16_t constIndex = (uint16_t)((READ_BYTE() << 8) | READ_BYTE());
+        if(constIndex >= frame->closure->func->chunk.constants.count){
+            runtimeError(vm, "Closure constant index out of bounds");
+            return VM_RUNTIME_ERROR;
+        }
         ObjectFunc* func = AS_FUNC(frame->closure->func->chunk.constants.values[constIndex]);
 
         ObjectClosure* closure = newClosure(vm, func);
+        if(closure == NULL){
+            runtimeError(vm, "Out of memory creating closure");
+            return VM_RUNTIME_ERROR;
+        }
         push(vm, OBJECT_VAL(closure));
 
         for(int i = 0; i < closure->upvalueCnt; i++){
@@ -753,6 +810,11 @@ static InterpreterStatus run(VM* vm){
             if(isLocal){
                 closure->upvalues[i] = captureUpvalue(vm, frame->slots + index);
             }else{
+                if(index >= frame->closure->upvalueCnt){
+                    runtimeError(vm, "Upvalue index out of bounds");
+                    pop(vm);
+                    return VM_RUNTIME_ERROR;
+                }
                 closure->upvalues[i] = frame->closure->upvalues[index];
             }
         }
