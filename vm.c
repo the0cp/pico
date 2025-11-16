@@ -207,6 +207,11 @@ static InterpreterStatus run(VM* vm){
         [OP_SET_UPVALUE]    = &&DO_OP_SET_UPVALUE,
         [OP_SET_LUPVALUE]   = &&DO_OP_SET_LUPVALUE,
         [OP_CLOSE_UPVALUE]  = &&DO_OP_CLOSE_UPVALUE,
+
+        [OP_CLASS]          = &&DO_OP_CLASS,
+        [OP_METHOD]         = &&DO_OP_METHOD,
+        [OP_LCLASS]         = &&DO_OP_LCLASS,
+        [OP_LMETHOD]        = &&DO_OP_LMETHOD,
     };
 
     #ifdef DEBUG_TRACE
@@ -684,6 +689,26 @@ static InterpreterStatus run(VM* vm){
             return VM_RUNTIME_ERROR;
         }
 
+        if(IS_INSTANCE(peek(vm, 0))){
+            ObjectInstance* instance = AS_INSTANCE(peek(vm, 0));
+            ObjectString* name = AS_STRING(frame->closure->func->chunk.constants.values[READ_BYTE()]);
+
+            Value value;
+            if(tableGet(&instance->fields, name, &value)){
+                pop(vm);
+                push(vm, value);
+                DISPATCH();
+            }
+
+            if(tableGet(&instance->klass->methods, name, &value)){
+                pop(vm);
+                push(vm, value);
+                DISPATCH();
+            }
+            runtimeError(vm, "Undefined property '%s' on instance of '%s'.", name->chars, instance->klass->name->chars);
+            return VM_RUNTIME_ERROR;
+        }
+
         if(IS_MODULE(peek(vm, 0))){
             ObjectModule* module = AS_MODULE(peek(vm, 0));
             ObjectString* name = AS_STRING(frame->closure->func->chunk.constants.values[READ_BYTE()]);
@@ -703,6 +728,28 @@ static InterpreterStatus run(VM* vm){
     {
         if(!IS_OBJECT(peek(vm, 0))){
             runtimeError(vm, "Only modules and objects have properties.");
+            return VM_RUNTIME_ERROR;
+        }
+
+        if(IS_INSTANCE(peek(vm, 0))){
+            ObjectInstance* instance = AS_INSTANCE(peek(vm, 0));
+            uint16_t index = (uint16_t)((frame->ip[0] << 8) | frame->ip[1]);
+            frame->ip += 2;
+            ObjectString* name = AS_STRING(frame->closure->func->chunk.constants.values[index]);
+
+            Value value;
+            if(tableGet(&instance->fields, name, &value)){
+                pop(vm);
+                push(vm, value);
+                DISPATCH();
+            }
+
+            if(tableGet(&instance->klass->methods, name, &value)){
+                pop(vm);
+                push(vm, value);
+                DISPATCH();
+            }
+            runtimeError(vm, "Undefined property '%s' on instance of '%s'.", name->chars, instance->klass->name->chars);
             return VM_RUNTIME_ERROR;
         }
 
@@ -726,8 +773,19 @@ static InterpreterStatus run(VM* vm){
     DO_OP_SET_PROPERTY:
     {
         if(!IS_OBJECT(peek(vm, 1))){    // stack top is a value, -1 for object
-            runtimeError(vm, "Only modules and objects have properties.");
+            runtimeError(vm, "Only modules and instances have properties.");
             return VM_RUNTIME_ERROR;
+        }
+
+        if(IS_INSTANCE(peek(vm, 1))){
+            ObjectInstance* instance = AS_INSTANCE(peek(vm, 1));
+            ObjectString* name = AS_STRING(frame->closure->func->chunk.constants.values[READ_BYTE()]);
+            tableSet(vm, &instance->fields, name, peek(vm, 0));
+
+            Value value = pop(vm);
+            pop(vm);    // pop instance
+            push(vm, value);
+            DISPATCH();
         }
 
         if(IS_MODULE(peek(vm, 1))){
@@ -747,6 +805,19 @@ static InterpreterStatus run(VM* vm){
             runtimeError(vm, "Only modules and objects have properties.");
             return VM_RUNTIME_ERROR;
         }
+
+        if(IS_INSTANCE(peek(vm, 1))){
+            ObjectInstance* instance = AS_INSTANCE(peek(vm, 1));
+            uint16_t index = (uint16_t)((frame->ip[0] << 8) | frame->ip[1]);
+            frame->ip += 2;
+            ObjectString* name = AS_STRING(frame->closure->func->chunk.constants.values[index]);
+            tableSet(vm, &instance->fields, name, peek(vm, 0));
+
+            Value value = pop(vm);
+            pop(vm);    // pop instance
+            push(vm, value);
+            DISPATCH();
+        } 
 
         if(IS_MODULE(peek(vm, 1))){
             ObjectModule* module = AS_MODULE(peek(vm, 1));
@@ -850,6 +921,52 @@ static InterpreterStatus run(VM* vm){
         pop(vm);
     } DISPATCH();
 
+    DO_OP_CLASS:
+    {
+        ObjectString* name = AS_STRING(frame->closure->func->chunk.constants.values[READ_BYTE()]);
+        ObjectClass* klass = newClass(vm, name);
+        push(vm, OBJECT_VAL(klass));
+    } DISPATCH();
+
+    DO_OP_METHOD:
+    {
+        ObjectString* name = AS_STRING(frame->closure->func->chunk.constants.values[READ_BYTE()]);
+        Value method = peek(vm, 0);
+        Value klassVal = peek(vm, 1);
+        if(!IS_CLASS(klassVal)){
+            runtimeError(vm, "Receiver must be a class.");
+            return VM_RUNTIME_ERROR;
+        }
+        ObjectClass* klass = AS_CLASS(klassVal);
+        tableSet(vm, &klass->methods, name, method);
+        pop(vm);
+    } DISPATCH();
+
+    DO_OP_LCLASS:
+    {
+        uint16_t index = (uint16_t)(READ_BYTE() << 8 | READ_BYTE());
+        frame->ip += 2;
+        ObjectString* name = AS_STRING(frame->closure->func->chunk.constants.values[index]);
+        ObjectClass* klass = newClass(vm, name);
+        push(vm, OBJECT_VAL(klass));
+    } DISPATCH();
+
+    DO_OP_LMETHOD:
+    {
+        uint16_t index = (uint16_t)(READ_BYTE() << 8 | READ_BYTE());
+        frame->ip += 2;
+        ObjectString* name = AS_STRING(frame->closure->func->chunk.constants.values[index]);
+        Value method = peek(vm, 0);
+        Value klassVal = peek(vm, 1);
+        if(!IS_CLASS(klassVal)){
+            runtimeError(vm, "Receiver must be a class.");
+            return VM_RUNTIME_ERROR;
+        }
+        ObjectClass* klass = AS_CLASS(klassVal);
+        tableSet(vm, &klass->methods, name, method);
+        pop(vm);
+    } DISPATCH();
+
     DO_OP_RETURN:
     {
         Value result = pop(vm);
@@ -910,9 +1027,12 @@ static bool call(VM* vm, ObjectClosure* closure, int argCnt){
 static bool callValue(VM* vm, Value callee, int argCnt){
     if(IS_OBJECT(callee)){
         switch(OBJECT_TYPE(callee)){
-            // case OBJECT_FUNC:
-            //     return call(vm, AS_FUNC(callee), argCnt);
-            // function cannot be called directly.
+            case OBJECT_CLASS:{
+                ObjectClass* klass = AS_CLASS(callee);
+                vm->stackTop[-argCnt -1] = OBJECT_VAL(newInstance(vm, klass));
+                // init
+                return true;
+            }
             case OBJECT_CLOSURE:
                 return call(vm, AS_CLOSURE(callee), argCnt);
             case OBJECT_CFUNC:{

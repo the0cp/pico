@@ -16,6 +16,7 @@ else,       TOKEN_ELSE
 false,      TOKEN_FALSE
 for,        TOKEN_FOR
 func,       TOKEN_FUNC
+method      TOKEN_METHOD
 var,        TOKEN_VAR
 if,         TOKEN_IF
 null,       TOKEN_NULL

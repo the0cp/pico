@@ -28,6 +28,12 @@ typedef Value (*CFunc)(int argCount, Value* args);
 #define IS_CLOSURE(value)   (IS_OBJECT(value) && OBJECT_TYPE(value) == OBJECT_CLOSURE)
 #define AS_CLOSURE(value)   ((ObjectClosure*)AS_OBJECT(value))
 
+#define IS_CLASS(value)     (IS_OBJECT(value) && OBJECT_TYPE(value) == OBJECT_CLASS)
+#define AS_CLASS(value)     ((ObjectClass*)AS_OBJECT(value))
+
+#define IS_INSTANCE(value)  (IS_OBJECT(value) && OBJECT_TYPE(value) == OBJECT_INSTANCE)
+#define AS_INSTANCE(value)  ((ObjectInstance*)AS_OBJECT(value))
+
 
 typedef enum{
     OBJECT_STRING,
@@ -36,6 +42,8 @@ typedef enum{
     OBJECT_MODULE,
     OBJECT_CLOSURE,
     OBJECT_UPVALUE,
+    OBJECT_CLASS,
+    OBJECT_INSTANCE,
 }ObjectType;
 
 typedef struct Object{
@@ -58,6 +66,7 @@ typedef enum{
     TYPE_FUNC,
     TYPE_SCRIPT,
     TYPE_MODULE,
+    TYPE_METHOD,
 }FuncType;
 
 typedef struct ObjectFunc{
@@ -103,6 +112,21 @@ typedef struct ObjectClosure{
 
 ObjectUpvalue* newUpvalue(VM* vm, Value* slot);
 ObjectClosure* newClosure(VM* vm, ObjectFunc* func);
+
+typedef struct ObjectClass{
+    Object obj;
+    ObjectString* name;
+    HashTable methods;
+}ObjectClass;
+
+typedef struct ObjectInstance{
+    Object obj;
+    ObjectClass* klass;
+    HashTable fields;
+}ObjectInstance;
+
+ObjectClass* newClass(VM* vm, ObjectString* name);
+ObjectInstance* newInstance(VM* vm, ObjectClass* klass);
 
 void freeObject(VM* vm, Object* object);
 void freeObjects(VM* vm);

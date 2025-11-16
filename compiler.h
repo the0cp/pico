@@ -82,6 +82,8 @@ static void handleCall(Compiler* compiler, bool canAssign);
 static void handleImport(Compiler* compiler, bool canAssign);
 static void handleDot(Compiler* compiler, bool canAssign);
 
+static void handleThis(Compiler* compiler, bool canAssign);
+
 static void advance(Compiler* compiler);
 
 static void expression(Compiler* compiler);
@@ -90,6 +92,8 @@ static void decl(Compiler* compiler);
 static void varDecl(Compiler* compiler);
 static void defineVar(Compiler* compiler, int global);
 static void funcDecl(Compiler* compiler);
+static void classDecl(Compiler* compiler);
+static void methodDecl(Compiler* compiler);
 
 static void beginScope(Compiler* compiler);
 static void block(Compiler* compiler);

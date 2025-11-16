@@ -166,6 +166,30 @@ ObjectClosure* newClosure(VM* vm, ObjectFunc* func){
     return closure;
 }
 
+ObjectClass* newClass(VM* vm, ObjectString* name){
+    ObjectClass* klass = (ObjectClass*)reallocate(vm, NULL, 0, sizeof(ObjectClass));
+    klass->obj.type = OBJECT_CLASS;
+    klass->obj.isMarked = false;
+    klass->name = name;
+    initHashTable(&klass->methods);
+
+    klass->obj.next = vm->objects;
+    vm->objects = (Object*)klass;
+    return klass;
+}
+
+ObjectInstance* newInstance(VM* vm, ObjectClass* klass){
+    ObjectInstance* instance = (ObjectInstance*)reallocate(vm, NULL, 0, sizeof(ObjectInstance));
+    instance->obj.type = OBJECT_INSTANCE;
+    instance->obj.isMarked = false;
+    instance->klass = klass;
+    initHashTable(&instance->fields);
+
+    instance->obj.next = vm->objects;
+    vm->objects = (Object*)instance;
+    return instance;
+}
+
 void freeObject(VM* vm, Object* object){
     switch(object->type){
         case OBJECT_STRING:{
@@ -197,6 +221,18 @@ void freeObject(VM* vm, Object* object){
         }
         case OBJECT_UPVALUE:{
             reallocate(vm, object, sizeof(ObjectUpvalue), 0);
+            break;
+        }
+        case OBJECT_CLASS:{
+            ObjectClass* class = (ObjectClass*)object;
+            freeHashTable(vm, &class->methods);
+            reallocate(vm, object, sizeof(ObjectClass), 0);
+            break;
+        }
+        case OBJECT_INSTANCE:{
+            ObjectInstance* instance = (ObjectInstance*)object;
+            freeHashTable(vm, &instance->fields);
+            reallocate(vm, object, sizeof(ObjectInstance), 0);
             break;
         }
     }
@@ -236,6 +272,12 @@ void printObject(Value value){
             break;
         case OBJECT_UPVALUE:
             printf("<upvalue>");
+            break;
+        case OBJECT_CLASS:
+            printf("<class %s>", AS_CLASS(value)->name->chars);
+            break;
+        case OBJECT_INSTANCE:
+            printf("<instance of %s>", AS_INSTANCE(value)->klass->name->chars);
             break;
     }
 }

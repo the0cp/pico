@@ -41,6 +41,7 @@ static void handleOr(Compiler* compiler, bool canAssign);
 static void handleCall(Compiler* compiler, bool canAssign);
 static void handleImport(Compiler* compiler, bool canAssign);
 static void handleDot(Compiler* compiler, bool canAssign);
+static void handleThis(Compiler* compiler, bool canAssign);
 
 ParseRule rules[] = {
     [TOKEN_LEFT_PAREN]              = {handleGrouping,  handleCall,     PREC_CALL},
@@ -80,6 +81,8 @@ ParseRule rules[] = {
 
     [TOKEN_IMPORT]                  = {handleImport,    NULL,           PREC_NONE},
     [TOKEN_DOT]                     = {NULL,            handleDot,      PREC_CALL},
+
+    [TOKEN_THIS]                    = {handleThis,     NULL,           PREC_NONE},  
 
     [TOKEN_EOF]                     = {NULL,            NULL,           PREC_NONE},
 };
@@ -183,6 +186,10 @@ static void decl(Compiler* compiler){
         varDecl(compiler);
     else if(match(compiler, TOKEN_FUNC))
         funcDecl(compiler);
+    else if(match(compiler, TOKEN_CLASS))
+        classDecl(compiler);
+    else if(match(compiler, TOKEN_METHOD))
+        methodDecl(compiler);
     else
         stmt(compiler);
     
@@ -276,6 +283,143 @@ static void funcDecl(Compiler* compiler){
     compileFunc(compiler, TYPE_FUNC);
     
     defineVar(compiler, global);
+}
+
+static void compileMethod(Compiler* compiler){
+    Compiler* methodCompiler = (Compiler*)reallocate(compiler->vm, NULL, 0, sizeof(Compiler));    
+    if(methodCompiler == NULL){
+        errorAt(compiler, &compiler->parser.pre, "Not enough memory to compile method.");
+        return;
+    }
+
+    methodCompiler->parser = compiler->parser;
+    methodCompiler->enclosing = compiler;
+    methodCompiler->vm = compiler->vm;
+    methodCompiler->func = NULL;  
+    compiler->vm->compiler = methodCompiler;
+
+    initCompiler(methodCompiler, compiler->vm, compiler, TYPE_METHOD, compiler->func->srcName);
+
+    Local *local = &methodCompiler->locals[methodCompiler->localCnt++];
+    local->name.head = "this";
+    local->name.len = 4;
+    local->depth = methodCompiler->scopeDepth;
+
+    beginScope(methodCompiler);
+    consume(methodCompiler, TOKEN_LEFT_PAREN, "Expect '(' after method name.");
+    if(!checkType(methodCompiler, TOKEN_RIGHT_PAREN)){
+        do{
+            methodCompiler->func->arity++;
+            if(methodCompiler->func->arity > 255){
+                errorAt(methodCompiler, &methodCompiler->parser.cur, "Too many method args.");
+            }
+            int constant = parseVar(methodCompiler, "Expect param name.");
+            defineVar(methodCompiler, constant);
+        }while(match(methodCompiler, TOKEN_COMMA));
+    }
+
+    consume(methodCompiler, TOKEN_RIGHT_PAREN, "Expect ')' after parameters.");
+    consume(methodCompiler, TOKEN_LEFT_BRACE, "Expect '{' before method body.");
+    block(methodCompiler);
+
+    ObjectFunc* func = stopCompiler(methodCompiler);
+
+    push(compiler->vm, OBJECT_VAL(func));
+    int constIndex = addConstant(compiler->vm, &compiler->func->chunk, OBJECT_VAL(func));
+    pop(compiler->vm);
+
+    if(constIndex < 0){
+        errorAt(compiler, &compiler->parser.pre, "Failed to add method constant.");
+        compiler->parser = methodCompiler->parser;
+        compiler->vm->compiler = compiler;
+        reallocate(compiler->vm, methodCompiler, sizeof(Compiler), 0);
+        return;
+    }
+
+    if(constIndex <= 0xff){
+        emitPair(compiler, OP_CLOSURE, (uint8_t)constIndex);
+    }else if(constIndex <= 0xffff){
+        emitByte(compiler, OP_LCLOSURE);
+        emitPair(compiler, (uint8_t)((constIndex >> 8) & 0xff), (uint8_t)(constIndex & 0xff));
+    }else{
+        errorAt(compiler, &compiler->parser.pre, "Too many constants (index exceeds 16-bit limit).");
+    }
+
+    for(int i = 0; i < func->upvalueCnt; i++){
+        emitByte(compiler, methodCompiler->upvalues[i].isLocal ? 1 : 0); // 1-byte flag
+        emitPair(compiler, (uint8_t)((methodCompiler->upvalues[i].index >> 8) & 0xff), // 2-byte index
+                           (uint8_t)(methodCompiler->upvalues[i].index & 0xff));
+    }
+
+    compiler->parser = methodCompiler->parser;
+    compiler->vm->compiler = compiler;
+    reallocate(compiler->vm, methodCompiler, sizeof(Compiler), 0);
+}
+
+static void classDecl(Compiler* compiler){
+    consume(compiler, TOKEN_IDENTIFIER, "Expect class name.");
+    Token className = compiler->parser.pre;
+    uint16_t nameConst = addConstant(compiler->vm, &compiler->func->chunk, OBJECT_VAL(copyString(compiler->vm, className.head, className.len)));
+    if(nameConst < 0){
+        errorAt(compiler, &compiler->parser.pre, "Failed to add class name constant.");
+        return;
+    }
+    if(nameConst <= 0xff){
+        emitPair(compiler, OP_CLASS, (uint8_t)nameConst);
+    }else if(nameConst <= 0xffff){
+        emitByte(compiler, OP_LCLASS);
+        emitPair(compiler, (uint8_t)((nameConst >> 8) & 0xff), (uint8_t)(nameConst & 0xff));
+    }else{
+        errorAt(compiler, &compiler->parser.pre, "Too many constants.");
+        return;
+    }
+
+    defineVar(compiler, nameConst);
+    consume(compiler, TOKEN_LEFT_BRACE, "Expect '{' before class body");
+    consum(compiler, TOKEN_RIGHT_BRACE, "Expect '}' after class body.");
+}
+
+static void methodDecl(Compiler* compiler){
+    consume(compiler, TOKEN_LEFT_PAREN, "Expect '(' after method name.");
+    consume(compiler, TOKEN_IDENTIFIER, "Expect receiver name.");
+    consume(compiler, TOKEN_IDENTIFIER, "Expect receiver type.");
+    Token className = compiler->parser.pre;
+    consume(compiler, TOKEN_RIGHT_PAREN, "Expect ')' after receiver.");
+
+    uint16_t nameConst = addConstant(compiler->vm, &compiler->func->chunk, OBJECT_VAL(copyString(compiler->vm, className.head, className.len)));
+    if(nameConst < 0){
+        errorAt(compiler, &compiler->parser.pre, "Failed to add method name constant.");
+        return;
+    }
+    if(nameConst <= 0xff){
+        emitPair(compiler, OP_METHOD, (uint8_t)nameConst);
+    }else if(nameConst <= 0xffff){
+        emitByte(compiler, OP_LMETHOD);
+        emitPair(compiler, (uint8_t)((nameConst >> 8) & 0xff), (uint8_t)(nameConst & 0xff));
+    }else{
+        errorAt(compiler, &compiler->parser.pre, "Too many constants.");
+        return;
+    }
+
+    consume(compiler, TOKEN_IDENTIFIER, "Expect method name.");
+    Token methodName = compiler->parser.pre;
+    uint16_t methodNameConst = addConstant(compiler->vm, &compiler->func->chunk, OBJECT_VAL(copyString(compiler->vm, methodName.head, methodName.len)));
+    compileMethod(compiler);
+    if(methodNameConst < 0){
+        errorAt(compiler, &compiler->parser.pre, "Failed to add method name constant.");
+        return;
+    }
+    if(methodNameConst <= 0xff){
+        emitPair(compiler, OP_METHOD, (uint8_t)methodNameConst);
+    }else if(methodNameConst <= 0xffff){
+        emitByte(compiler, OP_LMETHOD);
+        emitPair(compiler, (uint8_t)((methodNameConst >> 8) & 0xff), (uint8_t)(methodNameConst & 0xff));
+    }else{
+        errorAt(compiler, &compiler->parser.pre, "Too many constants.");
+        return;
+    }
+
+    pop(compiler->vm);
 }
 
 static void beginScope(Compiler* compiler){
@@ -1119,6 +1263,18 @@ static void handleDot(Compiler* compiler, bool canAssign){
     }else{
         errorAt(compiler, &compiler->parser.pre, "Too many constants.");
     }
+}
+
+static void handleThis(Compiler* compiler, bool canAssign){
+    if(compiler->enclosing == NULL || compiler->type != TYPE_METHOD){
+        errorAt(compiler, &compiler->parser.pre, "Cannot use 'this' outside of a method.");
+        return;
+    }
+    if(canAssign && match(compiler, TOKEN_ASSIGN)){
+        errorAt(compiler, &compiler->parser.pre, "Cannot assign to 'this'.");
+        return;
+    }
+    emitPair(compiler, OP_GET_LOCAL, 0);
 }
 
 static void consume(Compiler* compiler, TokenType type, const char* errMsg){
