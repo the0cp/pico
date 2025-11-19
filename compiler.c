@@ -169,11 +169,14 @@ ObjectFunc* compile(VM* vm, const char* code, const char* srcNameStr){
 }
 
 void markCompilerRoots(VM* vm){
-    markObject(vm, (Object*)vm->compiler->func);
-    Compiler* enclosing = vm->compiler->enclosing;
-    while(enclosing != NULL){
-        markObject(vm, (Object*)enclosing->func);
-        enclosing = enclosing->enclosing;
+    Compiler* compiler = vm->compiler;
+    
+    while(compiler != NULL){
+        if(compiler->func != NULL){
+            markObject(vm, (Object*)compiler->func); 
+            markArray(vm, &compiler->func->chunk.constants);
+        }
+        compiler = compiler->enclosing;
     }
 }
 
@@ -285,7 +288,7 @@ static void funcDecl(Compiler* compiler){
     defineVar(compiler, global);
 }
 
-static void compileMethod(Compiler* compiler){
+static void compileMethod(Compiler* compiler, Token recvName){
     Compiler* methodCompiler = (Compiler*)reallocate(compiler->vm, NULL, 0, sizeof(Compiler));    
     if(methodCompiler == NULL){
         errorAt(compiler, &compiler->parser.pre, "Not enough memory to compile method.");
@@ -301,7 +304,7 @@ static void compileMethod(Compiler* compiler){
     initCompiler(methodCompiler, compiler->vm, compiler, TYPE_METHOD, compiler->func->srcName);
 
     Local *local = &methodCompiler->locals[methodCompiler->localCnt++];
-    local->name.head = "this";
+    local->name = recvName;
     local->name.len = 4;
     local->depth = methodCompiler->scopeDepth;
 
@@ -359,7 +362,11 @@ static void compileMethod(Compiler* compiler){
 static void classDecl(Compiler* compiler){
     consume(compiler, TOKEN_IDENTIFIER, "Expect class name.");
     Token className = compiler->parser.pre;
-    uint16_t nameConst = addConstant(compiler->vm, &compiler->func->chunk, OBJECT_VAL(copyString(compiler->vm, className.head, className.len)));
+
+    Value nameValue = OBJECT_VAL(copyString(compiler->vm, className.head, className.len));
+    push(compiler->vm, nameValue);
+    uint16_t nameConst = addConstant(compiler->vm, &compiler->func->chunk, nameValue);
+    pop(compiler->vm);
     if(nameConst < 0){
         errorAt(compiler, &compiler->parser.pre, "Failed to add class name constant.");
         return;
@@ -376,17 +383,30 @@ static void classDecl(Compiler* compiler){
 
     defineVar(compiler, nameConst);
     consume(compiler, TOKEN_LEFT_BRACE, "Expect '{' before class body");
-    consum(compiler, TOKEN_RIGHT_BRACE, "Expect '}' after class body.");
+    while(!checkType(compiler, TOKEN_RIGHT_BRACE) && !checkType(compiler, TOKEN_EOF)){
+        consume(compiler, TOKEN_IDENTIFIER, "Expect field name.");
+        if(checkType(compiler, TOKEN_SEMICOLON) || checkType(compiler, TOKEN_COMMA)){
+            advance(compiler);
+        }
+    }
+    consume(compiler, TOKEN_RIGHT_BRACE, "Expect '}' after class body.");
 }
 
 static void methodDecl(Compiler* compiler){
     consume(compiler, TOKEN_LEFT_PAREN, "Expect '(' after method name.");
     consume(compiler, TOKEN_IDENTIFIER, "Expect receiver name.");
+
+    Token recvName = compiler->parser.pre;
+
     consume(compiler, TOKEN_IDENTIFIER, "Expect receiver type.");
     Token className = compiler->parser.pre;
     consume(compiler, TOKEN_RIGHT_PAREN, "Expect ')' after receiver.");
 
-    uint16_t nameConst = addConstant(compiler->vm, &compiler->func->chunk, OBJECT_VAL(copyString(compiler->vm, className.head, className.len)));
+    Value nameValue = OBJECT_VAL(copyString(compiler->vm, className.head, className.len));
+    push(compiler->vm, nameValue);
+    uint16_t nameConst = addConstant(compiler->vm, &compiler->func->chunk, nameValue);
+    pop(compiler->vm);
+
     if(nameConst < 0){
         errorAt(compiler, &compiler->parser.pre, "Failed to add method name constant.");
         return;
@@ -402,9 +422,14 @@ static void methodDecl(Compiler* compiler){
     }
 
     consume(compiler, TOKEN_IDENTIFIER, "Expect method name.");
+
     Token methodName = compiler->parser.pre;
-    uint16_t methodNameConst = addConstant(compiler->vm, &compiler->func->chunk, OBJECT_VAL(copyString(compiler->vm, methodName.head, methodName.len)));
-    compileMethod(compiler);
+    Value methodNameValue = OBJECT_VAL(copyString(compiler->vm, methodName.head, methodName.len));
+    push(compiler->vm, methodNameValue);
+    uint16_t methodNameConst = addConstant(compiler->vm, &compiler->func->chunk, methodNameValue);
+    pop(compiler->vm);
+
+    compileMethod(compiler, recvName);
     if(methodNameConst < 0){
         errorAt(compiler, &compiler->parser.pre, "Failed to add method name constant.");
         return;

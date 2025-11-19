@@ -170,11 +170,12 @@ ObjectClass* newClass(VM* vm, ObjectString* name){
     ObjectClass* klass = (ObjectClass*)reallocate(vm, NULL, 0, sizeof(ObjectClass));
     klass->obj.type = OBJECT_CLASS;
     klass->obj.isMarked = false;
+    klass->obj.next = vm->objects;
+    vm->objects = (Object*)klass;
+
     klass->name = name;
     initHashTable(&klass->methods);
 
-    klass->obj.next = vm->objects;
-    vm->objects = (Object*)klass;
     return klass;
 }
 
@@ -182,12 +183,28 @@ ObjectInstance* newInstance(VM* vm, ObjectClass* klass){
     ObjectInstance* instance = (ObjectInstance*)reallocate(vm, NULL, 0, sizeof(ObjectInstance));
     instance->obj.type = OBJECT_INSTANCE;
     instance->obj.isMarked = false;
-    instance->klass = klass;
-    initHashTable(&instance->fields);
 
     instance->obj.next = vm->objects;
     vm->objects = (Object*)instance;
+
+    instance->klass = klass;
+    initHashTable(&instance->fields);
+
     return instance;
+}
+
+ObjectBoundMethod* newBoundMethod(VM* vm, Value receiver, ObjectClosure* method){
+    ObjectBoundMethod* bound = (ObjectBoundMethod*)reallocate(vm, NULL, 0, sizeof(ObjectBoundMethod));
+    bound->obj.type = OBJECT_BOUND_METHOD;
+    bound->obj.isMarked = false;
+
+    bound->obj.next = vm->objects;
+    vm->objects = (Object*)bound;
+    
+    bound->receiver = receiver;
+    bound->method = method;
+
+    return bound;
 }
 
 void freeObject(VM* vm, Object* object){
@@ -224,8 +241,8 @@ void freeObject(VM* vm, Object* object){
             break;
         }
         case OBJECT_CLASS:{
-            ObjectClass* class = (ObjectClass*)object;
-            freeHashTable(vm, &class->methods);
+            ObjectClass* klass = (ObjectClass*)object;
+            freeHashTable(vm, &klass->methods);
             reallocate(vm, object, sizeof(ObjectClass), 0);
             break;
         }
@@ -233,6 +250,10 @@ void freeObject(VM* vm, Object* object){
             ObjectInstance* instance = (ObjectInstance*)object;
             freeHashTable(vm, &instance->fields);
             reallocate(vm, object, sizeof(ObjectInstance), 0);
+            break;
+        }
+        case OBJECT_BOUND_METHOD:{
+            reallocate(vm, object, sizeof(ObjectBoundMethod), 0);
             break;
         }
     }
@@ -278,6 +299,9 @@ void printObject(Value value){
             break;
         case OBJECT_INSTANCE:
             printf("<instance of %s>", AS_INSTANCE(value)->klass->name->chars);
+            break;
+        case OBJECT_BOUND_METHOD:
+            printf("<bound method %s>", AS_BOUND_METHOD(value)->method->func->name->chars);
             break;
     }
 }

@@ -54,6 +54,24 @@ static void traceRef(VM* vm, Object* object){
             markTable(vm, &module->members);
             break;
         }
+        case OBJECT_CLASS:{
+            ObjectClass* klass = (ObjectClass*)object;
+            markObject(vm, (Object*)klass->name);
+            markTable(vm, &klass->methods);
+            break;
+        }
+        case OBJECT_INSTANCE:{
+            ObjectInstance* instance = (ObjectInstance*)object;
+            markObject(vm, (Object*)instance->klass);
+            markTable(vm, &instance->fields);
+            break;
+        }
+        case OBJECT_BOUND_METHOD:{
+            ObjectBoundMethod* bound = (ObjectBoundMethod*)object;
+            markValue(vm, bound->receiver);
+            markObject(vm, (Object*)bound->method);
+            break;
+        }
         case OBJECT_STRING:
         case OBJECT_CFUNC:  
             break;
@@ -93,6 +111,7 @@ static void markRoots(VM* vm){
         markObject(vm, (Object*)upvalue);
     }
 
+    // markTable(vm, &vm->strings);
     markTable(vm, vm->curGlobal);
 
     for(int i = 0; i < vm->globalCnt; i++){

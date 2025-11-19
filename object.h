@@ -34,6 +34,9 @@ typedef Value (*CFunc)(int argCount, Value* args);
 #define IS_INSTANCE(value)  (IS_OBJECT(value) && OBJECT_TYPE(value) == OBJECT_INSTANCE)
 #define AS_INSTANCE(value)  ((ObjectInstance*)AS_OBJECT(value))
 
+#define IS_BOUND_METHOD(value)  (IS_OBJECT(value) && OBJECT_TYPE(value) == OBJECT_BOUND_METHOD)
+#define AS_BOUND_METHOD(value)  ((ObjectBoundMethod*)AS_OBJECT(value))
+
 
 typedef enum{
     OBJECT_STRING,
@@ -44,6 +47,7 @@ typedef enum{
     OBJECT_UPVALUE,
     OBJECT_CLASS,
     OBJECT_INSTANCE,
+    OBJECT_BOUND_METHOD,
 }ObjectType;
 
 typedef struct Object{
@@ -127,6 +131,14 @@ typedef struct ObjectInstance{
 
 ObjectClass* newClass(VM* vm, ObjectString* name);
 ObjectInstance* newInstance(VM* vm, ObjectClass* klass);
+
+typedef struct{
+    Object obj;
+    Value receiver;
+    ObjectClosure* method;
+}ObjectBoundMethod;
+
+ObjectBoundMethod* newBoundMethod(VM* vm, Value receiver, ObjectClosure* method);
 
 void freeObject(VM* vm, Object* object);
 void freeObjects(VM* vm);

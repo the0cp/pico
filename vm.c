@@ -37,7 +37,7 @@ void initVM(VM* vm){
 }
 
 void freeVM(VM* vm){
-    freeHashTable(vm, &vm->strings);
+    //freeHashTable(vm, &vm->strings);
     freeHashTable(vm, &vm->globals);
     freeHashTable(vm, &vm->modules);
 
@@ -701,8 +701,9 @@ static InterpreterStatus run(VM* vm){
             }
 
             if(tableGet(&instance->klass->methods, name, &value)){
+                ObjectBoundMethod* bound = newBoundMethod(vm, peek(vm, 0), AS_CLOSURE(value));
                 pop(vm);
-                push(vm, value);
+                push(vm, OBJECT_VAL(bound));
                 DISPATCH();
             }
             runtimeError(vm, "Undefined property '%s' on instance of '%s'.", name->chars, instance->klass->name->chars);
@@ -745,8 +746,9 @@ static InterpreterStatus run(VM* vm){
             }
 
             if(tableGet(&instance->klass->methods, name, &value)){
+                ObjectBoundMethod* bound = newBoundMethod(vm, peek(vm, 0), AS_CLOSURE(value));
                 pop(vm);
-                push(vm, value);
+                push(vm, OBJECT_VAL(bound));
                 DISPATCH();
             }
             runtimeError(vm, "Undefined property '%s' on instance of '%s'.", name->chars, instance->klass->name->chars);
@@ -981,7 +983,7 @@ static InterpreterStatus run(VM* vm){
         vm->frameCount--;
 
         if(vm->frameCount == 0){
-            pop(vm);
+            vm->stackTop = frame->slots;
             return VM_OK;
         }
 
@@ -1032,6 +1034,11 @@ static bool callValue(VM* vm, Value callee, int argCnt){
                 vm->stackTop[-argCnt -1] = OBJECT_VAL(newInstance(vm, klass));
                 // init
                 return true;
+            }
+            case OBJECT_BOUND_METHOD:{
+                ObjectBoundMethod* bound = AS_BOUND_METHOD(callee);
+                vm->stackTop[-argCnt -1] = bound->receiver;
+                return call(vm, bound->method, argCnt);
             }
             case OBJECT_CLOSURE:
                 return call(vm, AS_CLOSURE(callee), argCnt);
