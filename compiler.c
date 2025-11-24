@@ -43,6 +43,10 @@ static void handleImport(Compiler* compiler, bool canAssign);
 static void handleDot(Compiler* compiler, bool canAssign);
 static void handleThis(Compiler* compiler, bool canAssign);
 
+static int resolveLocal(Compiler* compiler, Token* name);
+static int resolveUpvalue(Compiler* compiler, Token* name);
+static int identifierConst(Compiler* compiler);
+
 ParseRule rules[] = {
     [TOKEN_LEFT_PAREN]              = {handleGrouping,  handleCall,     PREC_CALL},
     [TOKEN_RIGHT_PAREN]             = {NULL,            NULL,           PREC_NONE},
@@ -82,7 +86,7 @@ ParseRule rules[] = {
     [TOKEN_IMPORT]                  = {handleImport,    NULL,           PREC_NONE},
     [TOKEN_DOT]                     = {NULL,            handleDot,      PREC_CALL},
 
-    [TOKEN_THIS]                    = {handleThis,     NULL,           PREC_NONE},  
+    [TOKEN_THIS]                    = {handleThis,      NULL,           PREC_NONE},  
 
     [TOKEN_EOF]                     = {NULL,            NULL,           PREC_NONE},
 };
@@ -303,10 +307,9 @@ static void compileMethod(Compiler* compiler, Token recvName){
 
     initCompiler(methodCompiler, compiler->vm, compiler, TYPE_METHOD, compiler->func->srcName);
 
-    Local *local = &methodCompiler->locals[methodCompiler->localCnt++];
-    local->name = recvName;
-    local->name.len = 4;
-    local->depth = methodCompiler->scopeDepth;
+    Local *local = &methodCompiler->locals[0]; 
+    local->name = recvName; 
+    local->depth = 0;
 
     beginScope(methodCompiler);
     consume(methodCompiler, TOKEN_LEFT_PAREN, "Expect '(' after method name.");
@@ -393,7 +396,7 @@ static void classDecl(Compiler* compiler){
 }
 
 static void methodDecl(Compiler* compiler){
-    consume(compiler, TOKEN_LEFT_PAREN, "Expect '(' after method name.");
+    consume(compiler, TOKEN_LEFT_PAREN, "Expect '(' after method.");
     consume(compiler, TOKEN_IDENTIFIER, "Expect receiver name.");
 
     Token recvName = compiler->parser.pre;
@@ -402,20 +405,32 @@ static void methodDecl(Compiler* compiler){
     Token className = compiler->parser.pre;
     consume(compiler, TOKEN_RIGHT_PAREN, "Expect ')' after receiver.");
 
-    Value nameValue = OBJECT_VAL(copyString(compiler->vm, className.head, className.len));
-    push(compiler->vm, nameValue);
-    uint16_t nameConst = addConstant(compiler->vm, &compiler->func->chunk, nameValue);
-    pop(compiler->vm);
+    uint8_t getOp, getLOp;
+    int classIndex;
+    if((classIndex = resolveLocal(compiler, &className)) != -1){
+        getOp = OP_GET_LOCAL;
+        getLOp = OP_GET_LLOCAL;
+    }else if((classIndex = resolveUpvalue(compiler, &className)) != -1){
+        getOp = OP_GET_UPVALUE;
+        getLOp = OP_GET_LUPVALUE;
+    }else{
+        Value nameValue = OBJECT_VAL(copyString(compiler->vm, className.head, className.len));
+        push(compiler->vm, nameValue);
+        classIndex = addConstant(compiler->vm, &compiler->func->chunk, nameValue);
+        pop(compiler->vm);
+        getOp = OP_GET_GLOBAL;
+        getLOp = OP_GET_LGLOBAL;
+    }
 
-    if(nameConst < 0){
-        errorAt(compiler, &compiler->parser.pre, "Failed to add method name constant.");
+    if(classIndex < 0){
+        errorAt(compiler, &compiler->parser.pre, "Undefined class name.");
         return;
     }
-    if(nameConst <= 0xff){
-        emitPair(compiler, OP_METHOD, (uint8_t)nameConst);
-    }else if(nameConst <= 0xffff){
-        emitByte(compiler, OP_LMETHOD);
-        emitPair(compiler, (uint8_t)((nameConst >> 8) & 0xff), (uint8_t)(nameConst & 0xff));
+    if(classIndex <= 0xff){
+        emitPair(compiler, getOp, (uint8_t)classIndex);
+    }else if(classIndex <= 0xffff){
+        emitByte(compiler, getLOp);
+        emitPair(compiler, (uint8_t)((classIndex >> 8) & 0xff), (uint8_t)(classIndex & 0xff));
     }else{
         errorAt(compiler, &compiler->parser.pre, "Too many constants.");
         return;
@@ -443,8 +458,6 @@ static void methodDecl(Compiler* compiler){
         errorAt(compiler, &compiler->parser.pre, "Too many constants.");
         return;
     }
-
-    pop(compiler->vm);
 }
 
 static void beginScope(Compiler* compiler){

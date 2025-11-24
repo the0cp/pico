@@ -48,7 +48,7 @@ void freeVM(VM* vm);
 void resetStack(VM* vm);
 void push(VM* vm, Value value);
 Value pop(VM* vm);
-static Value peek(VM* vm, int distance);
+Value peek(VM* vm, int distance);
 
 static bool isTruthy(Value value);
 

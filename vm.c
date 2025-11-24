@@ -60,7 +60,7 @@ Value pop(VM* vm){
     return *vm->stackTop;
 }
 
-static Value peek(VM* vm, int distance){
+Value peek(VM* vm, int distance){
     if(vm->stackTop - vm->stack - 1 - distance < 0){
         runtimeError(vm, "Stack underflow");
         exit(EXIT_FAILURE);
@@ -1065,15 +1065,19 @@ static void runtimeError(VM* vm, const char* format, ...){
     fputs("\n", stderr);
 
     #ifdef DEBUG_TRACE
-    CallFrame* frame = &vm->frames[vm->frameCount - 1];
-    size_t instructionOffset = frame->ip - frame->closure->func->chunk.code -1;
-    
-    int line = getLine(&frame->closure->func->chunk, instructionOffset); 
+    if(vm->frameCount > 0){
+        CallFrame* frame = &vm->frames[vm->frameCount - 1];
+        size_t instructionOffset = frame->ip - frame->closure->func->chunk.code -1;
+        
+        int line = getLine(&frame->closure->func->chunk, instructionOffset); 
 
-    const char* srcName = frame->closure->func->srcName != NULL 
-                             ? frame->closure->func->srcName->chars 
-                             : "<script>";
-    fprintf(stderr, "Runtime error [%s, line %d]\n", srcName, line);
+        const char* srcName = frame->closure->func->srcName != NULL 
+                                 ? frame->closure->func->srcName->chars 
+                                 : "<script>";
+        fprintf(stderr, "Runtime error [%s, line %d]\n", srcName, line);
+    }else{
+        fprintf(stderr, "Runtime error [No stack trace available]\n");
+    }
     #endif
     
     resetStack(vm);

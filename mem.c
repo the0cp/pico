@@ -8,20 +8,22 @@
 
 void collectGarbage(VM* vm){
     if(vm->bytesAllocated == 0) return;
-    printf("\n-- gc begin\n");
+    // printf("\n-- gc begin\n");
     size_t before = vm->bytesAllocated;
 
     markRoots(vm);
     
-    printf("-- mark phase complete\n");
+    // printf("-- mark phase complete\n");
 
     tableRemoveWhite(vm, &vm->strings);
     sweep(vm);
 
-    printf("-- sweep phase complete\n");
+    // printf("-- sweep phase complete\n");
+    /*
     printf("   collected %zu bytes (from %zu to %zu) next at %zu\n",
            before - vm->bytesAllocated, before, vm->bytesAllocated,
            vm->nextGC);
+    */
     
     vm->nextGC = vm->bytesAllocated * GC_HEAP_GROW_FACTOR;
     if(vm->nextGC < 1024) vm->nextGC = 1024;
@@ -163,8 +165,10 @@ void* reallocate(VM* vm, void* ptr, size_t oldSize, size_t newSize){
         gc_running = false;
     }
     #else
-    if(vm->bytesAllocated > vm->nextGC){
+    if(!gc_running && vm->bytesAllocated > vm->nextGC){
+        gc_running = true;
         collectGarbage(vm);
+        gc_running = false;
     }
     #endif
     

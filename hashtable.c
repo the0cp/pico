@@ -257,7 +257,17 @@ void tableRemoveWhite(VM* vm, HashTable* table) {
     for(int i = 0; i < table->capacity; i++){
         Entry* entry = &table->entries[i];
         if(entry->key != NULL && entry->key->obj.isMarked){
-            tableSet(vm, &newTable, entry->key, entry->value);
+            
+            push(vm, OBJECT_VAL(entry->key)); 
+            push(vm, entry->value);           
+
+            tableSet(vm, 
+                     &newTable, 
+                     AS_STRING(peek(vm, 1)), 
+                     peek(vm, 0));
+            
+            pop(vm);
+            pop(vm);
         }
     }
 

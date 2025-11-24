@@ -112,6 +112,24 @@ int dasmInstruction(const Chunk* chunk, int offset){
             printf("OP_CLOSE_UPVALUE\n");
             return offset + 1;
 
+        case OP_GET_PROPERTY:
+            return dasmGlobal("OP_GET_PROPERTY", chunk, offset); // Uses constant for property name
+        case OP_GET_LPROPERTY:
+            return dasmLGlobal("OP_GET_LPROPERTY", chunk, offset);
+        case OP_SET_PROPERTY:
+            return dasmGlobal("OP_SET_PROPERTY", chunk, offset);
+        case OP_SET_LPROPERTY:
+            return dasmLGlobal("OP_SET_LPROPERTY", chunk, offset);
+
+        case OP_CLASS:
+            return dasmGlobal("OP_CLASS", chunk, offset);
+        case OP_METHOD:
+            return dasmGlobal("OP_METHOD", chunk, offset);
+        case OP_LCLASS:
+            return dasmLGlobal("OP_LCLASS", chunk, offset);
+        case OP_LMETHOD:
+            return dasmLGlobal("OP_LMETHOD", chunk, offset);
+
         default:
             printf("Unknown opcode %d\n", instruction);
             return offset + 1;

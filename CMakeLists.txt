@@ -19,8 +19,6 @@ target_include_directories(xxhash_lib PUBLIC vendor/xxhash)
 
 add_executable(pico ${SOURCE_DIR})
 
-target_compile_definitions(pico PUBLIC DEBUG_STRESS_GC)
-
 target_link_libraries(pico PRIVATE xxhash_lib)
 
 target_compile_features(pico PRIVATE c_std_11)
