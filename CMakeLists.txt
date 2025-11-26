@@ -9,7 +9,10 @@ if(NOT CMAKE_C_COMPILER_ID MATCHES "GNU")
                         "The attempt to set GCC as the compiler failed. Please ensure 'gcc' is installed and in your PATH.")
 endif()
 
+include_directories(${CMAKE_SOURCE_DIR})
+
 file(GLOB SOURCE_DIR "*.c")
+file(GLOB MODULE_SOURCES "modules/*.c")
 
 add_library(xxhash_lib STATIC vendor/xxhash/xxhash.c)
 
@@ -17,7 +20,7 @@ add_compile_options(-g)
 
 target_include_directories(xxhash_lib PUBLIC vendor/xxhash)
 
-add_executable(pico ${SOURCE_DIR})
+add_executable(pico ${SOURCE_DIR} ${MODULE_SOURCES})
 
 target_link_libraries(pico PRIVATE xxhash_lib)
 
