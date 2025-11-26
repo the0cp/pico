@@ -81,6 +81,7 @@ typedef struct ObjectFunc{
     ObjectString* name;
     ObjectString* srcName;
     FuncType type;
+    struct ObjectClass* fieldOwner;
 }ObjectFunc;
 
 ObjectFunc* newFunction(VM* vm);
@@ -121,6 +122,7 @@ typedef struct ObjectClass{
     Object obj;
     ObjectString* name;
     HashTable methods;
+    HashTable fields;
 }ObjectClass;
 
 typedef struct ObjectInstance{

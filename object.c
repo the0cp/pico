@@ -102,6 +102,9 @@ ObjectFunc* newFunction(VM* vm){
     func->arity = 0;
     func->upvalueCnt = 0;
     func->name = NULL;
+    func->srcName = NULL;
+    func->type = TYPE_SCRIPT;
+    func->fieldOwner = NULL;
     initChunk(&func->chunk);
 
     func->obj.next = vm->objects;
@@ -175,6 +178,7 @@ ObjectClass* newClass(VM* vm, ObjectString* name){
 
     klass->name = name;
     initHashTable(&klass->methods);
+    initHashTable(&klass->fields);
 
     return klass;
 }
@@ -189,6 +193,10 @@ ObjectInstance* newInstance(VM* vm, ObjectClass* klass){
 
     instance->klass = klass;
     initHashTable(&instance->fields);
+
+    push(vm, OBJECT_VAL(instance));
+    tableMerge(vm, &klass->fields, &instance->fields);
+    pop(vm);
 
     return instance;
 }
@@ -243,6 +251,7 @@ void freeObject(VM* vm, Object* object){
         case OBJECT_CLASS:{
             ObjectClass* klass = (ObjectClass*)object;
             freeHashTable(vm, &klass->methods);
+            freeHashTable(vm, &klass->fields);
             reallocate(vm, object, sizeof(ObjectClass), 0);
             break;
         }

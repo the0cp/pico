@@ -51,6 +51,7 @@ Value pop(VM* vm);
 Value peek(VM* vm, int distance);
 
 static bool isTruthy(Value value);
+static bool checkAccess(VM* vm, ObjectClass* instanceKlass, ObjectString* fieldName);
 
 InterpreterStatus interpret(VM* vm, const char* code, const char* srcName);
 static InterpreterStatus run(VM* vm);

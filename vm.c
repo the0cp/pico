@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdarg.h>
+#include <ctype.h>
 
 #include "common.h"
 #include "chunk.h"
@@ -37,7 +38,7 @@ void initVM(VM* vm){
 }
 
 void freeVM(VM* vm){
-    //freeHashTable(vm, &vm->strings);
+    freeHashTable(vm, &vm->strings);
     freeHashTable(vm, &vm->globals);
     freeHashTable(vm, &vm->modules);
 
@@ -135,10 +136,30 @@ InterpreterStatus interpret(VM* vm, const char* code, const char* srcName){
     pop(vm);    // pop func
     push(vm, OBJECT_VAL(closure));
 
-    call(vm, closure, 0);
+    if(!call(vm, closure, 0)){
+        return VM_RUNTIME_ERROR;
+    }
 
     InterpreterStatus status = run(vm);
     return status;
+}
+
+static bool checkAccess(VM* vm, ObjectClass* instanceKlass, ObjectString* fieldName){
+    // public
+    if(isupper(fieldName->chars[0])){
+        return true;
+    }
+
+    // private check
+    if(vm->frameCount > 0){
+        CallFrame* frame = &vm->frames[vm->frameCount - 1];
+        ObjectFunc* func = frame->closure->func;
+        if(func->fieldOwner == instanceKlass){
+            return true;
+        }
+    }
+
+    return false;
 }
 
 static InterpreterStatus run(VM* vm){
@@ -212,6 +233,9 @@ static InterpreterStatus run(VM* vm){
         [OP_METHOD]         = &&DO_OP_METHOD,
         [OP_LCLASS]         = &&DO_OP_LCLASS,
         [OP_LMETHOD]        = &&DO_OP_LMETHOD,
+
+        [OP_DEFINE_FIELD]   = &&DO_OP_DEFINE_FIELD,
+        [OP_DEFINE_LFIELD]  = &&DO_OP_DEFINE_LFIELD,
     };
 
     #ifdef DEBUG_TRACE
@@ -695,6 +719,10 @@ static InterpreterStatus run(VM* vm){
 
             Value value;
             if(tableGet(&instance->fields, name, &value)){
+                if(!checkAccess(vm, instance->klass, name)){
+                    runtimeError(vm, "Cannot access private field '%s' of instance of '%s'.", name->chars, instance->klass->name->chars);
+                    return VM_RUNTIME_ERROR;
+                }
                 pop(vm);
                 push(vm, value);
                 DISPATCH();
@@ -740,6 +768,10 @@ static InterpreterStatus run(VM* vm){
 
             Value value;
             if(tableGet(&instance->fields, name, &value)){
+                if(!checkAccess(vm, instance->klass, name)){
+                    runtimeError(vm, "Cannot access private field '%s' of instance of '%s'.", name->chars, instance->klass->name->chars);
+                    return VM_RUNTIME_ERROR;
+                }
                 pop(vm);
                 push(vm, value);
                 DISPATCH();
@@ -782,6 +814,16 @@ static InterpreterStatus run(VM* vm){
         if(IS_INSTANCE(peek(vm, 1))){
             ObjectInstance* instance = AS_INSTANCE(peek(vm, 1));
             ObjectString* name = AS_STRING(frame->closure->func->chunk.constants.values[READ_BYTE()]);
+            Value dummy;
+            if(!tableGet(&instance->fields, name, &dummy)){
+                runtimeError(vm, "Undefined property '%s' on instance of '%s'.", name->chars, instance->klass->name->chars);
+                return VM_RUNTIME_ERROR;
+            }
+            if(!checkAccess(vm, instance->klass, name)){
+                runtimeError(vm, "Cannot access private field '%s' of instance of '%s'.", name->chars, instance->klass->name->chars);
+                return VM_RUNTIME_ERROR;
+            }
+            
             tableSet(vm, &instance->fields, name, peek(vm, 0));
 
             Value value = pop(vm);
@@ -813,6 +855,16 @@ static InterpreterStatus run(VM* vm){
             uint16_t index = (uint16_t)((frame->ip[0] << 8) | frame->ip[1]);
             frame->ip += 2;
             ObjectString* name = AS_STRING(frame->closure->func->chunk.constants.values[index]);
+            Value dummy;
+            if(!tableGet(&instance->fields, name, &dummy)){
+                runtimeError(vm, "Undefined property '%s' on instance of '%s'.", name->chars, instance->klass->name->chars);
+                return VM_RUNTIME_ERROR;
+            }
+            if(!checkAccess(vm, instance->klass, name)){
+                runtimeError(vm, "Cannot access private field '%s' of instance of '%s'.", name->chars, instance->klass->name->chars);
+                return VM_RUNTIME_ERROR;
+            }
+            
             tableSet(vm, &instance->fields, name, peek(vm, 0));
 
             Value value = pop(vm);
@@ -927,6 +979,7 @@ static InterpreterStatus run(VM* vm){
     {
         ObjectString* name = AS_STRING(frame->closure->func->chunk.constants.values[READ_BYTE()]);
         ObjectClass* klass = newClass(vm, name);
+        initHashTable(&klass->methods);
         push(vm, OBJECT_VAL(klass));
     } DISPATCH();
 
@@ -940,6 +993,10 @@ static InterpreterStatus run(VM* vm){
             return VM_RUNTIME_ERROR;
         }
         ObjectClass* klass = AS_CLASS(klassVal);
+
+        ObjectClosure* methodClosure = AS_CLOSURE(method);
+        methodClosure->func->fieldOwner = klass;
+
         tableSet(vm, &klass->methods, name, method);
         pop(vm);
     } DISPATCH();
@@ -965,8 +1022,30 @@ static InterpreterStatus run(VM* vm){
             return VM_RUNTIME_ERROR;
         }
         ObjectClass* klass = AS_CLASS(klassVal);
+
+        ObjectClosure* methodClosure = AS_CLOSURE(method);
+        methodClosure->func->fieldOwner = klass;
+
         tableSet(vm, &klass->methods, name, method);
         pop(vm);
+    } DISPATCH();
+
+    DO_OP_DEFINE_FIELD:
+    {
+        uint8_t index = READ_BYTE();
+        ObjectString* name = AS_STRING(frame->closure->func->chunk.constants.values[index]);
+        Value defaultValue = pop(vm);
+        ObjectClass* klass = AS_CLASS(peek(vm, 0));
+        tableSet(vm, &klass->fields, name, defaultValue);
+    } DISPATCH();
+
+    DO_OP_DEFINE_LFIELD:
+    {
+        uint16_t index = (uint16_t)(READ_BYTE() << 8 | READ_BYTE());
+        ObjectString* name = AS_STRING(frame->closure->func->chunk.constants.values[index]);
+        Value defaultValue = pop(vm);
+        ObjectClass* klass = AS_CLASS(peek(vm, 0));
+        tableSet(vm, &klass->fields, name, defaultValue);
     } DISPATCH();
 
     DO_OP_RETURN:
@@ -994,16 +1073,6 @@ static InterpreterStatus run(VM* vm){
     } DISPATCH();
     
     #undef DISPATCH
-
-    /*
-    while(true){
-        uint8_t instruction;
-        switch(instruction = READ_BYTE()){
-            case OP_RETURN:
-                return VM_OK;
-        }
-    }
-    */
 
 }
 

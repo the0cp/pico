@@ -385,14 +385,60 @@ static void classDecl(Compiler* compiler){
     }
 
     defineVar(compiler, nameConst);
+
+    if(compiler->scopeDepth > 0){
+        int index = compiler->localCnt - 1;
+        if(index < 0){
+            errorAt(compiler, &compiler->parser.pre, "No local variable to store class instance.");
+            return;
+        }
+        if(index <= 0xff){
+            emitPair(compiler, OP_GET_LOCAL, (uint8_t)index);
+        }else if(index <= 0xffff){
+            emitByte(compiler, OP_GET_LLOCAL);
+            emitPair(compiler, (uint8_t)((index >> 8) & 0xff), (uint8_t)(index & 0xff));
+        }else{
+            errorAt(compiler, &compiler->parser.pre, "Too many local variables.");
+            return;
+        }
+    }else{
+        if(nameConst <= 0xff){
+            emitPair(compiler, OP_GET_GLOBAL, (uint8_t)nameConst);
+        }else if(nameConst <= 0xffff){
+            emitByte(compiler, OP_GET_LGLOBAL);
+            emitPair(compiler, (uint8_t)((nameConst >> 8) & 0xff), (uint8_t)(nameConst & 0xff));
+        }else{
+            errorAt(compiler, &compiler->parser.pre, "Too many constants.");
+            return;
+        }
+    }
     consume(compiler, TOKEN_LEFT_BRACE, "Expect '{' before class body");
     while(!checkType(compiler, TOKEN_RIGHT_BRACE) && !checkType(compiler, TOKEN_EOF)){
         consume(compiler, TOKEN_IDENTIFIER, "Expect field name.");
-        if(checkType(compiler, TOKEN_SEMICOLON) || checkType(compiler, TOKEN_COMMA)){
-            advance(compiler);
+        int fieldNameIndex = identifierConst(compiler);
+        if(match(compiler, TOKEN_ASSIGN)){
+            expression(compiler);
+        }else{
+            emitByte(compiler, OP_NULL);
+        }
+        
+        consume(compiler, TOKEN_SEMICOLON, "Expect ';' after field declaration.");
+        if(fieldNameIndex < 0){
+            errorAt(compiler, &compiler->parser.pre, "Failed to add field name constant.");
+            return;
+        }
+        if(fieldNameIndex <= 0xff){
+            emitPair(compiler, OP_DEFINE_FIELD, (uint8_t)fieldNameIndex);
+        }else if(fieldNameIndex <= 0xffff){
+            emitByte(compiler, OP_DEFINE_LFIELD);
+            emitPair(compiler, (uint8_t)((fieldNameIndex >> 8) & 0xff), (uint8_t)(fieldNameIndex & 0xff));
+        }else{
+            errorAt(compiler, &compiler->parser.pre, "Too many constants (field name).");
+            return;
         }
     }
     consume(compiler, TOKEN_RIGHT_BRACE, "Expect '}' after class body.");
+    emitByte(compiler, OP_POP);
 }
 
 static void methodDecl(Compiler* compiler){
