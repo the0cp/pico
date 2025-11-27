@@ -91,7 +91,7 @@ static Value fs_remove(VM* vm, int argCount, Value* args){
     }
 }
 
-static void defineNative(VM* vm, HashTable* table, const char* name, CFunc func){
+static void defineCFunc(VM* vm, HashTable* table, const char* name, CFunc func){
     push(vm, OBJECT_VAL(copyString(vm, name, (int)strlen(name))));
     push(vm, OBJECT_VAL(newCFunc(vm, func)));
     tableSet(vm, table, AS_STRING(peek(vm, 1)), peek(vm, 0));
@@ -106,10 +106,10 @@ void registerFsModule(VM* vm){
     ObjectModule* module = newModule(vm, moduleName);
     push(vm, OBJECT_VAL(module));
 
-    defineNative(vm, &module->members, "read", fs_readFile);
-    defineNative(vm, &module->members, "write", fs_writeFile);
-    defineNative(vm, &module->members, "exists", fs_exists);
-    defineNative(vm, &module->members, "remove", fs_remove);
+    defineCFunc(vm, &module->members, "read", fs_readFile);
+    defineCFunc(vm, &module->members, "write", fs_writeFile);
+    defineCFunc(vm, &module->members, "exists", fs_exists);
+    defineCFunc(vm, &module->members, "remove", fs_remove);
 
     tableSet(vm, &vm->modules, moduleName, OBJECT_VAL(module));
     pop(vm);

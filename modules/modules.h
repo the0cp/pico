@@ -4,5 +4,6 @@
 #include "vm.h"
 
 void registerFsModule(VM* vm);
+void registerTimeModule(VM* vm);
 
 #endif // PICO_MODULES_H

@@ -11,7 +11,7 @@ char* valueToString(Value value){
         return "null";
     }else if(IS_NUM(value)){
         static char num_str[32];
-        snprintf(num_str, sizeof(num_str), "%g", AS_NUM(value));
+        snprintf(num_str, sizeof(num_str), "%.14g", AS_NUM(value));
         return num_str;
     }else if(IS_STRING(value)){
         return AS_CSTRING(value);
@@ -58,7 +58,7 @@ void printValue(Value value){
     }else if(IS_BOOL(value)){
         printf(AS_BOOL(value) ? "true" : "false");
     }else if(IS_NUM(value)){
-        printf("%g", AS_NUM(value));
+        printf("%.14g", AS_NUM(value));
     }else if(IS_OBJECT(value)){
         printObject(value);
     }else{

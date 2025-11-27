@@ -39,6 +39,7 @@ void initVM(VM* vm){
     vm->compiler = NULL;
 
     registerFsModule(vm);
+    registerTimeModule(vm);
 }
 
 void freeVM(VM* vm){
