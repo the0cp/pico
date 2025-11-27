@@ -8,7 +8,7 @@
 
 typedef struct VM VM;
 
-typedef Value (*CFunc)(int argCount, Value* args);
+typedef Value (*CFunc)(VM* vm, int argCount, Value* args);
 
 #define OBJECT_TYPE(value)  (AS_OBJECT(value)->type)
 

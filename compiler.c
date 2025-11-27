@@ -43,6 +43,7 @@ static void handleImport(Compiler* compiler, bool canAssign);
 static void handleDot(Compiler* compiler, bool canAssign);
 static void handleThis(Compiler* compiler, bool canAssign);
 
+static void addLocal(Compiler* compiler, Token name);
 static int resolveLocal(Compiler* compiler, Token* name);
 static int resolveUpvalue(Compiler* compiler, Token* name);
 static int identifierConst(Compiler* compiler);
@@ -197,6 +198,8 @@ static void decl(Compiler* compiler){
         classDecl(compiler);
     else if(match(compiler, TOKEN_METHOD))
         methodDecl(compiler);
+    else if(match(compiler, TOKEN_IMPORT))
+        importDecl(compiler);
     else
         stmt(compiler);
     
@@ -504,6 +507,68 @@ static void methodDecl(Compiler* compiler){
         errorAt(compiler, &compiler->parser.pre, "Too many constants.");
         return;
     }
+}
+
+static void importDecl(Compiler* compiler){
+    consume(compiler, TOKEN_STRING_START, "Expect module name string.");
+    Token pathToken = compiler->parser.cur;
+    Value valStr = OBJECT_VAL(copyString(compiler->vm, pathToken.head, pathToken.len));
+    push(compiler->vm, valStr);
+    int index = addConstant(compiler->vm, &compiler->func->chunk, valStr);
+    pop(compiler->vm);
+
+    if(index < 0){
+        errorAt(compiler, &compiler->parser.pre, "Failed to add module path constant.");
+        return;
+    }
+    if(index <= 0xff){
+        emitPair(compiler, OP_IMPORT, (uint8_t)index);
+    }else if(index <= 0xffff){
+        emitByte(compiler, OP_LIMPORT);
+        emitPair(compiler, (uint8_t)((index >> 8) & 0xff), (uint8_t)(index & 0xff));
+    }else{
+        errorAt(compiler, &compiler->parser.pre, "Too many constants.");
+        return;
+    }
+
+    advance(compiler);
+    consume(compiler, TOKEN_STRING_END, "Expect '\"' after module name string.");
+
+    Token aliasName = pathToken;
+    for(int i = 0; i < aliasName.len; i++){
+        char c = aliasName.head[1];
+        if(c == '/' || c == '\\'){
+            aliasName.head += i + 1;
+            aliasName.len -= i + 1;
+            i = -1;
+        }
+    }
+
+    for(int i = aliasName.len - 1; i >= 0; i--){
+        char c = aliasName.head[i];
+        if(c == '.'){
+            aliasName.len = i;
+            break;
+        }
+    }
+
+    int aliasIndex = 0;
+    if(compiler->scopeDepth > 0){
+        addLocal(compiler, aliasName);
+        compiler->locals[compiler->localCnt - 1].depth = compiler->scopeDepth;
+    }else{
+        Value aliasValue = OBJECT_VAL(copyString(compiler->vm, aliasName.head, aliasName.len));
+        push(compiler->vm, aliasValue);
+        aliasIndex = addConstant(compiler->vm, &compiler->func->chunk, aliasValue);
+        pop(compiler->vm);
+        if(aliasIndex < 0){
+            errorAt(compiler, &compiler->parser.pre, "Failed to add module alias constant.");
+            return;
+        }
+        defineVar(compiler, aliasIndex);
+    }
+
+    consume(compiler, TOKEN_SEMICOLON, "Expect ';' after import statement.");
 }
 
 static void beginScope(Compiler* compiler){

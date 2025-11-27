@@ -6,6 +6,7 @@
 #include "vm.h"
 #include "object.h"
 #include "value.h"
+#include "modules.h"
 
 static Value fs_readFile(VM* vm, int argCount, Value* args){
     if(argCount != 1 || !IS_STRING(args[0])){
@@ -31,7 +32,7 @@ static Value fs_readFile(VM* vm, int argCount, Value* args){
     }
     content[fread(content, 1, size, file)] = '\0';
     fclose(file);
-    Value result = OBJ_VAL(copyString(vm, content, size));
+    Value result = OBJECT_VAL(copyString(vm, content, size));
     free(content);
     return result;
 }
@@ -91,26 +92,26 @@ static Value fs_remove(VM* vm, int argCount, Value* args){
 }
 
 static void defineNative(VM* vm, HashTable* table, const char* name, CFunc func){
-    push(vm, OBJ_VAL(copyString(vm, name, (int)strlen(name))));
-    push(vm, OBJ_VAL(newNative(vm, func)));
-    tableSet(vm, table, AS_STRING(vm->stack[0]), vm->stack[1]);
+    push(vm, OBJECT_VAL(copyString(vm, name, (int)strlen(name))));
+    push(vm, OBJECT_VAL(newCFunc(vm, func)));
+    tableSet(vm, table, AS_STRING(peek(vm, 1)), peek(vm, 0));
     pop(vm);
     pop(vm);
 }
 
-void registerFSModule(VM* vm){
+void registerFsModule(VM* vm){
     ObjectString* moduleName = copyString(vm, "fs", 2);
-    push(vm, OBJ_VAL(moduleName));
+    push(vm, OBJECT_VAL(moduleName));
 
     ObjectModule* module = newModule(vm, moduleName);
-    push(vm, OBJ_VAL(module));
+    push(vm, OBJECT_VAL(module));
 
     defineNative(vm, &module->members, "read", fs_readFile);
     defineNative(vm, &module->members, "write", fs_writeFile);
     defineNative(vm, &module->members, "exists", fs_exists);
     defineNative(vm, &module->members, "remove", fs_remove);
 
-    tableSet(vm, &vm->modules, moduleName, OBJ_VAL(module));
+    tableSet(vm, &vm->modules, moduleName, OBJECT_VAL(module));
     pop(vm);
     pop(vm);
 }

@@ -9,6 +9,7 @@
 #include "compiler.h"
 #include "mem.h"
 #include "file.h"
+#include "modules/modules.h"
 
 #ifdef DEBUG_TRACE
 #include "debug.h"
@@ -17,6 +18,7 @@
 void resetStack(VM* vm){
     vm->stackTop = vm->stack;
 }
+
 
 void initVM(VM* vm){
     resetStack(vm);
@@ -35,6 +37,8 @@ void initVM(VM* vm){
     vm->nextGC = 1024;   // 1KB
 
     vm->compiler = NULL;
+
+    registerFsModule(vm);
 }
 
 void freeVM(VM* vm){
@@ -1113,7 +1117,7 @@ static bool callValue(VM* vm, Value callee, int argCnt){
                 return call(vm, AS_CLOSURE(callee), argCnt);
             case OBJECT_CFUNC:{
                 CFunc cfunc = AS_CFUNC(callee);
-                Value result = cfunc(argCnt, vm->stackTop - argCnt);
+                Value result = cfunc(vm, argCnt, vm->stackTop - argCnt);
                 vm->stackTop -= argCnt + 1;
                 push(vm, result);
                 return true;

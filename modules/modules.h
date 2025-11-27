@@ -1,0 +1,8 @@
+#ifndef PICO_MODULES_H
+#define PICO_MODULES_H
+
+#include "vm.h"
+
+void registerFsModule(VM* vm);
+
+#endif // PICO_MODULES_H
