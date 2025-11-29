@@ -204,6 +204,8 @@ static Token scanDefault(){
         case '/': return pack(TOKEN_SLASH, sc.head, 1, sc.line);
         case '(': return pack(TOKEN_LEFT_PAREN, sc.head, 1, sc.line);
         case ')': return pack(TOKEN_RIGHT_PAREN, sc.head, 1, sc.line);
+        case '[': return pack(TOKEN_LEFT_BRACKET, sc.head, 1, sc.line);
+        case ']': return pack(TOKEN_RIGHT_BRACKET, sc.head, 1, sc.line);
         case '{': return pack(TOKEN_LEFT_BRACE, sc.head, 1, sc.line);
         case '}': 
             if(sc.modeStackTop > 0){

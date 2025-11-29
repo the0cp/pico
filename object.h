@@ -16,6 +16,9 @@ typedef Value (*CFunc)(VM* vm, int argCount, Value* args);
 #define AS_STRING(value)    ((ObjectString*)AS_OBJECT(value))
 #define AS_CSTRING(value)   (((ObjectString*)AS_OBJECT(value))->chars)
 
+#define IS_LIST(value)      (IS_OBJECT(value) && OBJECT_TYPE(value) == OBJECY_LIST)
+#define AS_LIST(value)      ((ObjectList*)AS_OBJECT(value))
+
 #define IS_FUNC(value)      (IS_OBJECT(value) && OBJECT_TYPE(value) == OBJECT_FUNC)
 #define AS_FUNC(value)      ((ObjectFunc*)AS_OBJECT(value))
 
@@ -40,6 +43,7 @@ typedef Value (*CFunc)(VM* vm, int argCount, Value* args);
 
 typedef enum{
     OBJECT_STRING,
+    OBJECT_LIST,
     OBJECT_FUNC,
     OBJECT_CFUNC,
     OBJECT_MODULE,
@@ -65,6 +69,19 @@ typedef struct ObjectString{
 
 ObjectString* copyString(VM* vm, const char* chars, int len);
 ObjectString* takeString(VM* vm, char* chars, int length);
+
+typedef struct ObjectList{
+    Object obj;
+    int count;
+    int capacity;
+    Value* items;
+}ObjectList;
+
+ObjectList* newList(VM* vm);
+void appendToList(VM* vm, ObjectList* list, Value value);
+void insertToList(VM* vm, ObjectList* list, int index, Value value);
+Value getListItem(VM* vm, ObjectList* list, int index);
+void deleteListItem(VM* vm, ObjectList* list, int index);
 
 typedef enum{
     TYPE_FUNC,

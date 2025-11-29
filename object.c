@@ -95,6 +95,34 @@ ObjectString* takeString(VM* vm, char* chars, int length){
     return string;
 }
 
+ObjectList* newList(VM* vm){
+    ObjectList* list = (ObjectList*)reallocate(vm, NULL, 0, sizeof(ObjectList));
+    list->obj.type = OBJECT_LIST;
+    list->obj.isMarked = false;
+    list->count = 0;
+    list->capacity = 0;
+    list->items = NULL;
+
+    list->obj.next = vm->objects;
+    vm->objects = (Object*)list;
+
+    return list;
+}
+
+void appendToList(VM* vm, ObjectList* list, Value value){
+    if(list->count + 1 > list->capacity){
+        size_t oldCapacity = list->capacity;
+        list->capacity = oldCapacity < 8 ? 8 : oldCapacity * 2;
+        list->items = (Value*)reallocate(
+            vm,
+            list->items,
+            sizeof(Value) * oldCapacity,
+            sizeof(Value) * list->capacity
+        );
+    }
+    list->items[list->count++] = value;
+}
+
 ObjectFunc* newFunction(VM* vm){
     ObjectFunc* func = (ObjectFunc*)reallocate(vm, NULL, 0, sizeof(ObjectFunc));
     func->obj.type = OBJECT_FUNC;
@@ -222,6 +250,12 @@ void freeObject(VM* vm, Object* object){
             reallocate(vm, object, sizeof(ObjectString) + string->length + 1, 0);
             break;
         }
+        case OBJECT_LIST:{
+            ObjectList* list = (ObjectList*)object;
+            reallocate(vm, list->items, sizeof(Value) * list->capacity, 0);
+            reallocate(vm, object, sizeof(ObjectList), 0);
+            break;
+        }
         case OBJECT_FUNC:{
             ObjectFunc* func = (ObjectFunc*)object;
             freeChunk(vm, &func->chunk);
@@ -282,6 +316,17 @@ void printObject(Value value){
         case OBJECT_STRING:
             printf("%s", AS_CSTRING(value));
             break;
+        case OBJECT_LIST:
+        {
+            ObjectList* list = AS_LIST(value);
+            printf("[");
+            for(int i = 0; i < list->count; i++){
+                printValue(list->items[i]);
+                if(i < list->count - 1) printf(", ");
+            }
+            printf("]");
+            break;
+        }
         case OBJECT_FUNC:
             if(AS_FUNC(value)->name == NULL)
                 printf("<script>");

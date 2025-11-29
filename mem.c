@@ -8,22 +8,27 @@
 
 void collectGarbage(VM* vm){
     if(vm->bytesAllocated == 0) return;
-    // printf("\n-- gc begin\n");
+    #ifdef GC_LOG_ALLOC
+    printf("\n-- gc begin\n");
+    #endif
     size_t before = vm->bytesAllocated;
 
     markRoots(vm);
     
-    // printf("-- mark phase complete\n");
+    #ifdef GC_LOG_ALLOC
+    printf("-- mark phase complete\n");
+    #endif
 
     tableRemoveWhite(vm, &vm->strings);
     sweep(vm);
 
-    // printf("-- sweep phase complete\n");
-    /*
+    #ifdef GC_LOG_ALLOC
+    printf("-- sweep phase complete\n");
     printf("   collected %zu bytes (from %zu to %zu) next at %zu\n",
            before - vm->bytesAllocated, before, vm->bytesAllocated,
            vm->nextGC);
-    */
+    printf("-- gc end\n\n");
+   #endif
     
     vm->nextGC = vm->bytesAllocated * GC_HEAP_GROW_FACTOR;
     if(vm->nextGC < 1024) vm->nextGC = 1024;
@@ -31,6 +36,13 @@ void collectGarbage(VM* vm){
 
 static void traceRef(VM* vm, Object* object){
     switch(object->type){
+        case OBJECT_LIST:{
+            ObjectList* list = (ObjectList*)object;
+            for(int i = 0; i < list->count; i++){
+                markValue(vm, list->items[i]);
+            }
+            break;
+        }
         case OBJECT_FUNC:{
             ObjectFunc* func = (ObjectFunc*)object;
             markObject(vm, (Object*)func->name);
@@ -113,7 +125,6 @@ static void markRoots(VM* vm){
         markObject(vm, (Object*)upvalue);
     }
 
-    // markTable(vm, &vm->strings);
     markTable(vm, vm->curGlobal);
 
     for(int i = 0; i < vm->globalCnt; i++){

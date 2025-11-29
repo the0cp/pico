@@ -8,5 +8,6 @@
 // #define DEBUG_TRACE
 // #define DEBUG_PRINT_CODE
 // #define DEBUG_STRESS_GC
+// #define GC_LOG_ALLOC
 
 #endif  // PICO_COMMON_H
