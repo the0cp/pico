@@ -85,6 +85,35 @@ static Value time_sleep(VM* vm, int argCount, Value* args){
     return NULL_VAL;
 }
 
+static Value time_fmt(VM* vm, int argCount, Value* args){
+    if(argCount < 1)    return NULL_VAL;
+    if(!IS_NUM(args[0])){
+        fprintf(stderr, "time.fmt expects a time number.\n");
+        return NULL_VAL;
+    }
+
+    time_t rawtime = (time_t)AS_NUM(args[0]);
+
+    const char* format = (argCount >= 2 && IS_STRING(args[1]))
+                         ? AS_CSTRING(args[1])
+                         : "%Y-%m-%d %H:%M:%S";
+    
+    struct tm* timeinfo = localtime(&rawtime);
+    if(timeinfo == NULL){
+        fprintf(stderr, "time.fmt: invalid time value.\n");
+        return NULL_VAL;
+    }
+
+    char buffer[128];
+    size_t len = strftime(buffer, sizeof(buffer), format, timeinfo);
+    if(len == 0){
+        fprintf(stderr, "time.fmt: formatting error.\n");
+        return NULL_VAL;
+    }
+
+    return OBJECT_VAL(copyString(vm, buffer, (int)len));
+}
+
 static void defineCFunc(VM* vm, HashTable* table, const char* name, CFunc function){
     push(vm, OBJECT_VAL(copyString(vm, name, (int)strlen(name))));
     push(vm, OBJECT_VAL(newCFunc(vm, function)));
@@ -104,6 +133,7 @@ void registerTimeModule(VM* vm){
     defineCFunc(vm, &module->members, "now", time_now);
     defineCFunc(vm, &module->members, "clock", time_system);
     defineCFunc(vm, &module->members, "sleep", time_sleep);
+    defineCFunc(vm, &module->members, "fmt", time_fmt);
 
     tableSet(vm, &vm->modules, moduleName, OBJECT_VAL(module));
     pop(vm);
