@@ -16,7 +16,7 @@ typedef Value (*CFunc)(VM* vm, int argCount, Value* args);
 #define AS_STRING(value)    ((ObjectString*)AS_OBJECT(value))
 #define AS_CSTRING(value)   (((ObjectString*)AS_OBJECT(value))->chars)
 
-#define IS_LIST(value)      (IS_OBJECT(value) && OBJECT_TYPE(value) == OBJECY_LIST)
+#define IS_LIST(value)      (IS_OBJECT(value) && OBJECT_TYPE(value) == OBJECT_LIST)
 #define AS_LIST(value)      ((ObjectList*)AS_OBJECT(value))
 
 #define IS_FUNC(value)      (IS_OBJECT(value) && OBJECT_TYPE(value) == OBJECT_FUNC)
@@ -154,10 +154,10 @@ ObjectInstance* newInstance(VM* vm, ObjectClass* klass);
 typedef struct{
     Object obj;
     Value receiver;
-    ObjectClosure* method;
+    Object* method;
 }ObjectBoundMethod;
 
-ObjectBoundMethod* newBoundMethod(VM* vm, Value receiver, ObjectClosure* method);
+ObjectBoundMethod* newBoundMethod(VM* vm, Value receiver, Object* method);
 
 void freeObject(VM* vm, Object* object);
 void freeObjects(VM* vm);

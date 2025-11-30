@@ -41,6 +41,8 @@ static void handleOr(Compiler* compiler, bool canAssign);
 static void handleCall(Compiler* compiler, bool canAssign);
 static void handleImport(Compiler* compiler, bool canAssign);
 static void handleDot(Compiler* compiler, bool canAssign);
+static void handleList(Compiler* compiler, bool canAssign);
+static void handleIndex(Compiler* compiler, bool canAssign);
 static void handleThis(Compiler* compiler, bool canAssign);
 
 static void addLocal(Compiler* compiler, Token name);
@@ -53,6 +55,7 @@ ParseRule rules[] = {
     [TOKEN_RIGHT_PAREN]             = {NULL,            NULL,           PREC_NONE},
     [TOKEN_LEFT_BRACE]              = {NULL,            NULL,           PREC_NONE},
     [TOKEN_RIGHT_BRACE]             = {NULL,            NULL,           PREC_NONE},
+    [TOKEN_LEFT_BRACKET]            = {handleList,      handleIndex,    PREC_CALL},
     [TOKEN_COMMA]                   = {NULL,            NULL,           PREC_NONE},
     [TOKEN_SEMICOLON]               = {NULL,            NULL,           PREC_NONE},
 
@@ -1411,6 +1414,46 @@ static void handleDot(Compiler* compiler, bool canAssign){
         emitByte(compiler, (uint8_t)(index & 0xff));
     }else{
         errorAt(compiler, &compiler->parser.pre, "Too many constants.");
+    }
+}
+
+static void handleList(Compiler* compiler, bool canAssign){
+    uint8_t itemCnt = 0;
+    if(!checkType(compiler, TOKEN_RIGHT_BRACKET)){
+        expression(compiler);
+        if(checkType(compiler, TOKEN_SEMICOLON)){
+            consume(compiler, TOKEN_SEMICOLON, "Expect ';' in list bulk initialization.");
+            expression(compiler);
+            emitByte(compiler, OP_FILL_LIST);
+            consume(compiler, TOKEN_RIGHT_BRACKET, "Expect ']' after list bulk initialization.");
+            return;
+        }
+
+        itemCnt++;
+        while(match(compiler, TOKEN_COMMA)){
+            expression(compiler);
+            if(itemCnt == 255){
+                errorAt(compiler, &compiler->parser.pre, "Cannot have more than 255 items in list.");
+            }
+            itemCnt++;
+        }
+    }
+
+    consume(compiler, TOKEN_RIGHT_BRACKET, "Expect ']' after list items.");
+    emitByte(compiler, OP_BUILD_LIST);
+    emitByte(compiler, (uint8_t)itemCnt);
+
+}
+
+static void handleIndex(Compiler* compiler, bool canAssign){
+    expression(compiler);
+    consume(compiler, TOKEN_RIGHT_BRACKET, "Expect ']' after index.");
+
+    if(canAssign && match(compiler, TOKEN_ASSIGN)){
+        expression(compiler);
+        emitByte(compiler, OP_INDEX_SET);
+    }else{
+        emitByte(compiler, OP_INDEX_GET);
     }
 }
 

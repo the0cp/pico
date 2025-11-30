@@ -59,6 +59,6 @@ static InterpreterStatus run(VM* vm);
 static bool call(VM* vm, ObjectClosure* closure, int argCnt);
 static bool callValue(VM* vm, Value callee, int argCnt);
 
-static void runtimeError(VM* vm, const char* format, ...);
+void runtimeError(VM* vm, const char* format, ...);
 
 #endif // PICO_VM_H

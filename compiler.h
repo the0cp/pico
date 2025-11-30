@@ -82,6 +82,9 @@ static void handleCall(Compiler* compiler, bool canAssign);
 static void handleImport(Compiler* compiler, bool canAssign);
 static void handleDot(Compiler* compiler, bool canAssign);
 
+static void handleList(Compiler* compiler, bool canAssign);
+static void handleIndex(Compiler* compiler, bool canAssign);
+
 static void handleThis(Compiler* compiler, bool canAssign);
 
 static void advance(Compiler* compiler);

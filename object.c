@@ -229,7 +229,7 @@ ObjectInstance* newInstance(VM* vm, ObjectClass* klass){
     return instance;
 }
 
-ObjectBoundMethod* newBoundMethod(VM* vm, Value receiver, ObjectClosure* method){
+ObjectBoundMethod* newBoundMethod(VM* vm, Value receiver, Object* method){
     ObjectBoundMethod* bound = (ObjectBoundMethod*)reallocate(vm, NULL, 0, sizeof(ObjectBoundMethod));
     bound->obj.type = OBJECT_BOUND_METHOD;
     bound->obj.isMarked = false;
@@ -355,7 +355,13 @@ void printObject(Value value){
             printf("<instance of %s>", AS_INSTANCE(value)->klass->name->chars);
             break;
         case OBJECT_BOUND_METHOD:
-            printf("<bound method %s>", AS_BOUND_METHOD(value)->method->func->name->chars);
+            ObjectBoundMethod* bound = AS_BOUND_METHOD(value);
+            if(bound->method->type == OBJECT_CLOSURE){
+                ObjectClosure* closure = (ObjectClosure*)bound->method;
+                printf("<bound method %s>", closure->func->name->chars);
+            }else{
+                printf("<bound native method>");
+            }
             break;
     }
 }

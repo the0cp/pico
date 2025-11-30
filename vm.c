@@ -9,6 +9,7 @@
 #include "compiler.h"
 #include "mem.h"
 #include "file.h"
+#include "list.h"
 #include "modules/modules.h"
 
 #ifdef DEBUG_TRACE
@@ -167,6 +168,29 @@ static bool checkAccess(VM* vm, ObjectClass* instanceKlass, ObjectString* fieldN
     return false;
 }
 
+static bool bindListFunc(VM* vm, Value receiver, ObjectString* name){
+    CFunc func = NULL;
+    switch(name->length){
+        case 3:
+            if(memcmp(name->chars, "pop", 3) == 0)  func = list_pop;
+            break;
+        case 4:
+            if(memcmp(name->chars, "push", 4) == 0) func = list_push;
+            else if(memcmp(name->chars, "size", 4) == 0) func = list_size;
+            break;
+    }
+
+    if(func){
+        ObjectCFunc* cfuncObj = newCFunc(vm, func);
+        ObjectBoundMethod* bound = newBoundMethod(vm, receiver, (Object*)cfuncObj);
+        pop(vm);    // pop receiver
+        push(vm, OBJECT_VAL(bound));
+        return true;
+    }
+
+    return false;
+}
+
 static InterpreterStatus run(VM* vm){
     CallFrame* frame = &vm->frames[vm->frameCount - 1];
 
@@ -241,6 +265,12 @@ static InterpreterStatus run(VM* vm){
 
         [OP_DEFINE_FIELD]   = &&DO_OP_DEFINE_FIELD,
         [OP_DEFINE_LFIELD]  = &&DO_OP_DEFINE_LFIELD,
+
+        [OP_BUILD_LIST]     = &&DO_OP_BUILD_LIST,
+        [OP_FILL_LIST]      = &&DO_OP_FILL_LIST,
+        [OP_INDEX_GET]      = &&DO_OP_INDEX_GET,
+        [OP_INDEX_SET]      = &&DO_OP_INDEX_SET,
+
     };
 
     #ifdef DEBUG_TRACE
@@ -713,14 +743,25 @@ static InterpreterStatus run(VM* vm){
 
     DO_OP_GET_PROPERTY:
     {
-        if(!IS_OBJECT(peek(vm, 0))){
+        uint8_t constantIndex = READ_BYTE();
+        ObjectString* name = AS_STRING(frame->closure->func->chunk.constants.values[constantIndex]);
+        Value receiver = peek(vm, 0);
+
+        if(!IS_OBJECT(receiver)){
             runtimeError(vm, "Only modules and objects have properties.");
             return VM_RUNTIME_ERROR;
         }
 
-        if(IS_INSTANCE(peek(vm, 0))){
-            ObjectInstance* instance = AS_INSTANCE(peek(vm, 0));
-            ObjectString* name = AS_STRING(frame->closure->func->chunk.constants.values[READ_BYTE()]);
+        if(IS_LIST(receiver)){
+            if(bindListFunc(vm, receiver, name)){
+                DISPATCH();
+            }
+            runtimeError(vm, "Undefined property '%s' on list.", name->chars);
+            return VM_RUNTIME_ERROR;
+        }
+
+        if(IS_INSTANCE(receiver)){
+            ObjectInstance* instance = AS_INSTANCE(receiver);
 
             Value value;
             if(tableGet(&instance->fields, name, &value)){
@@ -734,7 +775,7 @@ static InterpreterStatus run(VM* vm){
             }
 
             if(tableGet(&instance->klass->methods, name, &value)){
-                ObjectBoundMethod* bound = newBoundMethod(vm, peek(vm, 0), AS_CLOSURE(value));
+                ObjectBoundMethod* bound = newBoundMethod(vm, receiver, (Object*)AS_CLOSURE(value));
                 pop(vm);
                 push(vm, OBJECT_VAL(bound));
                 DISPATCH();
@@ -743,9 +784,8 @@ static InterpreterStatus run(VM* vm){
             return VM_RUNTIME_ERROR;
         }
 
-        if(IS_MODULE(peek(vm, 0))){
-            ObjectModule* module = AS_MODULE(peek(vm, 0));
-            ObjectString* name = AS_STRING(frame->closure->func->chunk.constants.values[READ_BYTE()]);
+        if(IS_MODULE(receiver)){
+            ObjectModule* module = AS_MODULE(receiver);
 
             Value value;
             if(!tableGet(&module->members, name, &value)){
@@ -756,21 +796,32 @@ static InterpreterStatus run(VM* vm){
             pop(vm);
             push(vm, value);
         }
+
+        return VM_RUNTIME_ERROR;
     } DISPATCH();
 
     DO_OP_GET_LPROPERTY:
     {
-        if(!IS_OBJECT(peek(vm, 0))){
+        uint16_t index = (uint16_t)(READ_BYTE() << 8);
+        index |= READ_BYTE();   // avoid precedence error
+        ObjectString* name = AS_STRING(frame->closure->func->chunk.constants.values[index]);
+        Value receiver = peek(vm, 0);
+
+        if(!IS_OBJECT(receiver)){
             runtimeError(vm, "Only modules and objects have properties.");
             return VM_RUNTIME_ERROR;
         }
 
-        if(IS_INSTANCE(peek(vm, 0))){
-            ObjectInstance* instance = AS_INSTANCE(peek(vm, 0));
-            uint16_t index = (uint16_t)((frame->ip[0] << 8) | frame->ip[1]);
-            frame->ip += 2;
-            ObjectString* name = AS_STRING(frame->closure->func->chunk.constants.values[index]);
+        if(IS_LIST(receiver)){
+            if(bindListFunc(vm, receiver, name)){
+                DISPATCH();
+            }
+            runtimeError(vm, "Undefined property '%s' on list.", name->chars);
+            return VM_RUNTIME_ERROR;
+        }
 
+        if(IS_INSTANCE(receiver)){
+            ObjectInstance* instance = AS_INSTANCE(receiver);
             Value value;
             if(tableGet(&instance->fields, name, &value)){
                 if(!checkAccess(vm, instance->klass, name)){
@@ -783,7 +834,7 @@ static InterpreterStatus run(VM* vm){
             }
 
             if(tableGet(&instance->klass->methods, name, &value)){
-                ObjectBoundMethod* bound = newBoundMethod(vm, peek(vm, 0), AS_CLOSURE(value));
+                ObjectBoundMethod* bound = newBoundMethod(vm, receiver, (Object*)AS_CLOSURE(value));
                 pop(vm);
                 push(vm, OBJECT_VAL(bound));
                 DISPATCH();
@@ -792,12 +843,8 @@ static InterpreterStatus run(VM* vm){
             return VM_RUNTIME_ERROR;
         }
 
-        if(IS_MODULE(peek(vm, 0))){
-            ObjectModule* module = AS_MODULE(peek(vm, 0));
-            uint16_t index = (uint16_t)((frame->ip[0] << 8) | frame->ip[1]);
-            frame->ip += 2;
-            ObjectString* name = AS_STRING(frame->closure->func->chunk.constants.values[index]);
-
+        if(IS_MODULE(receiver)){
+            ObjectModule* module = AS_MODULE(receiver);
             Value value;
             if(!tableGet(&module->members, name, &value)){
                 runtimeError(vm, "Undefined property '%s' on module '%s'.", name->chars, module->name->chars);
@@ -807,18 +854,23 @@ static InterpreterStatus run(VM* vm){
             pop(vm);
             push(vm, value);
         }
+
+        return VM_RUNTIME_ERROR;
     } DISPATCH();
 
     DO_OP_SET_PROPERTY:
     {
-        if(!IS_OBJECT(peek(vm, 1))){    // stack top is a value, -1 for object
+        uint8_t constantIndex = READ_BYTE();
+        ObjectString* name = AS_STRING(frame->closure->func->chunk.constants.values[constantIndex]);
+        Value receiver = peek(vm, 1);
+
+        if(!IS_OBJECT(receiver)){    // stack top is a value, -1 for object
             runtimeError(vm, "Only modules and instances have properties.");
             return VM_RUNTIME_ERROR;
         }
 
-        if(IS_INSTANCE(peek(vm, 1))){
-            ObjectInstance* instance = AS_INSTANCE(peek(vm, 1));
-            ObjectString* name = AS_STRING(frame->closure->func->chunk.constants.values[READ_BYTE()]);
+        if(IS_INSTANCE(receiver)){
+            ObjectInstance* instance = AS_INSTANCE(receiver);
             Value dummy;
             if(!tableGet(&instance->fields, name, &dummy)){
                 runtimeError(vm, "Undefined property '%s' on instance of '%s'.", name->chars, instance->klass->name->chars);
@@ -837,29 +889,37 @@ static InterpreterStatus run(VM* vm){
             DISPATCH();
         }
 
-        if(IS_MODULE(peek(vm, 1))){
-            ObjectModule* module = AS_MODULE(peek(vm, 1));
-            ObjectString* name = AS_STRING(frame->closure->func->chunk.constants.values[READ_BYTE()]);
+        if(IS_MODULE(receiver)){
+            ObjectModule* module = AS_MODULE(receiver);
             tableSet(vm, &module->members, name, peek(vm, 0));
 
             Value value = pop(vm);
             pop(vm);    // pop module
             push(vm, value);
         }
+
+        if(IS_LIST(receiver)){
+            runtimeError(vm, "Cannot set properties on list.");
+            return VM_RUNTIME_ERROR;
+        }
+
+        return VM_RUNTIME_ERROR;
     } DISPATCH();
 
     DO_OP_SET_LPROPERTY:
     {
-        if(!IS_OBJECT(peek(vm, 1))){    // stack top is a value, -1 for object
+        uint16_t index = (uint16_t)(READ_BYTE() << 8);
+        index |= READ_BYTE();   // avoid precedence error
+        ObjectString* name = AS_STRING(frame->closure->func->chunk.constants.values[index]);
+        Value receiver = peek(vm, 1);
+
+        if(!IS_OBJECT(receiver)){    // stack top is a value, -1 for object
             runtimeError(vm, "Only modules and objects have properties.");
             return VM_RUNTIME_ERROR;
         }
 
-        if(IS_INSTANCE(peek(vm, 1))){
-            ObjectInstance* instance = AS_INSTANCE(peek(vm, 1));
-            uint16_t index = (uint16_t)((frame->ip[0] << 8) | frame->ip[1]);
-            frame->ip += 2;
-            ObjectString* name = AS_STRING(frame->closure->func->chunk.constants.values[index]);
+        if(IS_INSTANCE(receiver)){
+            ObjectInstance* instance = AS_INSTANCE(receiver);
             Value dummy;
             if(!tableGet(&instance->fields, name, &dummy)){
                 runtimeError(vm, "Undefined property '%s' on instance of '%s'.", name->chars, instance->klass->name->chars);
@@ -878,17 +938,21 @@ static InterpreterStatus run(VM* vm){
             DISPATCH();
         } 
 
-        if(IS_MODULE(peek(vm, 1))){
-            ObjectModule* module = AS_MODULE(peek(vm, 1));
-            uint16_t index = (uint16_t)((frame->ip[0] << 8) | frame->ip[1]);
-            frame->ip += 2;
-            ObjectString* name = AS_STRING(frame->closure->func->chunk.constants.values[index]);
+        if(IS_MODULE(receiver)){
+            ObjectModule* module = AS_MODULE(receiver);
             tableSet(vm, &module->members, name, peek(vm, 0));
 
             Value value = pop(vm);
             pop(vm);    // pop module
             push(vm, value);
         }
+
+        if(IS_LIST(receiver)){
+            runtimeError(vm, "Cannot set properties on list.");
+            return VM_RUNTIME_ERROR;
+        }
+
+        return VM_RUNTIME_ERROR;
     } DISPATCH();
 
     DO_OP_CLOSURE:
@@ -1053,6 +1117,104 @@ static InterpreterStatus run(VM* vm){
         tableSet(vm, &klass->fields, name, defaultValue);
     } DISPATCH();
 
+    DO_OP_BUILD_LIST:
+    {
+        uint8_t count = READ_BYTE();
+        ObjectList* list = newList(vm);
+        push(vm, OBJECT_VAL(list));    // avoid gc
+
+        if(count > 0){
+            list->items = (Value*)reallocate(vm, NULL, 0, sizeof(Value) * count);
+            list->count = count;
+            list->capacity = count;
+            for(int i = count - 1; i >= 0; i--){
+                list->items[i] = peek(vm, count - i);
+            }
+        }
+        pop(vm);
+        vm->stackTop -= count;
+        push(vm, OBJECT_VAL(list));
+    } DISPATCH();
+
+    DO_OP_FILL_LIST:
+    {
+        Value cntVal = pop(vm);
+        Value itemVal = pop(vm);
+        if(!IS_NUM(cntVal)){
+            runtimeError(vm, "List fill count must be a number.");
+            return VM_RUNTIME_ERROR;
+        }
+        uint8_t count = (uint8_t)AS_NUM(cntVal);
+        ObjectList* list = newList(vm);
+        push(vm, OBJECT_VAL(list));    // avoid gc
+
+        for(int i = 0; i < count; i++){
+            appendToList(vm, list, itemVal);
+        }
+    } DISPATCH();
+
+    DO_OP_INDEX_GET:
+    {
+        Value indexVal = pop(vm);
+        Value target = pop(vm);
+
+        if(!IS_LIST(target)){
+            runtimeError(vm, "Can only index get on lists.");
+            return VM_RUNTIME_ERROR;
+        }
+
+        if(!IS_NUM(indexVal)){
+            runtimeError(vm, "List index must be a number.");
+            return VM_RUNTIME_ERROR;
+        }
+
+        ObjectList* list = AS_LIST(target);
+        int index = (int)AS_NUM(indexVal);
+
+        if(index < 0){
+            index += list->count;
+        }
+
+        if(index < 0 || index >= list->count){
+            runtimeError(vm, "List index out of bounds.");
+            return VM_RUNTIME_ERROR;
+        }
+
+        push(vm, list->items[index]);
+    } DISPATCH();
+
+    DO_OP_INDEX_SET:
+    {
+        Value val = pop(vm);
+        Value indexVal = pop(vm);
+        Value target = pop(vm);
+
+        if(!IS_LIST(target)){
+            runtimeError(vm, "Can only index set on lists.");
+            return VM_RUNTIME_ERROR;
+        }
+
+        if(!IS_NUM(indexVal)){
+            runtimeError(vm, "List index must be a number.");
+            return VM_RUNTIME_ERROR;
+        }
+
+        ObjectList* list = AS_LIST(target);
+        int index = (int)AS_NUM(indexVal);
+
+        if(index < 0){
+            index += list->count;
+        }
+
+        if(index < 0 || index >= list->count){
+            runtimeError(vm, "List index out of bounds.");
+            return VM_RUNTIME_ERROR;
+        }
+
+        list->items[index] = val;
+        push(vm, val);
+    } DISPATCH();
+
     DO_OP_RETURN:
     {
         Value result = pop(vm);
@@ -1112,7 +1274,16 @@ static bool callValue(VM* vm, Value callee, int argCnt){
             case OBJECT_BOUND_METHOD:{
                 ObjectBoundMethod* bound = AS_BOUND_METHOD(callee);
                 vm->stackTop[-argCnt -1] = bound->receiver;
-                return call(vm, bound->method, argCnt);
+                Object* method = bound->method;
+                if(method->type == OBJECT_CFUNC){
+                    CFunc cfunc = AS_CFUNC(OBJECT_VAL(method));
+                    Value result = cfunc(vm, argCnt, vm->stackTop - argCnt);
+                    vm->stackTop -= argCnt + 1;
+                    push(vm, result);
+                    return true;
+                }else{
+                    return call(vm, AS_CLOSURE(OBJECT_VAL(method)), argCnt);
+                }
             }
             case OBJECT_CLOSURE:
                 return call(vm, AS_CLOSURE(callee), argCnt);
@@ -1131,7 +1302,7 @@ static bool callValue(VM* vm, Value callee, int argCnt){
     return false;
 }
 
-static void runtimeError(VM* vm, const char* format, ...){
+void runtimeError(VM* vm, const char* format, ...){
     va_list args;
     va_start(args, format);
     vfprintf(stderr, format, args);
