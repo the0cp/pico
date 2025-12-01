@@ -37,6 +37,42 @@ static Value fs_readFile(VM* vm, int argCount, Value* args){
     return result;
 }
 
+static Value fs_readLines(VM* vm, int argCount, Value* args){
+    // read all lines
+    if(argCount != 1 || !IS_STRING(args[0])){
+        fprintf(stderr, "fs.rline expects a single string argument.\n");
+        return NULL_VAL;
+    }
+
+    char* path = AS_CSTRING(args[0]);
+    FILE* file = fopen(path, "r");
+    if(!file){
+        fprintf(stderr, "Could not open file %s\n", path);
+        return NULL_VAL;
+    }
+
+    ObjectList* list = newList(vm);
+    push(vm, OBJECT_VAL(list));
+
+    char line[1024];
+    while(fgets(line, sizeof(line), file)){
+        size_t len = strlen(line);
+        if(len > 0 && line[len - 1] == '\n'){
+            line[len - 1] = '\0';
+            len--;
+        }
+
+        ObjectString* lineStr = copyString(vm, line, (int)len);
+        push(vm, OBJECT_VAL(lineStr));
+        appendToList(vm, list, OBJECT_VAL(lineStr));
+        pop(vm);
+    }
+
+    fclose(file);
+    pop(vm);
+    return OBJECT_VAL(list);
+}
+
 static Value fs_writeFile(VM* vm, int argCount, Value* args){
     if(argCount != 2 || !IS_STRING(args[0]) || !IS_STRING(args[1])){
         fprintf(stderr, "fs.write expects two string arguments.\n");
@@ -59,6 +95,26 @@ static Value fs_writeFile(VM* vm, int argCount, Value* args){
         return NULL_VAL;
     }
 
+    return BOOL_VAL(true);
+}
+
+static Value fs_appendFile(VM* vm, int argCount, Value* args){
+    if(argCount != 2 || !IS_STRING(args[0]) || !IS_STRING(args[1])){
+        fprintf(stderr, "fs.append expects path and content strings.\n");
+        return NULL_VAL;
+    }
+
+    char* path = AS_STRING(args[0]);
+    char* content = AS_CSTRING(args[1]);
+
+    FILE* file = fopen(path, "ab");
+    if(!file){
+        fprintf(stderr, "Could not open file %s\n", path);
+        return NULL_VAL;
+    }
+
+    fwrite(content, sizeof(char), strlen(content), file);
+    fclose(file);
     return BOOL_VAL(true);
 }
 
@@ -91,6 +147,59 @@ static Value fs_remove(VM* vm, int argCount, Value* args){
     }
 }
 
+#ifdef _WIN32
+#include <windows.h>
+#else
+#include <dirent.h>
+#endif
+
+static Value fs_listDir(VM* vm, int argCount, Value* args){
+    if(argCount != 1 || !IS_STRING(args[0])){
+        fprintf(stderr, "fs.list expects a single dir string argument.\n");
+        return NULL_VAL;
+    }
+
+    char* path = AS_CSTRING(args[0]);
+
+    ObjectList* list = newList(vm);
+    push(vm, OBJECT_VAL(list));
+
+#ifdef _WIN32
+    char listPath[2048];
+    snprintf(listPath, 2048, "%s\\*.*", path);
+    WIN32_FIND_DATA fd;
+    HANDLE hFind = FindFirstFile(searchPath, &fd);
+    if(hFind != INVALID_HANDLE_VALUE){
+        do{
+            if(strcmp(fd.cFileName, ".") != 0 && strcmp(fd.cFileName, "..") != 0){
+                ObjectString* name = copyString(vm, fd.cFileName, strlen(fd.cFileName));
+                push(vm, OBJECT_VAL(name));
+                appendToList(vm, list, OBJECT_VAL(name));
+                pop(vm);
+            }
+        }while(FindNextFile(hFind, &fd));
+        FindClose(hFind);
+    }
+#else
+    DIR* dir;
+    struct dirent* ent;
+    if((dir = opendir(path)) != NULL){
+        while((ent = readdir(dir)) != NULL){
+            if(strcmp(ent->d_name, ".") != 0 && strcmp(ent->d_name, "..") != 0){
+                ObjectString* name = copyString(vm, ent->d_name, strlen(ent->d_name));
+                push(vm, OBJECT_VAL(name));
+                appendToList(vm, list, OBJECT_VAL(name));
+                pop(vm);
+            }
+        }
+        closedir(dir);
+    }
+#endif
+
+    pop(vm);
+    return OBJECT_VAL(list);
+}
+
 static void defineCFunc(VM* vm, HashTable* table, const char* name, CFunc func){
     push(vm, OBJECT_VAL(copyString(vm, name, (int)strlen(name))));
     push(vm, OBJECT_VAL(newCFunc(vm, func)));
@@ -110,6 +219,9 @@ void registerFsModule(VM* vm){
     defineCFunc(vm, &module->members, "write", fs_writeFile);
     defineCFunc(vm, &module->members, "exists", fs_exists);
     defineCFunc(vm, &module->members, "remove", fs_remove);
+    defineCFunc(vm, &module->members, "list", fs_listDir);
+    defineCFunc(vm, &module->members, "rlines", fs_readLines);
+    defineCFunc(vm, &module->members, "append", fs_appendFile);
 
     tableSet(vm, &vm->modules, moduleName, OBJECT_VAL(module));
     pop(vm);
