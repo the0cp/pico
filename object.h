@@ -2,6 +2,7 @@
 #define PICO_OBJECT_H
 
 #include <stddef.h>
+#include <stdio.h>
 
 #include "chunk.h"
 #include "hashtable.h"
@@ -12,34 +13,36 @@ typedef Value (*CFunc)(VM* vm, int argCount, Value* args);
 
 #define OBJECT_TYPE(value)  (AS_OBJECT(value)->type)
 
-#define IS_STRING(value)    (IS_OBJECT(value) && OBJECT_TYPE(value) == OBJECT_STRING)
-#define AS_STRING(value)    ((ObjectString*)AS_OBJECT(value))
-#define AS_CSTRING(value)   (((ObjectString*)AS_OBJECT(value))->chars)
+#define IS_STRING(value)        (IS_OBJECT(value) && OBJECT_TYPE(value) == OBJECT_STRING)
+#define AS_STRING(value)        ((ObjectString*)AS_OBJECT(value))
+#define AS_CSTRING(value)       (((ObjectString*)AS_OBJECT(value))->chars)
 
-#define IS_LIST(value)      (IS_OBJECT(value) && OBJECT_TYPE(value) == OBJECT_LIST)
-#define AS_LIST(value)      ((ObjectList*)AS_OBJECT(value))
+#define IS_LIST(value)          (IS_OBJECT(value) && OBJECT_TYPE(value) == OBJECT_LIST)
+#define AS_LIST(value)          ((ObjectList*)AS_OBJECT(value))
 
-#define IS_FUNC(value)      (IS_OBJECT(value) && OBJECT_TYPE(value) == OBJECT_FUNC)
-#define AS_FUNC(value)      ((ObjectFunc*)AS_OBJECT(value))
+#define IS_FUNC(value)          (IS_OBJECT(value) && OBJECT_TYPE(value) == OBJECT_FUNC)
+#define AS_FUNC(value)          ((ObjectFunc*)AS_OBJECT(value))
 
-#define IS_CFUNC(value)     (IS_OBJECT(value) && OBJECT_TYPE(value) == OBJECT_CFUNC)
-#define AS_CFUNC(value)     (((ObjectCFunc*)AS_OBJECT(value))->func)
+#define IS_CFUNC(value)         (IS_OBJECT(value) && OBJECT_TYPE(value) == OBJECT_CFUNC)
+#define AS_CFUNC(value)         (((ObjectCFunc*)AS_OBJECT(value))->func)
 
-#define IS_MODULE(value)    (IS_OBJECT(value) && OBJECT_TYPE(value) == OBJECT_MODULE)
-#define AS_MODULE(value)    ((ObjectModule*)AS_OBJECT(value))
+#define IS_MODULE(value)        (IS_OBJECT(value) && OBJECT_TYPE(value) == OBJECT_MODULE)
+#define AS_MODULE(value)        ((ObjectModule*)AS_OBJECT(value))
 
-#define IS_CLOSURE(value)   (IS_OBJECT(value) && OBJECT_TYPE(value) == OBJECT_CLOSURE)
-#define AS_CLOSURE(value)   ((ObjectClosure*)AS_OBJECT(value))
+#define IS_CLOSURE(value)       (IS_OBJECT(value) && OBJECT_TYPE(value) == OBJECT_CLOSURE)
+#define AS_CLOSURE(value)       ((ObjectClosure*)AS_OBJECT(value))
 
-#define IS_CLASS(value)     (IS_OBJECT(value) && OBJECT_TYPE(value) == OBJECT_CLASS)
-#define AS_CLASS(value)     ((ObjectClass*)AS_OBJECT(value))
+#define IS_CLASS(value)         (IS_OBJECT(value) && OBJECT_TYPE(value) == OBJECT_CLASS)
+#define AS_CLASS(value)         ((ObjectClass*)AS_OBJECT(value))
 
-#define IS_INSTANCE(value)  (IS_OBJECT(value) && OBJECT_TYPE(value) == OBJECT_INSTANCE)
-#define AS_INSTANCE(value)  ((ObjectInstance*)AS_OBJECT(value))
+#define IS_INSTANCE(value)      (IS_OBJECT(value) && OBJECT_TYPE(value) == OBJECT_INSTANCE)
+#define AS_INSTANCE(value)      ((ObjectInstance*)AS_OBJECT(value))
 
 #define IS_BOUND_METHOD(value)  (IS_OBJECT(value) && OBJECT_TYPE(value) == OBJECT_BOUND_METHOD)
 #define AS_BOUND_METHOD(value)  ((ObjectBoundMethod*)AS_OBJECT(value))
 
+#define IS_FILE(value)          (IS_OBJECT(value) && OBJECT_TYPE(value) == OBJECT_FILE)
+#define AS_FILE(value)          ((ObjectFile*)AS_OBJECT(value))
 
 typedef enum{
     OBJECT_STRING,
@@ -52,6 +55,7 @@ typedef enum{
     OBJECT_CLASS,
     OBJECT_INSTANCE,
     OBJECT_BOUND_METHOD,
+    OBJECT_FILE,
 }ObjectType;
 
 typedef struct Object{
@@ -151,13 +155,22 @@ typedef struct ObjectInstance{
 ObjectClass* newClass(VM* vm, ObjectString* name);
 ObjectInstance* newInstance(VM* vm, ObjectClass* klass);
 
-typedef struct{
+typedef struct ObjectBoundMethod{
     Object obj;
     Value receiver;
     Object* method;
 }ObjectBoundMethod;
 
 ObjectBoundMethod* newBoundMethod(VM* vm, Value receiver, Object* method);
+
+typedef struct ObjectFile{
+    Object obj;
+    FILE* handle;
+    char* mode;
+    bool isOpen;
+}ObjectFile;
+
+ObjectFile* newFile(VM* vm, FILE* file);
 
 void freeObject(VM* vm, Object* object);
 void freeObjects(VM* vm);

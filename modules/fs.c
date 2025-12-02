@@ -3,10 +3,113 @@
 #include <string.h>
 
 #include "common.h"
+#include "mem.h"
 #include "vm.h"
 #include "object.h"
 #include "value.h"
 #include "modules.h"
+#include "fs.h"
+
+#define GET_FILE(val) \
+    if(!IS_FILE(val)){ \
+        fprintf(stderr, "Expected a file object.\n"); \
+        return NULL_VAL; \
+    } \
+    ObjectFile* fileObj = AS_FILE(val); \
+    if(!fileObj->isOpen || fileObj->handle == NULL){ \
+        fprintf(stderr, "File is not open.\n"); \
+        return NULL_VAL; \
+    }
+
+Value file_read(VM* vm, int argCount, Value* args){
+    GET_FILE(args[-1]);
+    long curPos = ftell(fileObj->handle);
+    fseek(fileObj->handle, 0L, SEEK_END);
+    long endPos = ftell(fileObj->handle);
+    fseek(fileObj->handle, curPos, SEEK_SET);
+
+    size_t size = endPos - curPos;
+    char* content = (char*)malloc(size + 1);
+    if(!content){
+        fprintf(stderr, "Could not allocate memory for file content\n");
+        return NULL_VAL;
+    }
+
+    size_t readBytes = fread(content, 1, size, fileObj->handle);
+    content[readBytes] = '\0';
+    return OBJECT_VAL(copyString(vm, content, (int)readBytes));
+}
+
+Value file_close(VM* vm, int argCount, Value* args){
+    GET_FILE(args[-1]);
+    fclose(fileObj->handle);
+    fileObj->isOpen = false;
+    fileObj->handle = NULL;
+    return NULL_VAL;
+}
+
+Value file_write(VM* vm, int argCount, Value* args){
+    GET_FILE(args[-1]);
+    if(argCount != 1 || !IS_STRING(args[0])){
+        fprintf(stderr, "file.write expects a single string argument.\n");
+        return NULL_VAL;
+    }
+    char* content = AS_CSTRING(args[0]);
+    fprintf(fileObj->handle, "%s", content);
+    return NULL_VAL;
+}
+
+Value file_readLine(VM* vm, int argCount, Value* args){
+    GET_FILE(args[-1]);
+    size_t capacity = 128;
+    size_t length = 0;
+    char* buffer = (char*)reallocate(vm, NULL, 0, capacity);
+    int c;
+    while(true){
+        c = fgetc(fileObj->handle);
+        if(c == EOF || c == '\n'){
+            break;
+        }
+        if(c == '\r')   continue;
+
+        if(length + 1 >= capacity){
+            size_t old = capacity;
+            capacity *= 2;
+            buffer = (char*)reallocate(vm, buffer, old, capacity);
+        }
+        buffer[length++] = (char)c;
+    }
+
+    if(length == 0 && c == EOF){
+        reallocate(vm, buffer, capacity, 0);
+        return NULL_VAL;
+    }
+
+    ObjectString* lineStr = copyString(vm, buffer, (int)length);
+    reallocate(vm, buffer, capacity, 0);
+    return OBJECT_VAL(lineStr);
+}
+
+static Value fs_open(VM* vm, int argCount, Value* args){
+    if(argCount < 1 || !IS_STRING(args[0])){
+        fprintf(stderr, "fs.open expects a file path string as the first argument.\n");
+        return NULL_VAL;
+    }
+
+    char* path = AS_CSTRING(args[0]);
+    char* mode = "r";
+    if(argCount > 1 && IS_STRING(args[1])){
+        mode = AS_CSTRING(args[1]);
+    }
+
+    FILE* file = fopen(path, mode);
+    if(!file){
+        fprintf(stderr, "Could not open file %s with mode %s\n", path, mode);
+        return NULL_VAL;
+    }
+    return OBJECT_VAL(newFile(vm, file));
+}
+
 
 static Value fs_readFile(VM* vm, int argCount, Value* args){
     if(argCount != 1 || !IS_STRING(args[0])){
@@ -104,7 +207,7 @@ static Value fs_appendFile(VM* vm, int argCount, Value* args){
         return NULL_VAL;
     }
 
-    char* path = AS_STRING(args[0]);
+    char* path = AS_CSTRING(args[0]);
     char* content = AS_CSTRING(args[1]);
 
     FILE* file = fopen(path, "ab");
@@ -222,6 +325,8 @@ void registerFsModule(VM* vm){
     defineCFunc(vm, &module->members, "list", fs_listDir);
     defineCFunc(vm, &module->members, "rlines", fs_readLines);
     defineCFunc(vm, &module->members, "append", fs_appendFile);
+
+    defineCFunc(vm, &module->members, "open", fs_open);
 
     tableSet(vm, &vm->modules, moduleName, OBJECT_VAL(module));
     pop(vm);

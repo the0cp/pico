@@ -243,6 +243,18 @@ ObjectBoundMethod* newBoundMethod(VM* vm, Value receiver, Object* method){
     return bound;
 }
 
+ObjectFile* newFile(VM* vm, FILE* file){
+    ObjectFile* fileObj = (ObjectFile*)reallocate(vm, NULL, 0, sizeof(ObjectFile));
+    fileObj->obj.type = OBJECT_FILE;
+    fileObj->obj.isMarked = false;
+    fileObj->handle = file;
+    fileObj->isOpen = true;
+    
+    fileObj->obj.next = vm->objects;
+    vm->objects = (Object*)fileObj;
+    return fileObj;
+}
+
 void freeObject(VM* vm, Object* object){
     switch(object->type){
         case OBJECT_STRING:{
@@ -297,6 +309,14 @@ void freeObject(VM* vm, Object* object){
         }
         case OBJECT_BOUND_METHOD:{
             reallocate(vm, object, sizeof(ObjectBoundMethod), 0);
+            break;
+        }
+        case OBJECT_FILE:{
+            ObjectFile* fileObj = (ObjectFile*)object;
+            if(fileObj->isOpen && fileObj->handle != NULL){
+                fclose(fileObj->handle);
+            }
+            reallocate(vm, object, sizeof(ObjectFile), 0);
             break;
         }
     }
@@ -362,6 +382,9 @@ void printObject(Value value){
             }else{
                 printf("<bound native method>");
             }
+            break;
+        case OBJECT_FILE:
+            printf("<file '%s'>", AS_FILE(value)->isOpen ? "open" : "closed");
             break;
     }
 }

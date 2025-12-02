@@ -11,6 +11,7 @@
 #include "file.h"
 #include "list.h"
 #include "modules/modules.h"
+#include "modules/fs.h"
 
 #ifdef DEBUG_TRACE
 #include "debug.h"
@@ -177,6 +178,32 @@ static bool bindListFunc(VM* vm, Value receiver, ObjectString* name){
         case 4:
             if(memcmp(name->chars, "push", 4) == 0) func = list_push;
             else if(memcmp(name->chars, "size", 4) == 0) func = list_size;
+            break;
+    }
+
+    if(func){
+        ObjectCFunc* cfuncObj = newCFunc(vm, func);
+        ObjectBoundMethod* bound = newBoundMethod(vm, receiver, (Object*)cfuncObj);
+        pop(vm);    // pop receiver
+        push(vm, OBJECT_VAL(bound));
+        return true;
+    }
+
+    return false;
+}
+
+static bool bindFileFunc(VM* vm, Value receiver, ObjectString* name){
+    CFunc func = NULL;
+    switch(name->length){
+        case 4:
+            if(memcmp(name->chars, "read", 4) == 0)    func = file_read;
+            break;
+        case 5:
+            if(memcmp(name->chars, "close", 5) == 0)   func = file_close;
+            else if(memcmp(name->chars, "write", 5) == 0)   func = file_write;
+            break;
+        case 8:
+            if(memcmp(name->chars, "readLine", 8) == 0)    func = file_readLine;
             break;
     }
 
@@ -760,6 +787,14 @@ static InterpreterStatus run(VM* vm){
             return VM_RUNTIME_ERROR;
         }
 
+        if(IS_FILE(receiver)){
+            if(bindFileFunc(vm, receiver, name)){
+                DISPATCH();
+            }
+            runtimeError(vm, "Undefined property '%s' on file.", name->chars);
+            return VM_RUNTIME_ERROR;
+        }
+
         if(IS_INSTANCE(receiver)){
             ObjectInstance* instance = AS_INSTANCE(receiver);
 
@@ -795,6 +830,7 @@ static InterpreterStatus run(VM* vm){
             
             pop(vm);
             push(vm, value);
+            DISPATCH();
         }
 
         return VM_RUNTIME_ERROR;
@@ -820,6 +856,14 @@ static InterpreterStatus run(VM* vm){
             return VM_RUNTIME_ERROR;
         }
 
+        if(IS_FILE(receiver)){
+            if(bindFileFunc(vm, receiver, name)){
+                DISPATCH();
+            }
+            runtimeError(vm, "Undefined property '%s' on file.", name->chars);
+            return VM_RUNTIME_ERROR;
+        }
+
         if(IS_INSTANCE(receiver)){
             ObjectInstance* instance = AS_INSTANCE(receiver);
             Value value;
@@ -853,6 +897,8 @@ static InterpreterStatus run(VM* vm){
             
             pop(vm);
             push(vm, value);
+
+            DISPATCH();
         }
 
         return VM_RUNTIME_ERROR;
