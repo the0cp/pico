@@ -85,6 +85,39 @@ static Value path_join(VM* vm, int argCount, Value* args){
     return OBJECT_VAL(result);
 }
 
+static Value path_base(VM* vm, int argCount, Value* args){
+    if(argCount != 1 || !IS_STRING(args[0])){
+        fprintf(stderr, "path.base expects a single string argument.\n");
+        return NULL_VAL;
+    }
+
+    ObjectString* pathStr = AS_STRING(args[0]);
+    
+    if(pathStr->length == 0){
+        return OBJECT_VAL(copyString(vm, "", 0));
+    }
+
+    int end = (int)pathStr->length - 1;
+
+    while(end >= 0 && isSep(pathStr->chars[end])){
+        end--;
+    }
+
+    int endPos = end + 1;
+
+    while(end >= 0){
+        if(isSep(pathStr->chars[end])){
+            break;
+        }
+        end--;
+    }
+
+    int startPos = end + 1;
+    int len = endPos - startPos;
+
+    return OBJECT_VAL(copyString(vm, pathStr->chars + startPos, len));
+}
+
 void registerPathModule(VM* vm){
     
 }
