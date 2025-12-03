@@ -515,7 +515,7 @@ static InterpreterStatus run(VM* vm){
             bool hasSepA = (aStr->length > 0 && aStr->chars[aStr->length - 1] == sep);
             bool hasSepB = (bStr->length > 0 && bStr->chars[0] == sep);
 
-            size_t len = aStr->length + bStr->length + (hasSepA ? -1 : 0) + (hasSepB ? -1 : 0) + 1; 
+            size_t len = aStr->length + bStr->length - hasSepA - hasSepB + 1; 
             // add 1 for sep; it is the length of valid chars
             
             char* chars = (char*)reallocate(vm, NULL, 0, len + 1);  // add 1 for '\0'
@@ -530,7 +530,7 @@ static InterpreterStatus run(VM* vm){
                 chars[aStr->length] = sep;
                 memcpy(chars + aStr->length + 1, bStr->chars, bStr->length);
             }else if(hasSepA && hasSepB){
-                memcpy(chars + aStr->length - 1, bStr->chars + 1, bStr->length - 1);
+                memcpy(chars + aStr->length, bStr->chars + 1, bStr->length - 1);
             }else{
                 memcpy(chars + aStr->length, bStr->chars, bStr->length);
             }

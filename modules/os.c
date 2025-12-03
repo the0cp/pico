@@ -13,11 +13,11 @@
 #include "os.h"
 
 #ifdef _WIN32
-#define popen _popen
-#define pclose _pclose
-#define WEXITSTATUS(code) (code)
+    #define popen _popen
+    #define pclose _pclose
+    #define WEXITSTATUS(code) (code)
 #else
-#include <sys/wait.h>
+    #include <sys/wait.h>
 #endif
 
 static Value os_exec(VM* vm, int argCount, Value* args){
