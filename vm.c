@@ -488,19 +488,63 @@ static InterpreterStatus run(VM* vm){
     {
         if(vm->stackTop - vm->stack < 2){
             runtimeError(vm, "Stack underflow");
-            return VM_RUNTIME_ERROR; \
-        }
-        if(!IS_NUM(peek(vm, 0)) || !IS_NUM(peek(vm, 1))){ 
-            runtimeError(vm, "Operand must be a number.");
             return VM_RUNTIME_ERROR;
         }
 
-        double b = AS_NUM(pop(vm));
-        if(b == 0){
-            runtimeError(vm, "Runtime error: Division by zero");
+        Value bVal = peek(vm, 0);
+        Value aVal = peek(vm, 1);
+
+        if(IS_NUM(aVal) && IS_NUM(bVal)){ 
+            double b = AS_NUM(pop(vm));
+            double a = AS_NUM(pop(vm));
+            if(b == 0){
+                runtimeError(vm, "Runtime error: Division by zero");
+                return VM_RUNTIME_ERROR;
+            }
+            push(vm, NUM_VAL(a / b));
+        }else if(IS_STRING(aVal) && IS_STRING(bVal)){
+            ObjectString* bStr = AS_STRING(pop(vm));
+            ObjectString* aStr = AS_STRING(pop(vm));
+
+            #ifdef _WIN32
+                char sep = '\\';
+            #else
+                char sep = '/';
+            #endif
+
+            bool hasSepA = (aStr->length > 0 && aStr->chars[aStr->length - 1] == sep);
+            bool hasSepB = (bStr->length > 0 && bStr->chars[0] == sep);
+
+            size_t len = aStr->length + bStr->length + (hasSepA ? -1 : 0) + (hasSepB ? -1 : 0) + 1; 
+            // add 1 for sep; it is the length of valid chars
+            
+            char* chars = (char*)reallocate(vm, NULL, 0, len + 1);  // add 1 for '\0'
+            if(chars == NULL){
+                runtimeError(vm, "Memory allocation failed for path join.");
+                return VM_RUNTIME_ERROR;
+            }
+
+            memcpy(chars, aStr->chars, aStr->length);
+
+            if(!hasSepA && !hasSepB){
+                chars[aStr->length] = sep;
+                memcpy(chars + aStr->length + 1, bStr->chars, bStr->length);
+            }else if(hasSepA && hasSepB){
+                memcpy(chars + aStr->length - 1, bStr->chars + 1, bStr->length - 1);
+            }else{
+                memcpy(chars + aStr->length, bStr->chars, bStr->length);
+            }
+
+            chars[len] = '\0';
+
+            ObjectString* result = copyString(vm, chars, (int)len);
+            reallocate(vm, chars, len + 1, 0);
+            push(vm, OBJECT_VAL(result));
+        }else{
+            runtimeError(vm, "Operands must be numbers or strings.");
             return VM_RUNTIME_ERROR;
         }
-        *(vm->stackTop - 1) = NUM_VAL(AS_NUM(*(vm->stackTop - 1)) / b);
+
     } DISPATCH();
 
     DO_OP_NEGATE:
