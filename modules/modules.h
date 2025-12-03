@@ -5,5 +5,6 @@
 
 void registerFsModule(VM* vm);
 void registerTimeModule(VM* vm);
+void registerOsModule(VM* vm);
 
 #endif // PICO_MODULES_H

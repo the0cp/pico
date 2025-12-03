@@ -271,7 +271,7 @@ static Value fs_listDir(VM* vm, int argCount, Value* args){
     char listPath[2048];
     snprintf(listPath, 2048, "%s\\*.*", path);
     WIN32_FIND_DATA fd;
-    HANDLE hFind = FindFirstFile(searchPath, &fd);
+    HANDLE hFind = FindFirstFile(listPath, &fd);
     if(hFind != INVALID_HANDLE_VALUE){
         do{
             if(strcmp(fd.cFileName, ".") != 0 && strcmp(fd.cFileName, "..") != 0){
