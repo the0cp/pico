@@ -16,7 +16,7 @@
     #define PATH_SEP_STR "\\"
 #else
     #include <unistd.h>
-    #include <limits.h>
+    #include <linux/limits.h>
     #define PATH_SEP '/'
     #define PATH_SEP_STR "/"
 #endif
@@ -118,6 +118,130 @@ static Value path_base(VM* vm, int argCount, Value* args){
     return OBJECT_VAL(copyString(vm, pathStr->chars + startPos, len));
 }
 
-void registerPathModule(VM* vm){
+static Value path_dirname(VM* vm, int argCount, Value* args){
+    if(argCount != 1 || !IS_STRING(args[0])){
+        fprintf(stderr, "path.dir expects a single string argument.\n");
+        return NULL_VAL;
+    }
     
+    ObjectString* pathStr = AS_STRING(args[0]);
+    if(pathStr->length == 0){
+        return OBJECT_VAL(copyString(vm, ".", 1));
+    }
+
+    int index = (int)pathStr->length - 1;
+    while(index >= 0 && isSep(pathStr->chars[index])){
+        index--;
+    }   // strip trailing seps
+
+    while(index >= 0 && !isSep(pathStr->chars[index])){
+        index--;
+    }   // skip basename
+
+    if(index < 0){
+        return OBJECT_VAL(copyString(vm, ".", 1));
+    }   // only basename
+
+    while(index > 0 && isSep(pathStr->chars[index])){
+        index--;
+    }   // trim trailing seps of dir
+
+    int len = index + 1;
+    if(len == 0 && isSep(pathStr->chars[0])){
+        len = 1;
+    }   // root dir
+
+    return OBJECT_VAL(copyString(vm, pathStr->chars, len));
+}
+
+static Value path_ext(VM* vm, int argCount, Value* args){
+    if(argCount != 1 || !IS_STRING(args[0])){
+        fprintf(stderr, "path.ext expects a single string argument.\n");
+        return NULL_VAL;
+    }
+
+    ObjectString* pathStr = AS_STRING(args[0]);
+    int index = (int)pathStr->length - 1;
+
+    while(index >= 0){
+        if(pathStr->chars[index] == '.'){
+            return OBJECT_VAL(copyString(vm, pathStr->chars + index, (int)(pathStr->length - index)));
+        }
+        if(isSep(pathStr->chars[index])){
+            break;
+        }
+        index--;
+    }
+    return OBJECT_VAL(copyString(vm, "", 0));
+}
+
+static Value path_isAbs(VM* vm, int argCount, Value* args){
+    if(argCount != 1 || !IS_STRING(args[0])){
+        fprintf(stderr, "path.isAbs expects a single string argument.\n");
+        return NULL_VAL;
+    }
+
+    ObjectString* pathStr = AS_STRING(args[0]);
+    if(pathStr->length == 0){
+        return BOOL_VAL(false);
+    }
+
+#ifdef _WIN32
+    if(pathStr->length >= 2 && ((pathStr->chars[0] >= 'A' && pathStr->chars[0] <= 'Z') ||
+                               (pathStr->chars[0] >= 'a' && pathStr->chars[0] <= 'z')) &&
+                               pathStr->chars[1] == ':'){
+        return BOOL_VAL(true);
+    }
+#else
+    if(pathStr->chars[0] == '/'){
+        return BOOL_VAL(true);
+    }
+#endif
+    return BOOL_VAL(false);
+}
+
+static Value path_abs(VM* vm, int argCount, Value* args){
+    if(argCount != 1 || !IS_STRING(args[0])){
+        fprintf(stderr, "path.abs expects a single string argument.\n");
+        return NULL_VAL;
+    }
+
+    ObjectString* pathStr = AS_STRING(args[0]);
+    // PATH_MAX 4096 from limits.h
+    
+}
+
+static Value path_sep(VM* vm, int argCount, Value* args){
+    if(argCount != 0){
+        fprintf(stderr, "path.sep expects no arguments.\n");
+        return NULL_VAL;
+    }
+
+    return OBJECT_VAL(copyString(vm, PATH_SEP_STR, 1));
+}
+
+static void defineCFunc(VM* vm, HashTable* table, const char* name, CFunc func){
+    push(vm, OBJECT_VAL(copyString(vm, name, (int)strlen(name))));
+    push(vm, OBJECT_VAL(newCFunc(vm, func)));
+    tableSet(vm, table, AS_STRING(peek(vm, 1)), peek(vm, 0));
+    pop(vm);
+    pop(vm);
+}
+
+void registerPathModule(VM* vm){
+    ObjectString* moduleName = copyString(vm, "path", 4);
+    push(vm, OBJECT_VAL(moduleName));
+    ObjectModule* module = newModule(vm, moduleName);
+    push(vm, OBJECT_VAL(module));
+
+    defineCFunc(vm, &module->members, "join", path_join);
+    defineCFunc(vm, &module->members, "base", path_base);
+    defineCFunc(vm, &module->members, "dirname", path_dirname);
+    defineCFunc(vm, &module->members, "ext", path_ext);
+    defineCFunc(vm, &module->members, "isAbs", path_isAbs);
+    defineCFunc(vm, &module->members, "abs", path_abs);
+    defineCFunc(vm, &module->members, "sep", path_sep);
+    tableSet(vm, &vm->modules, moduleName, OBJECT_VAL(module));
+    pop(vm);
+    pop(vm);
 }

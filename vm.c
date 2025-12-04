@@ -43,6 +43,7 @@ void initVM(VM* vm){
     registerFsModule(vm);
     registerTimeModule(vm);
     registerOsModule(vm);
+    registerPathModule(vm);
 }
 
 void freeVM(VM* vm){

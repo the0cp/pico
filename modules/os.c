@@ -111,7 +111,7 @@ static void defineCFunc(VM* vm, HashTable* table, const char* name, CFunc func){
     pop(vm);
 }
 
-static void registerOsModule(VM* vm){
+void registerOsModule(VM* vm){
     ObjectString* moduleName = copyString(vm, "os", 2);
     push(vm, OBJECT_VAL(moduleName));
 
