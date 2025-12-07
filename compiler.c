@@ -609,6 +609,8 @@ static void stmt(Compiler* compiler){
         switchStmt(compiler);
     else if(match(compiler, TOKEN_CONTINUE))
         continueStmt(compiler);
+    else if(match(compiler, TOKEN_SYSTEM))
+        systemStmt(compiler);
     else if(match(compiler, TOKEN_RETURN))
         returnStmt(compiler);
     else if(match(compiler, TOKEN_LEFT_BRACE)){
@@ -936,6 +938,16 @@ static void switchStmt(Compiler* compiler){
     }
 
     consume(compiler, TOKEN_RIGHT_BRACE, "Expect '}' after switch cases.");
+}
+
+static void systemStmt(Compiler* compiler){
+    Token cmdToken = compiler->parser.pre;
+
+    Value cmdVal = OBJECT_VAL(copyString(compiler->vm, cmdToken.head, cmdToken.len));
+    emitConstant(compiler, cmdVal);
+
+    emitByte(compiler, OP_SYSTEM);
+    emitByte(compiler, OP_POP);  // pop status code
 }
 
 static void returnStmt(Compiler* compiler){

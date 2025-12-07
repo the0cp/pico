@@ -62,6 +62,8 @@ int dasmInstruction(const Chunk* chunk, int offset){
             printf("OP_DUP\n");             return offset + 1;
         case OP_RETURN:
             printf("OP_RETURN\n");          return offset + 1;
+        case OP_SYSTEM:
+            printf("OP_SYSTEM\n");          return offset + 1;
 
         case OP_DEFINE_GLOBAL:
             return dasmGlobal("OP_DEFINE_GLOBAL", chunk, offset);

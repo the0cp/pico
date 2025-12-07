@@ -237,6 +237,7 @@ static InterpreterStatus run(VM* vm){
         [OP_NEGATE]         = &&DO_OP_NEGATE,
 
         [OP_RETURN]         = &&DO_OP_RETURN,
+        [OP_SYSTEM]         = &&DO_OP_SYSTEM,
         [OP_NULL]           = &&DO_OP_NULL,
         [OP_TRUE]           = &&DO_OP_TRUE,
         [OP_FALSE]          = &&DO_OP_FALSE,
@@ -1355,6 +1356,18 @@ static InterpreterStatus run(VM* vm){
 
         list->items[index] = val;
         push(vm, val);
+    } DISPATCH();
+
+    DO_OP_SYSTEM:
+    {
+        if(!IS_STRING(peek(vm, 0))){
+            runtimeError(vm, "Expect a string as system command.");
+            return VM_RUNTIME_ERROR;
+        }
+
+        ObjectString* cmd = AS_STRING(pop(vm));
+        int status = system(cmd->chars);
+        push(vm, NUM_VAL((double)status));
     } DISPATCH();
 
     DO_OP_RETURN:

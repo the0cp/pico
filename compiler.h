@@ -120,6 +120,7 @@ static void forStmt(Compiler* compiler);
 static void breakStmt(Compiler* compiler);
 static void continueStmt(Compiler* compiler);
 static void switchStmt(Compiler* compiler);
+static void systemStmt(Compiler* compiler);
 static void returnStmt(Compiler* compiler);
 
 #endif // PICO_COMPILER_H
