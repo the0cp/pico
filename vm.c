@@ -44,6 +44,7 @@ void initVM(VM* vm){
     registerTimeModule(vm);
     registerOsModule(vm);
     registerPathModule(vm);
+    registerGlobModule(vm);
 }
 
 void freeVM(VM* vm){

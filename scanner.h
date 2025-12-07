@@ -33,6 +33,7 @@ typedef enum{
     TOKEN_COMMA, TOKEN_SEMICOLON, TOKEN_DOT,
     TOKEN_PRINT,
     TOKEN_IMPORT,
+    TOKEN_SYSTEM,
 }TokenType;
 
 typedef struct{
@@ -53,6 +54,7 @@ typedef struct{
 void initScanner(const char* code);
 static Token scanDefault();
 static Token scanString();
+static Token scanSystem();
 Token scan();
 
 static inline void pushMode(ScannerMode mode);

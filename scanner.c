@@ -234,6 +234,9 @@ static Token scanDefault(){
         case '"':
             pushMode(MODE_IN_STRING);
             return pack(TOKEN_STRING_START, sc.head, 1, sc.line);
+        case '$':
+            if(is_next('>'))    return scanSystem();
+            return error("Unexpected character after '$'.", sc.line);
     }
     return error("Unrecognized character", sc.line);
 }
@@ -269,6 +272,20 @@ static Token scanString(){
 
     popMode();
     return error("Unterminated string literal", sc.line);
+}
+
+static Token scanSystem(){
+    while(*sc.cur == ' ' || *sc.cur == '\t'){
+        sc.cur++;
+    }
+
+    const char* cmdSt = sc.cur;
+
+    while(*sc.cur != '\n' && *sc.cur != '\0'){
+        sc.cur++;
+    }
+
+    return pack(TOKEN_SYSTEM, cmdSt, (int)(sc.cur - cmdSt), sc.line);
 }
 
 static Token scanComment(){
