@@ -1,6 +1,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+
+#ifdef _WIN32
+#include <direct.h> // for _mkdir
+#endif
 
 #include "common.h"
 #include "mem.h"
@@ -303,6 +309,45 @@ static Value fs_listDir(VM* vm, int argCount, Value* args){
     return OBJECT_VAL(list);
 }
 
+static Value fs_mkdir(VM* vm, int argCount, Value* args){
+    if(argCount != 1 || !IS_STRING(args[0])){
+        fprintf(stderr, "fs.mkdir expects a single string argument.\n");
+        return NULL_VAL;
+    }
+
+    char* path = AS_CSTRING(args[0]);
+    int result;
+
+    #ifdef _WIN32
+    result = _mkdir(path);
+    #else
+    // POSIX mkdir with 0755 permission
+    result = mkdir(path, 0755);
+    #endif
+
+    return BOOL_VAL(result == 0);
+}
+
+static Value fs_isDir(VM* vm, int argCount, Value* args){
+    if(argCount != 1 || !IS_STRING(args[0])){
+        fprintf(stderr, "fs.isdir expects a single string argument.\n");
+        return NULL_VAL;
+    }
+
+    char* path = AS_CSTRING(args[0]);
+    struct stat statbuf;
+
+    if(stat(path, &statbuf) != 0){
+        return BOOL_VAL(false);
+    }
+
+    if(S_ISDIR(statbuf.st_mode)){
+        return BOOL_VAL(true);
+    }
+
+    return BOOL_VAL(false);
+}
+
 static void defineCFunc(VM* vm, HashTable* table, const char* name, CFunc func){
     push(vm, OBJECT_VAL(copyString(vm, name, (int)strlen(name))));
     push(vm, OBJECT_VAL(newCFunc(vm, func)));
@@ -325,8 +370,9 @@ void registerFsModule(VM* vm){
     defineCFunc(vm, &module->members, "list", fs_listDir);
     defineCFunc(vm, &module->members, "rlines", fs_readLines);
     defineCFunc(vm, &module->members, "append", fs_appendFile);
-
     defineCFunc(vm, &module->members, "open", fs_open);
+    defineCFunc(vm, &module->members, "mkdir", fs_mkdir);
+    defineCFunc(vm, &module->members, "isDir", fs_isDir);
 
     tableSet(vm, &vm->modules, moduleName, OBJECT_VAL(module));
     pop(vm);

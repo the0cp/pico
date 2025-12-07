@@ -94,6 +94,22 @@ static Value os_system(VM* vm, int argCount, Value* args){
 #endif
 }
 
+static Value os_getenv(VM* vm, int argCount, Value* args){
+    if(argCount != 1 || !IS_STRING(args[0])){
+        fprintf(stderr, "os.getenv expects a single string argument.\n");
+        return NULL_VAL;
+    }
+
+    char* varName = AS_CSTRING(args[0]);
+    char* value = getenv(varName);
+
+    if(value == NULL){
+        return NULL_VAL;
+    }
+
+    return OBJECT_VAL(copyString(vm, value, (int)strlen(value)));
+}
+
 static Value os_exit(VM* vm, int argCount, Value* args){
     int exitCode = 0;
     if(argCount > 0 && IS_NUM(args[0])){
@@ -120,6 +136,7 @@ void registerOsModule(VM* vm){
 
     defineCFunc(vm, &module->members, "exec", os_exec);
     defineCFunc(vm, &module->members, "run", os_system);
+    defineCFunc(vm, &module->members, "getenv", os_getenv);
     defineCFunc(vm, &module->members, "exit", os_exit);
 
     tableSet(vm, &vm->modules, moduleName, OBJECT_VAL(module));
