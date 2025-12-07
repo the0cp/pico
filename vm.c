@@ -508,39 +508,88 @@ static InterpreterStatus run(VM* vm){
             ObjectString* aStr = AS_STRING(pop(vm));
 
             #ifdef _WIN32
-                char sep = '\\';
+                #define PATH_SEP '\\'
+                #define IS_SEP(c) ((c) == '\\' || (c) == '/')
             #else
-                char sep = '/';
+                #define PATH_SEP '/'
+                #define IS_SEP(c) ((c) == '/')
             #endif
 
-            bool hasSepA = (aStr->length > 0 && aStr->chars[aStr->length - 1] == sep);
-            bool hasSepB = (bStr->length > 0 && bStr->chars[0] == sep);
-
-            size_t len = aStr->length + bStr->length - hasSepA - hasSepB + 1; 
-            // add 1 for sep; it is the length of valid chars
-            
-            char* chars = (char*)reallocate(vm, NULL, 0, len + 1);  // add 1 for '\0'
-            if(chars == NULL){
-                runtimeError(vm, "Memory allocation failed for path join.");
-                return VM_RUNTIME_ERROR;
+            ObjectString* checkList[2] = {aStr, bStr};
+            for(int j = 0; j < 2; j++){
+                ObjectString* str = checkList[j];
+                for(int i = 0; i < str->length; i++){
+                    char c = str->chars[i];
+                    bool invalid = false;
+                    if(c < 32) invalid = true;
+                    switch(c){
+                        case '<': case '>': case '*': case '"': 
+                        case '|': case '?': invalid = true; break;
+                        case ':': 
+                            #ifdef _WIN32
+                            if (!(i == 1 && ((str->chars[0] >= 'a' && str->chars[0] <= 'z') || 
+                                             (str->chars[0] >= 'A' && str->chars[0] <= 'Z')))) {
+                                invalid = true;
+                            }
+                            #else
+                            #endif
+                            break;
+                    }
+                    if(invalid){
+                        runtimeError(vm, "Path contains invalid characters.");
+                        return VM_RUNTIME_ERROR;
+                    }
+                }
             }
 
-            memcpy(chars, aStr->chars, aStr->length);
+            bool resetPath = false;
+            #ifdef _WIN32
+                if(bStr->length >= 2 && bStr->chars[1] == ':' && 
+                   ((bStr->chars[0] >= 'a' && bStr->chars[0] <= 'z') || 
+                    (bStr->chars[0] >= 'A' && bStr->chars[0] <= 'Z')
+                )){
+                    resetPath = true;
+                }
+                if(bStr->length > 0 && IS_SEP(bStr->chars[0])) resetPath = true; 
+            #else
+            #endif
 
-            if(!hasSepA && !hasSepB){
-                chars[aStr->length] = sep;
-                memcpy(chars + aStr->length + 1, bStr->chars, bStr->length);
-            }else if(hasSepA && hasSepB){
-                memcpy(chars + aStr->length, bStr->chars + 1, bStr->length - 1);
+            if(resetPath || aStr->length == 0){
+                push(vm, OBJECT_VAL(bStr));
+            }else if(bStr->length == 0){
+                push(vm, OBJECT_VAL(aStr));
             }else{
-                memcpy(chars + aStr->length, bStr->chars, bStr->length);
+                bool hasSepA = (aStr->length > 0 && IS_SEP(aStr->chars[aStr->length - 1]));
+                bool hasSepB = (bStr->length > 0 && IS_SEP(bStr->chars[0]));
+
+                size_t len = aStr->length + bStr->length - hasSepA - hasSepB + 1; 
+                // add 1 for sep; it is the length of valid chars
+                
+                char* chars = (char*)reallocate(vm, NULL, 0, len + 1);  // add 1 for '\0'
+                if(chars == NULL){
+                    runtimeError(vm, "Memory allocation failed for path join.");
+                    return VM_RUNTIME_ERROR;
+                }
+
+                memcpy(chars, aStr->chars, aStr->length);
+
+                if(!hasSepA && !hasSepB){
+                    chars[aStr->length] = PATH_SEP;
+                    memcpy(chars + aStr->length + 1, bStr->chars, bStr->length);
+                }else if(hasSepA && hasSepB){
+                    memcpy(chars + aStr->length, bStr->chars + 1, bStr->length - 1);
+                }else{
+                    memcpy(chars + aStr->length, bStr->chars, bStr->length);
+                }
+
+                chars[len] = '\0';
+
+                ObjectString* result = copyString(vm, chars, (int)len);
+                reallocate(vm, chars, len + 1, 0);
+                push(vm, OBJECT_VAL(result));
             }
-
-            chars[len] = '\0';
-
-            ObjectString* result = copyString(vm, chars, (int)len);
-            reallocate(vm, chars, len + 1, 0);
-            push(vm, OBJECT_VAL(result));
+            #undef PATH_SEP
+            #undef IS_SEP
         }else{
             runtimeError(vm, "Operands must be numbers or strings.");
             return VM_RUNTIME_ERROR;

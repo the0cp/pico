@@ -30,14 +30,49 @@ static bool isSep(char c){
 #endif
 }
 
+static bool isValid(ObjectString* str){
+    if(str->length == 0) return false;
+
+    for(int i = 0; i < str->length; i++){
+        char c = str->chars[i];
+        if(c < 32)  return false;
+        switch(c){
+            case '<':   case '>':   case '*':
+            case '"':   case '|':   case '?':   
+                return false;
+            case ':':
+            #ifdef _WIN32
+                if(i == 1 && (
+                    str->chars[0] >= 'A' && str->chars[0] <= 'Z' ||
+                    str->chars[0] >= 'a' && str->chars[0] <= 'z'
+                )){
+                    continue;
+                }
+                return false;
+            #else
+                return false;
+            #endif
+        }
+    }
+
+    return true;
+}
+
+static bool hasDriveLetter(ObjectString* str){
+#ifdef _WIN32
+    if(str->length >= 2 && str->chars[1] == ':' && (
+        (str->chars[0] >= 'A' && str->chars[0] <= 'Z') ||
+        (str->chars[0] >= 'a' && str->chars[0] <= 'z')
+    )){
+        return true;
+    }
+#endif
+    return false;
+}
+
 static Value path_join(VM* vm, int argCount, Value* args){
     if(argCount < 1){
         fprintf(stderr, "path.join expects at least one argument.\n");
-        return NULL_VAL;
-    }
-
-    if(!IS_STRING(args[0])){
-        fprintf(stderr, "path.join expects string arguments.\n");
         return NULL_VAL;
     }
 
@@ -50,6 +85,16 @@ static Value path_join(VM* vm, int argCount, Value* args){
         }
 
         ObjectString* next = AS_STRING(args[i]);
+
+        if(!isValid(next)){
+            continue;
+        }
+
+        if(result == NULL || result->length == 0 || hasDriveLetter(next)){
+            result = next;
+            continue;
+        }
+
         push(vm, OBJECT_VAL(result));
 
         bool hasSepCur = (result->length > 0 && isSep(result->chars[result->length - 1]));
@@ -92,9 +137,10 @@ static Value path_base(VM* vm, int argCount, Value* args){
     }
 
     ObjectString* pathStr = AS_STRING(args[0]);
-    
-    if(pathStr->length == 0){
-        return OBJECT_VAL(copyString(vm, "", 0));
+
+    if(!isValid(pathStr)){
+        fprintf(stderr, "path.base received an invalid path string.\n");
+        return NULL_VAL;
     }
 
     int end = (int)pathStr->length - 1;
@@ -125,8 +171,10 @@ static Value path_dirname(VM* vm, int argCount, Value* args){
     }
     
     ObjectString* pathStr = AS_STRING(args[0]);
-    if(pathStr->length == 0){
-        return OBJECT_VAL(copyString(vm, ".", 1));
+    
+    if(!isValid(pathStr)){
+        fprintf(stderr, "path.dir received an invalid path string.\n");
+        return NULL_VAL;
     }
 
     int index = (int)pathStr->length - 1;
@@ -161,6 +209,12 @@ static Value path_ext(VM* vm, int argCount, Value* args){
     }
 
     ObjectString* pathStr = AS_STRING(args[0]);
+
+    if(!isValid(pathStr)){
+        fprintf(stderr, "path.ext received an invalid path string.\n");
+        return NULL_VAL;
+    }
+
     int index = (int)pathStr->length - 1;
 
     while(index >= 0){
@@ -182,8 +236,10 @@ static Value path_isAbs(VM* vm, int argCount, Value* args){
     }
 
     ObjectString* pathStr = AS_STRING(args[0]);
-    if(pathStr->length == 0){
-        return BOOL_VAL(false);
+    
+    if(!isValid(pathStr)){
+        fprintf(stderr, "path.isAbs received an invalid path string.\n");
+        return NULL_VAL;
     }
 
 #ifdef _WIN32
@@ -208,7 +264,36 @@ static Value path_abs(VM* vm, int argCount, Value* args){
 
     ObjectString* pathStr = AS_STRING(args[0]);
     // PATH_MAX 4096 from limits.h
-    
+
+    if(!isValid(pathStr)){
+        fprintf(stderr, "path.abs received an invalid path string.\n");
+        return NULL_VAL;
+    }
+
+    Value isAbs = path_isAbs(vm, 1, args);
+    if(AS_BOOL(isAbs)){
+        return args[0];
+    }
+
+    char cwd[PATH_MAX];
+    if(getcwd(cwd, sizeof(cwd)) == NULL){
+        fprintf(stderr, "Failed to get current working directory.\n");
+        return NULL_VAL;
+    }
+
+    size_t cwdLen = strlen(cwd);
+    size_t pathLen = pathStr->length;
+    size_t totalLen = cwdLen + 1 + pathLen; // +1 for sep
+
+    char* absPath = (char*)reallocate(vm, NULL, 0, totalLen + 1); // +1 for '\0'
+    memcpy(absPath, cwd, cwdLen);
+    absPath[cwdLen] = PATH_SEP;
+    memcpy(absPath + cwdLen + 1, pathStr->chars, pathLen);
+    absPath[totalLen] = '\0';
+
+    ObjectString* result = copyString(vm, absPath, (int)totalLen);
+    reallocate(vm, absPath, totalLen + 1, 0);
+    return OBJECT_VAL(result);
 }
 
 static Value path_sep(VM* vm, int argCount, Value* args){
