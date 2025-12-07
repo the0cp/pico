@@ -14,15 +14,17 @@ include_directories(${CMAKE_SOURCE_DIR})
 file(GLOB SOURCE_DIR "*.c")
 file(GLOB MODULE_SOURCES "modules/*.c")
 
+add_library(linenoise_lib STATIC vendor/linenoise/linenoise.c)
+target_include_directories(linenoise_lib PUBLIC vendor/linenoise)
+
 add_library(xxhash_lib STATIC vendor/xxhash/xxhash.c)
+target_include_directories(xxhash_lib PUBLIC vendor/xxhash)
 
 add_compile_options(-g)
 
-target_include_directories(xxhash_lib PUBLIC vendor/xxhash)
-
 add_executable(pico ${SOURCE_DIR} ${MODULE_SOURCES})
 
-target_link_libraries(pico PRIVATE xxhash_lib)
+target_link_libraries(pico PRIVATE xxhash_lib linenoise_lib)
 
 target_compile_features(pico PRIVATE c_std_11)
 target_compile_options(pico PRIVATE

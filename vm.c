@@ -764,7 +764,7 @@ static InterpreterStatus run(VM* vm){
             DISPATCH(); // next dispatch
         }
 
-        char* source = read(path->chars);
+        char* source = readScript(path->chars);
         if(source == NULL){
             pop(vm);
             runtimeError(vm, "Could not read import file '%s'.", path->chars);
@@ -829,7 +829,7 @@ static InterpreterStatus run(VM* vm){
             DISPATCH(); // next dispatch
         }
 
-        char* source = read(path->chars);
+        char* source = readScript(path->chars);
         if(source == NULL){
             pop(vm);
             runtimeError(vm, "Could not read import file '%s'.", path->chars);

@@ -7,7 +7,7 @@
 
 #include "vm.h"
 
-char* read(const char* path);
+char* readScript(const char* path);
 void runScript(VM* vm, const char* path);
 void buildScript(VM* vm, const char* path);
 

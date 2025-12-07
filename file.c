@@ -11,7 +11,7 @@ static bool endsWith(const char* str, const char* suffix){
     return strncmp(str+str_len-suffix_len, suffix, suffix_len) == 0;
 }
 
-char* read(const char* path){
+char* readScript(const char* path){
     FILE* file = fopen(path, "rb");
     if(!file){
         fprintf(stderr, "Could not open file %s\n", path);
@@ -33,7 +33,7 @@ char* read(const char* path){
 }
 
 void runScript(VM* vm, const char* path) {
-    char* content = read(path);
+    char* content = readScript(path);
     InterpreterStatus status = interpret(vm, content, path);
     free(content);
 
@@ -42,7 +42,7 @@ void runScript(VM* vm, const char* path) {
 }
 
 void buildScript(VM* vm, const char* path){
-    char* source = read(path);
+    char* source = readScript(path);
 
     Chunk chunk;
     initChunk(&chunk);
