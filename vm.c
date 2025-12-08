@@ -631,7 +631,7 @@ static InterpreterStatus run(VM* vm){
     DO_OP_DEFINE_GLOBAL:
     {
         ObjectString* name = AS_STRING(frame->closure->func->chunk.constants.values[READ_BYTE()]);
-        tableSet(vm, vm->curGlobal, name, peek(vm, 0));
+        tableSet(vm, vm->curGlobal, OBJECT_VAL(name), peek(vm, 0));
         pop(vm);
     } DISPATCH();
 
@@ -641,7 +641,7 @@ static InterpreterStatus run(VM* vm){
                          
         frame->ip += 2;
         ObjectString* name = AS_STRING(frame->closure->func->chunk.constants.values[index]);
-        tableSet(vm, vm->curGlobal, name, peek(vm, 0));
+        tableSet(vm, vm->curGlobal, OBJECT_VAL(name), peek(vm, 0));
         pop(vm);
     } DISPATCH();
 
@@ -649,7 +649,7 @@ static InterpreterStatus run(VM* vm){
     {
         ObjectString* name = AS_STRING(frame->closure->func->chunk.constants.values[READ_BYTE()]);
         Value value;
-        if (!tableGet(vm->curGlobal, name, &value)) {
+        if (!tableGet(vm->curGlobal, OBJECT_VAL(name), &value)) {
             runtimeError(vm, "Undefined variable '%.*s'.", name->length, name->chars);
             return VM_RUNTIME_ERROR;
         }
@@ -662,7 +662,7 @@ static InterpreterStatus run(VM* vm){
         frame->ip += 2;
         ObjectString* name = AS_STRING(frame->closure->func->chunk.constants.values[index]);
         Value value;
-        if(!tableGet(vm->curGlobal, name, &value)){
+        if(!tableGet(vm->curGlobal, OBJECT_VAL(name), &value)){
             runtimeError(vm, "Undefined variable '%.*s'.", name->length, name->chars);
             return VM_RUNTIME_ERROR;
         }
@@ -672,9 +672,9 @@ static InterpreterStatus run(VM* vm){
     DO_OP_SET_GLOBAL:
     {
         ObjectString* name = AS_STRING(frame->closure->func->chunk.constants.values[READ_BYTE()]);
-        if(tableSet(vm, vm->curGlobal, name, peek(vm, 0))){
+        if(tableSet(vm, vm->curGlobal, OBJECT_VAL(name), peek(vm, 0))){
             // empty bucket, undefined
-            tableRemove(vm, &vm->globals, name);
+            tableRemove(vm, &vm->globals, OBJECT_VAL(name));
             runtimeError(vm, "Undefined variable '%.*s'.", name->length, name->chars);
             return VM_RUNTIME_ERROR;
         }
@@ -685,8 +685,8 @@ static InterpreterStatus run(VM* vm){
         uint16_t index = (uint16_t)(frame->ip[0] << 8) | frame->ip[1];
         frame->ip += 2;
         ObjectString* name = AS_STRING(frame->closure->func->chunk.constants.values[index]);
-        if(tableSet(vm, vm->curGlobal, name, peek(vm, 0))){
-            tableRemove(vm, &vm->globals, name);
+        if(tableSet(vm, vm->curGlobal, OBJECT_VAL(name), peek(vm, 0))){
+            tableRemove(vm, &vm->globals, OBJECT_VAL(name));
             runtimeError(vm, "Undefined variable '%.*s'.", name->length, name->chars);
             return VM_RUNTIME_ERROR;
         }
@@ -758,7 +758,7 @@ static InterpreterStatus run(VM* vm){
         push(vm, OBJECT_VAL(path));
 
         Value modVal;
-        if(tableGet(&vm->modules, path, &modVal)){
+        if(tableGet(&vm->modules, OBJECT_VAL(path), &modVal)){
             pop(vm);
             push(vm, modVal);
             DISPATCH(); // next dispatch
@@ -799,7 +799,7 @@ static InterpreterStatus run(VM* vm){
             return VM_RUNTIME_ERROR;
         }
         push(vm, OBJECT_VAL(module));
-        tableSet(vm, &vm->modules, path, OBJECT_VAL(module));
+        tableSet(vm, &vm->modules, OBJECT_VAL(path), OBJECT_VAL(module));
 
         pushGlobal(vm, &module->members);
         
@@ -823,7 +823,7 @@ static InterpreterStatus run(VM* vm){
         push(vm, OBJECT_VAL(path));
 
         Value modVal;
-        if(tableGet(&vm->modules, path, &modVal)){
+        if(tableGet(&vm->modules, OBJECT_VAL(path), &modVal)){
             pop(vm);
             push(vm, modVal);
             DISPATCH(); // next dispatch
@@ -852,7 +852,7 @@ static InterpreterStatus run(VM* vm){
 
         ObjectModule* module = newModule(vm, path);
         push(vm, OBJECT_VAL(module));
-        tableSet(vm, &vm->modules, path, OBJECT_VAL(module));
+        tableSet(vm, &vm->modules, OBJECT_VAL(path), OBJECT_VAL(module));
         pop(vm);
 
         pushGlobal(vm, &module->members);
@@ -896,7 +896,7 @@ static InterpreterStatus run(VM* vm){
             ObjectInstance* instance = AS_INSTANCE(receiver);
 
             Value value;
-            if(tableGet(&instance->fields, name, &value)){
+            if(tableGet(&instance->fields, OBJECT_VAL(name), &value)){
                 if(!checkAccess(vm, instance->klass, name)){
                     runtimeError(vm, "Cannot access private field '%s' of instance of '%s'.", name->chars, instance->klass->name->chars);
                     return VM_RUNTIME_ERROR;
@@ -906,7 +906,7 @@ static InterpreterStatus run(VM* vm){
                 DISPATCH();
             }
 
-            if(tableGet(&instance->klass->methods, name, &value)){
+            if(tableGet(&instance->klass->methods, OBJECT_VAL(name), &value)){
                 ObjectBoundMethod* bound = newBoundMethod(vm, receiver, (Object*)AS_CLOSURE(value));
                 pop(vm);
                 push(vm, OBJECT_VAL(bound));
@@ -920,7 +920,7 @@ static InterpreterStatus run(VM* vm){
             ObjectModule* module = AS_MODULE(receiver);
 
             Value value;
-            if(!tableGet(&module->members, name, &value)){
+            if(!tableGet(&module->members, OBJECT_VAL(name), &value)){
                 runtimeError(vm, "Undefined property '%s' on module '%s'.", name->chars, module->name->chars);
                 return VM_RUNTIME_ERROR;
             }
@@ -964,7 +964,7 @@ static InterpreterStatus run(VM* vm){
         if(IS_INSTANCE(receiver)){
             ObjectInstance* instance = AS_INSTANCE(receiver);
             Value value;
-            if(tableGet(&instance->fields, name, &value)){
+            if(tableGet(&instance->fields, OBJECT_VAL(name), &value)){
                 if(!checkAccess(vm, instance->klass, name)){
                     runtimeError(vm, "Cannot access private field '%s' of instance of '%s'.", name->chars, instance->klass->name->chars);
                     return VM_RUNTIME_ERROR;
@@ -974,7 +974,7 @@ static InterpreterStatus run(VM* vm){
                 DISPATCH();
             }
 
-            if(tableGet(&instance->klass->methods, name, &value)){
+            if(tableGet(&instance->klass->methods, OBJECT_VAL(name), &value)){
                 ObjectBoundMethod* bound = newBoundMethod(vm, receiver, (Object*)AS_CLOSURE(value));
                 pop(vm);
                 push(vm, OBJECT_VAL(bound));
@@ -987,7 +987,7 @@ static InterpreterStatus run(VM* vm){
         if(IS_MODULE(receiver)){
             ObjectModule* module = AS_MODULE(receiver);
             Value value;
-            if(!tableGet(&module->members, name, &value)){
+            if(!tableGet(&module->members, OBJECT_VAL(name), &value)){
                 runtimeError(vm, "Undefined property '%s' on module '%s'.", name->chars, module->name->chars);
                 return VM_RUNTIME_ERROR;
             }
@@ -1015,7 +1015,7 @@ static InterpreterStatus run(VM* vm){
         if(IS_INSTANCE(receiver)){
             ObjectInstance* instance = AS_INSTANCE(receiver);
             Value dummy;
-            if(!tableGet(&instance->fields, name, &dummy)){
+            if(!tableGet(&instance->fields, OBJECT_VAL(name), &dummy)){
                 runtimeError(vm, "Undefined property '%s' on instance of '%s'.", name->chars, instance->klass->name->chars);
                 return VM_RUNTIME_ERROR;
             }
@@ -1024,7 +1024,7 @@ static InterpreterStatus run(VM* vm){
                 return VM_RUNTIME_ERROR;
             }
             
-            tableSet(vm, &instance->fields, name, peek(vm, 0));
+            tableSet(vm, &instance->fields, OBJECT_VAL(name), peek(vm, 0));
 
             Value value = pop(vm);
             pop(vm);    // pop instance
@@ -1034,7 +1034,7 @@ static InterpreterStatus run(VM* vm){
 
         if(IS_MODULE(receiver)){
             ObjectModule* module = AS_MODULE(receiver);
-            tableSet(vm, &module->members, name, peek(vm, 0));
+            tableSet(vm, &module->members, OBJECT_VAL(name), peek(vm, 0));
 
             Value value = pop(vm);
             pop(vm);    // pop module
@@ -1064,7 +1064,7 @@ static InterpreterStatus run(VM* vm){
         if(IS_INSTANCE(receiver)){
             ObjectInstance* instance = AS_INSTANCE(receiver);
             Value dummy;
-            if(!tableGet(&instance->fields, name, &dummy)){
+            if(!tableGet(&instance->fields, OBJECT_VAL(name), &dummy)){
                 runtimeError(vm, "Undefined property '%s' on instance of '%s'.", name->chars, instance->klass->name->chars);
                 return VM_RUNTIME_ERROR;
             }
@@ -1073,7 +1073,7 @@ static InterpreterStatus run(VM* vm){
                 return VM_RUNTIME_ERROR;
             }
             
-            tableSet(vm, &instance->fields, name, peek(vm, 0));
+            tableSet(vm, &instance->fields, OBJECT_VAL(name), peek(vm, 0));
 
             Value value = pop(vm);
             pop(vm);    // pop instance
@@ -1083,7 +1083,7 @@ static InterpreterStatus run(VM* vm){
 
         if(IS_MODULE(receiver)){
             ObjectModule* module = AS_MODULE(receiver);
-            tableSet(vm, &module->members, name, peek(vm, 0));
+            tableSet(vm, &module->members, OBJECT_VAL(name), peek(vm, 0));
 
             Value value = pop(vm);
             pop(vm);    // pop module
@@ -1209,7 +1209,7 @@ static InterpreterStatus run(VM* vm){
         ObjectClosure* methodClosure = AS_CLOSURE(method);
         methodClosure->func->fieldOwner = klass;
 
-        tableSet(vm, &klass->methods, name, method);
+        tableSet(vm, &klass->methods, OBJECT_VAL(name), method);
         pop(vm);
     } DISPATCH();
 
@@ -1238,7 +1238,7 @@ static InterpreterStatus run(VM* vm){
         ObjectClosure* methodClosure = AS_CLOSURE(method);
         methodClosure->func->fieldOwner = klass;
 
-        tableSet(vm, &klass->methods, name, method);
+        tableSet(vm, &klass->methods, OBJECT_VAL(name), method);
         pop(vm);
     } DISPATCH();
 
@@ -1248,7 +1248,7 @@ static InterpreterStatus run(VM* vm){
         ObjectString* name = AS_STRING(frame->closure->func->chunk.constants.values[index]);
         Value defaultValue = pop(vm);
         ObjectClass* klass = AS_CLASS(peek(vm, 0));
-        tableSet(vm, &klass->fields, name, defaultValue);
+        tableSet(vm, &klass->fields, OBJECT_VAL(name), defaultValue);
     } DISPATCH();
 
     DO_OP_DEFINE_LFIELD:
@@ -1257,7 +1257,7 @@ static InterpreterStatus run(VM* vm){
         ObjectString* name = AS_STRING(frame->closure->func->chunk.constants.values[index]);
         Value defaultValue = pop(vm);
         ObjectClass* klass = AS_CLASS(peek(vm, 0));
-        tableSet(vm, &klass->fields, name, defaultValue);
+        tableSet(vm, &klass->fields, OBJECT_VAL(name), defaultValue);
     } DISPATCH();
 
     DO_OP_BUILD_LIST:
@@ -1356,6 +1356,22 @@ static InterpreterStatus run(VM* vm){
 
         list->items[index] = val;
         push(vm, val);
+    } DISPATCH();
+
+    DO_OP_BUILD_MAP:
+    {
+        uint8_t itemCnt = READ_BYTE();
+        ObjectMap* map = newMap(vm);
+        push(vm, OBJECT_VAL(map));
+
+        Value mapVal = pop(vm);
+        ObjectMap* mapObj =AS_MAP(mapVal);
+
+        for(int i = 0; i < itemCnt; i++){
+            Value val = pop(vm);
+            Value key = pop(vm);
+
+        }
     } DISPATCH();
 
     DO_OP_SYSTEM:

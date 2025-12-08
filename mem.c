@@ -43,6 +43,11 @@ static void traceRef(VM* vm, Object* object){
             }
             break;
         }
+        case OBJECT_MAP:{
+            ObjectMap* map = (ObjectMap*)map;
+            markTable(vm, &map->table);
+            break;
+        }
         case OBJECT_FUNC:{
             ObjectFunc* func = (ObjectFunc*)object;
             markObject(vm, (Object*)func->name);

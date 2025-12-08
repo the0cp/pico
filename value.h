@@ -19,12 +19,14 @@ typedef enum{
     VALUE_UNKNOWN,
 } ValueType;
 
+#define TAG_EMPTY       0
 #define TAG_NULL        1
 #define TAG_FALSE       2
 #define TAG_TRUE        3
 #define QNAN            ((uint64_t)0x7ffc000000000000)
 #define SIGN_BIT        ((uint64_t)0x8000000000000000)
 
+#define IS_EMPTY(value) ((value) == (QNAN | TAG_EMPTY))
 #define IS_NULL(value)  ((value) == (QNAN | TAG_NULL))
 #define IS_BOOL(value)  (((value) & ~1) == (QNAN | TAG_FALSE))
 #define IS_NUM(value)   (((value) & QNAN) != QNAN)
@@ -34,6 +36,7 @@ typedef enum{
 #define AS_BOOL(value)  ((value) == (QNAN | TAG_TRUE))
 #define AS_OBJECT(value)  ((Object*)(value & ~(QNAN | SIGN_BIT)))
 
+#define EMPTY_VAL       ((Value)(uint64_t)(QNAN | TAG_EMPTY))
 #define NUM_VAL(num)    numToValue(num)
 #define NULL_VAL        ((Value)(uint64_t)(QNAN | TAG_NULL))
 #define BOOL_VAL(bool)  ((Value)(uint64_t)(QNAN | (bool ? TAG_TRUE : TAG_FALSE)))

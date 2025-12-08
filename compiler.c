@@ -42,6 +42,7 @@ static void handleCall(Compiler* compiler, bool canAssign);
 static void handleImport(Compiler* compiler, bool canAssign);
 static void handleDot(Compiler* compiler, bool canAssign);
 static void handleList(Compiler* compiler, bool canAssign);
+static void handleMap(Compiler* compiler, bool canAssign);
 static void handleIndex(Compiler* compiler, bool canAssign);
 static void handleThis(Compiler* compiler, bool canAssign);
 
@@ -53,7 +54,7 @@ static int identifierConst(Compiler* compiler);
 ParseRule rules[] = {
     [TOKEN_LEFT_PAREN]              = {handleGrouping,  handleCall,     PREC_CALL},
     [TOKEN_RIGHT_PAREN]             = {NULL,            NULL,           PREC_NONE},
-    [TOKEN_LEFT_BRACE]              = {NULL,            NULL,           PREC_NONE},
+    [TOKEN_LEFT_BRACE]              = {handleMap,       NULL,           PREC_NONE},
     [TOKEN_RIGHT_BRACE]             = {NULL,            NULL,           PREC_NONE},
     [TOKEN_LEFT_BRACKET]            = {handleList,      handleIndex,    PREC_CALL},
     [TOKEN_COMMA]                   = {NULL,            NULL,           PREC_NONE},
@@ -1467,6 +1468,21 @@ static void handleIndex(Compiler* compiler, bool canAssign){
     }else{
         emitByte(compiler, OP_INDEX_GET);
     }
+}
+
+static void handleMap(Compiler* compiler, bool canAssign){
+    uint8_t itemCnt = 0;
+    if(!checkType(compiler, TOKEN_RIGHT_BRACE)){
+        do{
+            if(itemCnt >= 255){
+                errorAt(compiler, &compiler->parser.pre, "Cannot have more than 256 items when init with a map entry.");
+            }
+            expression(compiler);
+            itemCnt++;
+        }while(match(compiler, TOKEN_COMMA));
+    }
+    consume(compiler, TOKEN_RIGHT_BRACE, "Expect '}' after map entries");
+    emitPair(compiler, OP_BUILD_MAP, itemCnt);
 }
 
 static void handleThis(Compiler* compiler, bool canAssign){

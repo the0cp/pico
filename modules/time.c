@@ -117,7 +117,7 @@ static Value time_fmt(VM* vm, int argCount, Value* args){
 static void defineCFunc(VM* vm, HashTable* table, const char* name, CFunc function){
     push(vm, OBJECT_VAL(copyString(vm, name, (int)strlen(name))));
     push(vm, OBJECT_VAL(newCFunc(vm, function)));
-    tableSet(vm, table, AS_STRING(peek(vm, 1)), peek(vm, 0));
+    tableSet(vm, table, peek(vm, 1), peek(vm, 0));
     pop(vm);
     pop(vm);
 }
@@ -135,7 +135,7 @@ void registerTimeModule(VM* vm){
     defineCFunc(vm, &module->members, "sleep", time_sleep);
     defineCFunc(vm, &module->members, "fmt", time_fmt);
 
-    tableSet(vm, &vm->modules, moduleName, OBJECT_VAL(module));
+    tableSet(vm, &vm->modules, OBJECT_VAL(moduleName), OBJECT_VAL(module));
     pop(vm);
     pop(vm);
 }

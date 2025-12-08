@@ -20,6 +20,9 @@ typedef Value (*CFunc)(VM* vm, int argCount, Value* args);
 #define IS_LIST(value)          (IS_OBJECT(value) && OBJECT_TYPE(value) == OBJECT_LIST)
 #define AS_LIST(value)          ((ObjectList*)AS_OBJECT(value))
 
+#define IS_MAP(value)           (IS_OBJECT(value) && OBJECT_TYPE(value) == OBJECT_MAP)
+#define AS_MAP(value)           ((ObjectMap*)AS_OBJECT(value))
+
 #define IS_FUNC(value)          (IS_OBJECT(value) && OBJECT_TYPE(value) == OBJECT_FUNC)
 #define AS_FUNC(value)          ((ObjectFunc*)AS_OBJECT(value))
 
@@ -47,6 +50,7 @@ typedef Value (*CFunc)(VM* vm, int argCount, Value* args);
 typedef enum{
     OBJECT_STRING,
     OBJECT_LIST,
+    OBJECT_MAP,
     OBJECT_FUNC,
     OBJECT_CFUNC,
     OBJECT_MODULE,
@@ -86,6 +90,13 @@ void appendToList(VM* vm, ObjectList* list, Value value);
 void insertToList(VM* vm, ObjectList* list, int index, Value value);
 Value getListItem(VM* vm, ObjectList* list, int index);
 void deleteListItem(VM* vm, ObjectList* list, int index);
+
+typedef struct ObjectMap{
+    Object obj;
+    HashTable table;
+}ObjectMap;
+
+ObjectMap* newMap(VM* vm);
 
 typedef enum{
     TYPE_FUNC,

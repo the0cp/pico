@@ -122,7 +122,7 @@ static Value os_exit(VM* vm, int argCount, Value* args){
 static void defineCFunc(VM* vm, HashTable* table, const char* name, CFunc func){
     push(vm, OBJECT_VAL(copyString(vm, name, (int)strlen(name))));
     push(vm, OBJECT_VAL(newCFunc(vm, func)));
-    tableSet(vm, table, AS_STRING(peek(vm, 1)), peek(vm, 0));
+    tableSet(vm, table, peek(vm, 1), peek(vm, 0));
     pop(vm);
     pop(vm);
 }
@@ -139,7 +139,7 @@ void registerOsModule(VM* vm){
     defineCFunc(vm, &module->members, "getenv", os_getenv);
     defineCFunc(vm, &module->members, "exit", os_exit);
 
-    tableSet(vm, &vm->modules, moduleName, OBJECT_VAL(module));
+    tableSet(vm, &vm->modules, OBJECT_VAL(moduleName), OBJECT_VAL(module));
     pop(vm);
     pop(vm);
 }

@@ -70,7 +70,7 @@ ObjectString* copyString(VM* vm, const char* chars, int len){
     str->chars[len] = '\0';
 
     push(vm, OBJECT_VAL(str));
-    tableSet(vm, &vm->strings, str, NULL_VAL);
+    tableSet(vm, &vm->strings, OBJECT_VAL(str), NULL_VAL);
     pop(vm);
 
     return str;
@@ -89,7 +89,7 @@ ObjectString* takeString(VM* vm, char* chars, int length){
     string->chars[length] = '\0';
 
     push(vm, OBJECT_VAL(string));
-    tableSet(vm, &vm->strings, string, NULL_VAL);
+    tableSet(vm, &vm->strings, OBJECT_VAL(string), NULL_VAL);
     pop(vm);
 
     return string;
@@ -107,6 +107,17 @@ ObjectList* newList(VM* vm){
     vm->objects = (Object*)list;
 
     return list;
+}
+
+ObjectMap * newMap(VM* vm){
+    ObjectMap* map = (ObjectMap*)reallocate(vm, NULL, 0, sizeof(ObjectMap));
+    map->obj.type = OBJECT_MAP;
+    map->obj.isMarked = false;
+    initHashTable(&map->table);
+
+    map->obj.next = vm->objects;
+    vm->objects = (Object*)map;
+    return map;
 }
 
 void appendToList(VM* vm, ObjectList* list, Value value){
@@ -268,6 +279,12 @@ void freeObject(VM* vm, Object* object){
             reallocate(vm, object, sizeof(ObjectList), 0);
             break;
         }
+        case OBJECT_MAP:{
+            ObjectMap* map = (ObjectMap*)object;
+            freeHashTable(vm, &map->table);
+            reallocate(vm, map, sizeof(ObjectMap), 0);
+            break;
+        }
         case OBJECT_FUNC:{
             ObjectFunc* func = (ObjectFunc*)object;
             freeChunk(vm, &func->chunk);
@@ -347,6 +364,9 @@ void printObject(Value value){
             printf("]");
             break;
         }
+        case OBJECT_MAP:
+            printf("{map}");
+            break;
         case OBJECT_FUNC:
             if(AS_FUNC(value)->name == NULL)
                 printf("<script>");
