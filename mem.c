@@ -44,7 +44,7 @@ static void traceRef(VM* vm, Object* object){
             break;
         }
         case OBJECT_MAP:{
-            ObjectMap* map = (ObjectMap*)map;
+            ObjectMap* map = (ObjectMap*)object;
             markTable(vm, &map->table);
             break;
         }
@@ -77,6 +77,7 @@ static void traceRef(VM* vm, Object* object){
             ObjectClass* klass = (ObjectClass*)object;
             markObject(vm, (Object*)klass->name);
             markTable(vm, &klass->methods);
+            markTable(vm, &klass->fields);
             break;
         }
         case OBJECT_INSTANCE:{
@@ -93,6 +94,7 @@ static void traceRef(VM* vm, Object* object){
         }
         case OBJECT_STRING:
         case OBJECT_CFUNC:  
+        case OBJECT_FILE:
             break;
     }
 }

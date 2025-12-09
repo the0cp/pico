@@ -1478,6 +1478,8 @@ static void handleMap(Compiler* compiler, bool canAssign){
                 errorAt(compiler, &compiler->parser.pre, "Cannot have more than 256 items when init with a map entry.");
             }
             expression(compiler);
+            consume(compiler, TOKEN_COLON, "Expect ':' after map key.");
+            expression(compiler);
             itemCnt++;
         }while(match(compiler, TOKEN_COMMA));
     }

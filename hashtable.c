@@ -45,6 +45,7 @@ static uint64_t hashValue(Value value){
         // -0.0: 0x8000000000000000
         return XXH3_64bits_withSeed(&num, sizeof(double), g_hash_seed);
     }
+    if(IS_OBJECT(value))    return (uint64_t)AS_OBJECT(value);
     if(IS_BOOL(value))  return AS_BOOL(value) ? 3 : 5;
     if(IS_NULL(value))  return 7;
     return (uint64_t)value;
@@ -137,7 +138,7 @@ bool tableSet(VM* vm, HashTable* table, Value key, Value value){
             return true;
         }
 
-        if(IS_EMPTY(bucket->key)){
+        if(isEqual(bucket->key, key)){
             bucket->value = value;  // update
             return false;
         }
@@ -226,8 +227,9 @@ static void adjustCapacity(VM* vm, HashTable* table, int capacity){
     table->entries = entries;
     table->capacity = capacity;
 
+    table->count = 0;
     for(int i = 0; i < capacity; i++){
-        if(IS_EMPTY(table->entries[i].key)){
+        if(!IS_EMPTY(table->entries[i].key)){
             table->count++;
         }
     }

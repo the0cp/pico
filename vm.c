@@ -103,6 +103,14 @@ static bool isTruthy(Value value){
     // NULL is considered falsy
 }
 
+static bool isValidKey(Value key){
+    if(IS_NUM(key)){
+        double n = AS_NUM(key);
+        return n == (int64_t)n;
+    }
+    return true;
+}
+
 static ObjectUpvalue* captureUpvalue(VM* vm, Value* local){
     ObjectUpvalue* prevUpvalue = NULL;
     ObjectUpvalue* upvalue = vm->openUpvalues;
@@ -299,9 +307,9 @@ static InterpreterStatus run(VM* vm){
 
         [OP_BUILD_LIST]     = &&DO_OP_BUILD_LIST,
         [OP_FILL_LIST]      = &&DO_OP_FILL_LIST,
+        [OP_BUILD_MAP]      = &&DO_OP_BUILD_MAP,
         [OP_INDEX_GET]      = &&DO_OP_INDEX_GET,
         [OP_INDEX_SET]      = &&DO_OP_INDEX_SET,
-
     };
 
     #ifdef DEBUG_TRACE
@@ -1301,29 +1309,45 @@ static InterpreterStatus run(VM* vm){
         Value indexVal = pop(vm);
         Value target = pop(vm);
 
-        if(!IS_LIST(target)){
-            runtimeError(vm, "Can only index get on lists.");
+        if(IS_LIST(target)){
+            if(!IS_NUM(indexVal)){
+                runtimeError(vm, "List index must be a number.");
+                return VM_RUNTIME_ERROR;
+            }
+
+            ObjectList* list = AS_LIST(target);
+            int index = (int)AS_NUM(indexVal);
+
+            if(index < 0){
+                index += list->count;
+            }
+
+            if(index < 0 || index >= list->count){
+                runtimeError(vm, "List index out of bounds.");
+                return VM_RUNTIME_ERROR;
+            }
+
+            push(vm, list->items[index]);
+        }else if(IS_MAP(target)){
+            if(!isValidKey(indexVal)){
+                runtimeError(vm, "Map key cannot be an invalid type.");
+                return VM_RUNTIME_ERROR;
+            }
+
+            ObjectMap* map = AS_MAP(target);
+            Value value;
+
+            if(tableGet(&map->table, indexVal, &value)){
+                push(vm, value);
+            }else{
+                push(vm, NULL_VAL);
+            }
+        }else{
+            runtimeError(vm, "Illegal index operation.");
             return VM_RUNTIME_ERROR;
         }
 
-        if(!IS_NUM(indexVal)){
-            runtimeError(vm, "List index must be a number.");
-            return VM_RUNTIME_ERROR;
-        }
-
-        ObjectList* list = AS_LIST(target);
-        int index = (int)AS_NUM(indexVal);
-
-        if(index < 0){
-            index += list->count;
-        }
-
-        if(index < 0 || index >= list->count){
-            runtimeError(vm, "List index out of bounds.");
-            return VM_RUNTIME_ERROR;
-        }
-
-        push(vm, list->items[index]);
+        
     } DISPATCH();
 
     DO_OP_INDEX_SET:
@@ -1332,30 +1356,39 @@ static InterpreterStatus run(VM* vm){
         Value indexVal = pop(vm);
         Value target = pop(vm);
 
-        if(!IS_LIST(target)){
-            runtimeError(vm, "Can only index set on lists.");
+        if(IS_LIST(target)){
+            if(!IS_NUM(indexVal)){
+                runtimeError(vm, "List index must be a number.");
+                return VM_RUNTIME_ERROR;
+            }
+
+            ObjectList* list = AS_LIST(target);
+            int index = (int)AS_NUM(indexVal);
+
+            if(index < 0){
+                index += list->count;
+            }
+
+            if(index < 0 || index >= list->count){
+                runtimeError(vm, "List index out of bounds.");
+                return VM_RUNTIME_ERROR;
+            }
+
+            list->items[index] = val;
+            push(vm, val);
+        }else if(IS_MAP(target)){
+            if(!isValidKey(indexVal)){
+                runtimeError(vm, "Map key cannot be a floating point number.");
+                return VM_RUNTIME_ERROR;
+            }
+
+            ObjectMap* map = AS_MAP(target);
+            tableSet(vm, &map->table, indexVal, val);
+            push(vm, val);
+        }else{
+            runtimeError(vm, "Illegal index operation.");
             return VM_RUNTIME_ERROR;
-        }
-
-        if(!IS_NUM(indexVal)){
-            runtimeError(vm, "List index must be a number.");
-            return VM_RUNTIME_ERROR;
-        }
-
-        ObjectList* list = AS_LIST(target);
-        int index = (int)AS_NUM(indexVal);
-
-        if(index < 0){
-            index += list->count;
-        }
-
-        if(index < 0 || index >= list->count){
-            runtimeError(vm, "List index out of bounds.");
-            return VM_RUNTIME_ERROR;
-        }
-
-        list->items[index] = val;
-        push(vm, val);
+        }        
     } DISPATCH();
 
     DO_OP_BUILD_MAP:
@@ -1364,14 +1397,21 @@ static InterpreterStatus run(VM* vm){
         ObjectMap* map = newMap(vm);
         push(vm, OBJECT_VAL(map));
 
-        Value mapVal = pop(vm);
-        ObjectMap* mapObj =AS_MAP(mapVal);
-
         for(int i = 0; i < itemCnt; i++){
-            Value val = pop(vm);
-            Value key = pop(vm);
+            Value val = peek(vm, 2 * i + 1);
+            Value key = peek(vm, 2 * i + 2);
+            
+            if(!isValidKey(key)){
+                runtimeError(vm, "Map key cannot be invalid like floating point number.");
+                return VM_RUNTIME_ERROR;
+            }
 
+            tableSet(vm, &map->table, key, val);
         }
+
+        vm->stackTop[-1 - 2 * itemCnt] = vm->stackTop[-1];
+        vm->stackTop -= 2 * itemCnt;
+        
     } DISPATCH();
 
     DO_OP_SYSTEM:
