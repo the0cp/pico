@@ -71,6 +71,28 @@ Example:
 var zeros = [0; 5]; # Creates [0, 0, 0, 0, 0]
 ```
 
+### Maps
+
+Maps are key-value pairs enclosed in curly braces `{}`.
+
+- **Syntax**: `{ key1: value1, key2: value2 }`.
+- **Access**: Values are accessed using square brackets `[]` with the key.
+
+> Map keys must be integers. Using a float with a fractional part (e.g., `1.5`) as a key will result in a runtime error. However, `1.0` is treated as integer `1`.
+
+Example:
+
+```
+var dict = { 
+    "name": "PiCo", 
+    "version": 1, 
+    true: "Verified" 
+};
+
+print dict["name"]; # Output: PiCo 
+dict["new_key"] = 100;
+```
+
 ### Variable Declaration
 
 Variables are declared using the `var` keyword.
