@@ -763,12 +763,169 @@ static void forStmt(Compiler* compiler){
     */
     beginScope(compiler);
     consume(compiler, TOKEN_LEFT_PAREN, "Expect '(' after 'for'.");
-    if(match(compiler, TOKEN_SEMICOLON)){
-        // pass
-    }else if(match(compiler, TOKEN_VAR)){
-        varDecl(compiler);
+
+    if(match(compiler, TOKEN_VAR)){
+        int varConst = parseVar(compiler, "Expect variable name.");
+        if(match(compiler, TOKEN_COLON)){
+            emitByte(compiler, OP_NULL);
+            defineVar(compiler, varConst);
+            expression(compiler);
+
+            Token seqToken;
+            seqToken.head = "$seq";
+            seqToken.type = TOKEN_IDENTIFIER;
+            seqToken.len = 4;
+            seqToken.line = 0;
+            addLocal(compiler, seqToken);
+            compiler->locals[compiler->localCnt - 1].depth = compiler->scopeDepth;
+            emitConstant(compiler, NUM_VAL(0));
+
+            Token idxToken;
+            idxToken.head = "$idx";
+            idxToken.type = TOKEN_IDENTIFIER;
+            idxToken.len = 4;
+            idxToken.line = 0;
+            addLocal(compiler, idxToken);
+            compiler->locals[compiler->localCnt - 1].depth = compiler->scopeDepth;
+            
+            int nSlot = compiler->localCnt - 3;
+            int seqSlot = compiler->localCnt - 2;
+            int idxSlot = compiler->localCnt - 1;
+
+            int condSt = compiler->func->chunk.count;
+
+            if(seqSlot <= 0xff){
+                emitPair(compiler, OP_GET_LOCAL, (uint8_t)seqSlot);
+            }else if(seqSlot <= 0xffff){
+                emitByte(compiler, OP_GET_LLOCAL);
+                emitPair(compiler, (uint8_t)((seqSlot >> 8) & 0xff), (uint8_t)(seqSlot & 0xff));
+            }else{
+                errorAt(compiler, &compiler->parser.pre, "Too many local constants.");
+                return;
+            }
+
+            Value sizeStr = OBJECT_VAL(copyString(compiler->vm, "size", 4));
+            push(compiler->vm, sizeStr);
+            int sizeConst = addConstant(compiler->vm, &compiler->func->chunk, sizeStr);
+            pop(compiler->vm);
+
+            if(sizeConst <= 0xff){
+                emitPair(compiler, OP_GET_PROPERTY, sizeConst);
+            }else if(sizeConst <= 0xffff){
+                emitByte(compiler, OP_GET_LPROPERTY);
+                emitPair(compiler, (uint8_t)((idxSlot >> 8) & 0xff), (uint8_t)(idxSlot & 0xff));
+            }else{
+                errorAt(compiler, &compiler->parser.pre, "Too many local constants.");
+                return;
+            }
+
+            emitPair(compiler, OP_CALL, 0); 
+            
+            if(idxSlot <= 0xff){
+                emitPair(compiler, OP_GET_LOCAL, (uint8_t)idxSlot);
+            }else if(idxSlot <= 0xffff){
+                emitByte(compiler, OP_GET_LLOCAL);
+                emitPair(compiler, (uint8_t)((idxSlot >> 8) & 0xff), (uint8_t)(idxSlot & 0xff));
+            }else{
+                errorAt(compiler, &compiler->parser.pre, "Too many local constants.");
+                return;
+            }
+
+            emitByte(compiler, OP_GREATER);
+
+            int exitJump = emitJump(compiler, OP_JUMP_IF_FALSE);
+            emitByte(compiler, OP_POP);
+
+            int bodyJump = emitJump(compiler, OP_JUMP);
+
+            int incSt = compiler->func->chunk.count;
+
+            if(idxSlot <= 0xff){
+                emitPair(compiler, OP_GET_LOCAL, (uint8_t)idxSlot);
+            }else if(idxSlot <= 0xffff){
+                emitByte(compiler, OP_GET_LLOCAL);
+                emitPair(compiler, (uint8_t)((idxSlot >> 8) & 0xff), (uint8_t)(idxSlot & 0xff));
+            }
+            
+            emitConstant(compiler, NUM_VAL(1));
+            emitByte(compiler, OP_ADD);
+
+            if(idxSlot <= 0xff){
+                emitPair(compiler, OP_SET_LOCAL, (uint8_t)idxSlot);
+            }else if(idxSlot <= 0xffff){
+                emitByte(compiler, OP_SET_LLOCAL);
+                emitPair(compiler, (uint8_t)((idxSlot >> 8) & 0xff), (uint8_t)(idxSlot & 0xff));
+            }
+            emitByte(compiler, OP_POP);
+
+            emitLoop(compiler, condSt);
+            patchJump(compiler, bodyJump);
+
+            if(seqSlot <= 0xff){
+                emitPair(compiler, OP_GET_LOCAL, (uint8_t)seqSlot);
+            }else if(seqSlot <= 0xffff){
+                emitByte(compiler, OP_GET_LLOCAL);
+                emitPair(compiler, (uint8_t)((seqSlot >> 8) & 0xff), (uint8_t)(seqSlot & 0xff));
+            }
+
+            if(idxSlot <= 0xff){
+                emitPair(compiler, OP_GET_LOCAL, (uint8_t)idxSlot);
+            }else if(idxSlot <= 0xffff){
+                emitByte(compiler, OP_GET_LLOCAL);
+                emitPair(compiler, (uint8_t)((idxSlot >> 8) & 0xff), (uint8_t)(idxSlot & 0xff));
+            }
+
+            emitByte(compiler, OP_INDEX_GET);
+
+            if(nSlot <= 0xff){
+                emitPair(compiler, OP_SET_LOCAL, (uint8_t)nSlot);
+            }else if(nSlot <= 0xffff){
+                emitByte(compiler, OP_SET_LLOCAL);
+                emitPair(compiler, (uint8_t)((nSlot >> 8) & 0xff), (uint8_t)(nSlot & 0xff));
+            }
+            emitByte(compiler, OP_POP);
+
+            consume(compiler, TOKEN_RIGHT_PAREN, "Expect ')' after foreach.");
+
+            if(compiler->localCnt == LOOP_MAX){
+                errorAt(compiler, &compiler->parser.pre, "Too many nested loops.");
+                return;
+            }
+
+            Loop* loop = &compiler->loops[compiler->loopCnt++];
+            loop->start = incSt;
+            loop->scopeDepth = compiler->scopeDepth;
+            loop->breakCnt = 0;
+
+            stmt(compiler);
+
+            emitLoop(compiler, incSt);
+
+            patchJump(compiler, exitJump);
+            emitByte(compiler, OP_POP);
+
+            for(int i = 0; i < loop->breakCnt; i++){
+                patchJump(compiler, loop->breakJump[i]);
+            }
+
+            compiler->loopCnt--;
+            endScope(compiler);
+            return;
+        }
+
+        if(match(compiler, TOKEN_ASSIGN)){
+            expression(compiler);
+        }else{
+            emitByte(compiler, OP_NULL);
+        }
+        consume(compiler, TOKEN_SEMICOLON, "Expect ';' after variable declaration.");
+        defineVar(compiler, varConst);
     }else{
-        expressionStmt(compiler);
+        if(match(compiler, TOKEN_SEMICOLON)){
+            // pass
+        }else{
+            expressionStmt(compiler);
+        }
     }
 
     int loopStart = compiler->func->chunk.count;
