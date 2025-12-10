@@ -151,6 +151,9 @@ var path = "users" / "docs" / "report.txt";
 
 - Comparisons return `true` or `false`.
 
+> Lists are compared by value, not by reference. Two separate list objects containing the same elements in the same order are considered equal. `[1, 2] == [1, 2]; # true`
+
+
 ### Logic
 
 - `and`: Logical AND (short-circuit evaluation).
@@ -159,11 +162,62 @@ var path = "users" / "docs" / "report.txt";
 
 - `!`: Logical NOT.
 
-### Indexing
+### Indexing & Slicing
+
+PiCo supports powerful indexing and slicing operations for both **Lists** and **Strings**.
+
+#### Indexing
+
+Access a single element using square brackets `[]`.
 
 - **Syntax**: `list[index]`.
 
 - **Negative Indexing**: Negative integers index from the end of the list (e.g., `list[-1]` accesses the last item).
+
+Example:
+
+```
+var list = [10, 20, 30]; 
+print list[0]; # 10 
+print list[-1]; # 30
+```
+
+#### Slicing
+
+Extract a subsequence using the slice operator `:`. This creates a new string or list.
+
+- **Syntax**: `sequence[start : end : step]`
+
+- **Parameters**:
+  - `start` (optional): The starting index (inclusive). Defaults to `0` (or end if step is negative).
+  - `end` (optional): The ending index (exclusive). Defaults to length (or beginning if step is negative).
+  - `step` (optional): The increment size. Defaults to `1`.
+
+- **Behavior**:
+  - **Clamping**: Out-of-bounds indices are automatically clamped to valid ranges. No errors are thrown for safe slicing.
+  - **Negative Step**: If `step` is negative, the sequence is traversed in reverse.
+
+Examples:
+
+```
+var s = "Hello World";
+
+# Basic Slicing
+print s[0:5]; # "Hello" 
+print s[6:]; # "World" (6 to end) 
+print s[:5]; # "Hello" (Beginning to 5)
+
+# Negative Indices
+print s[-5:]; # "World"
+
+# Step & Reversal
+print s[::2]; # "HloWrd" (Every 2nd char) 
+print s[::-1]; # "dlroW olleH" (Reverse string)
+
+# Lists work the same way
+var list = [1, 2, 3, 4, 5]; 
+print list[1:4]; # [2, 3, 4]
+```
 
 ## Control Flow & Statements
 
