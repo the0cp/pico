@@ -219,6 +219,28 @@ for(var i = 0; i < 10; i = i + 1){
 
 All three clauses are optional (e.g., `for (;;) { ... }` creates an infinite loop).
 
+#### foreach
+
+PiCo supports a simplified syntax for iterating over lists using the `:` operator in a for loop.
+
+- **Syntax**: `for (var item : list) { ... }`
+
+Example:
+
+```
+var nums = [10, 20, 30];
+for (var n : nums) {
+   print n;
+}
+
+#{
+   output:
+   10
+   20
+   30
+}#
+```
+
 #### break & continue
 
 - `break`: Exits the current nearest loop immediately.
