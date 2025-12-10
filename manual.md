@@ -666,6 +666,21 @@ import "glob";
 
 - *Returns*: A List of Strings.
 
+### string - String Module
+
+#### Import:
+
+```
+import "string";
+```
+
+#### Functions:
+
+- `string.ascii(code)`
+  - *Description*: Returns a one-character string corresponding to the given ASCII/Unicode code point.
+  - *Arguments*: `code` (Number).
+  - *Returns*: String.
+
 ## Built-in Object Methods
 
 Certain built-in types have methods attached to them automatically.
@@ -691,6 +706,70 @@ Available on file objects returned by `fs.open()`.
 - `.write(string)`: Writes a string to the file.
 
 - `.close()`: Closes the file handle.
+
+### String Method
+
+Available on any String object (e.g., `"hello"`).
+
+- `.len()`
+  
+  - *Description*: Returns the length of the string.
+  
+  - *Returns*: Number.
+
+- `.sub(start, [end])`
+  
+  - *Description*: Returns a substring from `start` index up to (but not including) `end`. Supports negative indexing (e.g., `-1` is the last character).
+  
+  - *Arguments*:
+    
+    - `start` (Number).
+    
+    - `end` (Number, optional): Defaults to the end of the string.
+  
+  - *Returns*: String.
+
+- `.trim()`
+  
+  - *Description*: Removes whitespace from both the beginning and the end of the string.
+  
+  - *Returns*: String.
+
+- `.upper()`
+  
+  - *Description*: Returns a copy of the string converted to uppercase.
+  
+  - *Returns*: String.
+
+- `.lower()`
+  
+  - *Description*: Returns a copy of the string converted to lowercase.
+  
+  - *Returns*: String.
+
+- `.find(substring)`
+  
+  - *Description*: Searches for the first occurrence of `substring`.
+  
+  - *Arguments*: `substring` (String).
+  
+  - *Returns*: Number (the index of the first match, or `-1` if not found).
+
+- `.split(delimiter)`
+  
+  - *Description*: Splits the string into a list of substrings based on the `delimiter`. If `delimiter` is an empty string `""`, it splits the string into individual characters.
+  
+  - *Arguments*: `delimiter` (String).
+  
+  - *Returns*: List of Strings.
+
+- `.replace(old, new)`
+  
+  - *Description*: Returns a new string with all occurrences of `old` replaced by `new`.
+  
+  - *Arguments*: `old` (String), `new` (String).
+  
+  - *Returns*: String.
 
 ## REPL
 
