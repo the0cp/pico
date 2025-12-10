@@ -19,12 +19,57 @@ char* valueToString(Value value){
     return "Unknown";
 }
 
+static void appendString(VM* vm, char** buffer, int* length, int* capacity, const char* str, int len){
+    if(*length + len > *capacity){
+        int oldCapacity = *capacity;
+        *capacity = (*capacity < 8 ? 8 : *capacity * 2) + len;
+        *buffer = (char*)reallocate(vm, *buffer, oldCapacity, *capacity);
+    }
+    memcpy(*buffer + *length, str, len);
+    *length += len;
+    (*buffer)[*length] = '\0';
+}
+
 ObjectString* toString(VM* vm, Value value){
     if(IS_STRING(value)){
         return AS_STRING(value);
     }
-    char* str = valueToString(value);
-    return copyString(vm, str, (int)strlen(str));
+
+    if(IS_LIST(value)){
+        ObjectList* list = AS_LIST(value);
+        char* buffer = NULL;
+        int length = 0;
+        int capacity = 0;
+
+        appendString(vm, &buffer, &length, &capacity, "[", 1);
+
+        for(int i = 0; i < list->count; i++){
+            Value item = list->items[i];
+            
+            if(IS_STRING(item)){
+                ObjectString* s = AS_STRING(item);
+                appendString(vm, &buffer, &length, &capacity, "\"", 1);
+                appendString(vm, &buffer, &length, &capacity, s->chars, s->length);
+                appendString(vm, &buffer, &length, &capacity, "\"", 1);
+            }else if(IS_OBJECT(item)){
+                ObjectString* s = toString(vm, item); 
+                appendString(vm, &buffer, &length, &capacity, s->chars, s->length);
+            }else{
+                char* s = valueToString(item);
+                appendString(vm, &buffer, &length, &capacity, s, (int)strlen(s));
+            }
+
+            if(i < list->count - 1){
+                appendString(vm, &buffer, &length, &capacity, ", ", 2);
+            }
+        }
+
+        appendString(vm, &buffer, &length, &capacity, "]", 1);
+
+        ObjectString* result = copyString(vm, buffer, length);
+        reallocate(vm, buffer, capacity, 0);
+        return result;
+    }
 }
 
 void initValueArray(ValueArray* array){
@@ -87,7 +132,21 @@ bool isEqual(Value a, Value b){
                 return strA->length == strB->length &&
                         memcmp(strA->chars, strB->chars, strA->length) == 0;
             }
-            return false;
+
+            if(IS_LIST(a) && IS_LIST(b)){
+                ObjectList* listA = AS_LIST(a);
+                ObjectList* listB = AS_LIST(b);
+
+                if(listA->count != listB->count) return false;
+
+                for(int i = 0; i < listA->count; i++){
+                    if(!isEqual(listA->items[i], listB->items[i])){
+                        return false;
+                    }
+                }
+                return true;
+            }
+            return AS_OBJECT(a) == AS_OBJECT(b);
         }
         default:            return false;  // Unsupported type comparison
     }

@@ -339,6 +339,7 @@ static InterpreterStatus run(VM* vm){
         [OP_BUILD_MAP]      = &&DO_OP_BUILD_MAP,
         [OP_INDEX_GET]      = &&DO_OP_INDEX_GET,
         [OP_INDEX_SET]      = &&DO_OP_INDEX_SET,
+        [OP_SLICE]          = &&DO_OP_SLICE,
     };
 
     #ifdef DEBUG_TRACE
@@ -1434,6 +1435,139 @@ static InterpreterStatus run(VM* vm){
             runtimeError(vm, "Illegal index operation.");
             return VM_RUNTIME_ERROR;
         }        
+    } DISPATCH();
+
+    DO_OP_SLICE:
+    {
+        Value stepVal = pop(vm);
+        Value endVal = pop(vm);
+        Value stVal = pop(vm);
+        Value receiver = peek(vm, 0);
+
+        if(!IS_STRING(receiver) && !IS_LIST(receiver)){
+            runtimeError(vm, "Only strings and lists can be sliced");
+            return VM_RUNTIME_ERROR;
+        }
+
+        int step = 1;
+        if(!IS_NULL(stepVal)){
+            if(!IS_NUM(stepVal)){
+                runtimeError(vm, "Slice step must be a number.");
+                return VM_RUNTIME_ERROR;
+            }
+            step = (int)AS_NUM(stepVal);
+        }
+
+        if(step == 0){
+            runtimeError(vm, "Slice step cannot be zero.");
+            return VM_RUNTIME_ERROR;
+        }
+
+        int length = IS_STRING(receiver) ? (int)AS_STRING(receiver)->length : AS_LIST(receiver)->count;
+
+        int start;
+        if(IS_NULL(stVal)){
+            start = (step > 0) ? 0 : length - 1;
+        }else{
+            if(!IS_NUM(stVal)){
+                runtimeError(vm, "Slice start must be a number.");
+                return VM_RUNTIME_ERROR;
+            }
+            start = (int)AS_NUM(stVal);
+            if(start < 0)   start += length;
+            if(step > 0){
+                if(start < 0)   start = 0;
+                if(start > length)  start = length;
+            }else{
+                if(start < -1)  start = -1;
+                if(start > length - 1)  start = length - 1;
+            }
+        }
+
+        int end;
+        if(IS_NULL(endVal)){
+            end = (step > 0) ? length : -1;
+        }else{
+            if(!IS_NUM(endVal)){
+                runtimeError(vm, "Slice end must be a number.");
+                return VM_RUNTIME_ERROR;
+            }
+            end = (int)AS_NUM(endVal);
+            if(end < 0) end += length;
+            if(step > 0){
+                if(end < 0) end = 0;
+                if(end > length) end = length;
+            } else {
+                if(end < -1) end = -1;
+                if(end > length) end = length;
+            }
+        }
+
+        if(IS_STRING(receiver)){
+            ObjectString* str = AS_STRING(receiver);
+            
+            int count = 0;
+            if(step > 0){
+                if(start < end){
+                    count = (end - start + step - 1) / step;
+                }
+            }else{
+                if (start > end) {
+                    count = (start - end - step - 1) / (-step);
+                }
+            }
+
+            if(count <= 0){
+                pop(vm);
+                push(vm, OBJECT_VAL(copyString(vm, "", 0)));
+            }else{
+                char* chars = (char*)malloc(count + 1);
+                
+                int dstIdx = 0;
+                int srcIdx = start;
+                for(int i = 0; i < count; i++){
+                    chars[dstIdx++] = str->chars[srcIdx];
+                    srcIdx += step;
+                }
+                chars[count] = '\0';
+                
+                ObjectString* result = takeString(vm, chars, count);
+                pop(vm); // Pop receiver
+                push(vm, OBJECT_VAL(result));
+            }
+        }else if(IS_LIST(receiver)){
+            ObjectList* srcList = AS_LIST(receiver);
+            
+            int count = 0;
+            if(step > 0){
+                if(start < end){
+                    count = (end - start + step - 1) / step;
+                }
+            }else{
+                if(start > end){
+                    count = (start - end - step - 1) / (-step);
+                }
+            }
+            
+            ObjectList* newListObj = newList(vm);
+            push(vm, OBJECT_VAL(newListObj));
+
+            if(count > 0){
+                newListObj->items = (Value*)reallocate(vm, NULL, 0, sizeof(Value) * count);
+                newListObj->capacity = count;
+                newListObj->count = count;
+                
+                int srcIdx = start;
+                for(int i = 0; i < count; i++){
+                    newListObj->items[i] = srcList->items[srcIdx];
+                    srcIdx += step;
+                }
+            }
+            
+            Value resultList = pop(vm); // NewList
+            pop(vm); // Receiver
+            push(vm, resultList);
+        }
     } DISPATCH();
 
     DO_OP_BUILD_MAP:

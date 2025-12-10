@@ -1616,7 +1616,41 @@ static void handleList(Compiler* compiler, bool canAssign){
 }
 
 static void handleIndex(Compiler* compiler, bool canAssign){
-    expression(compiler);
+    bool isSlice = false;
+
+    if(match(compiler, TOKEN_COLON)){
+        isSlice = true;
+        emitByte(compiler, OP_NULL);
+    }else{
+        expression(compiler);
+        if(match(compiler, TOKEN_COLON)){
+            isSlice = true;
+        }
+    }
+
+    if(isSlice){
+        if(checkType(compiler, TOKEN_COLON) || checkType(compiler, TOKEN_RIGHT_BRACKET)){
+            // if match [::step] or [start:], end is omitted
+            emitByte(compiler, OP_NULL);    // end as null
+        }else{
+            expression(compiler);
+        }
+
+        if(match(compiler, TOKEN_COLON)){
+            if(checkType(compiler, TOKEN_RIGHT_BRACKET)){ // default step
+                emitByte(compiler, OP_NULL);
+            }else{
+                expression(compiler);
+            }
+        }else{  // no step
+            emitByte(compiler, OP_NULL);
+        }
+
+        consume(compiler, TOKEN_RIGHT_BRACKET, "Expect ']' after slice.");
+        emitByte(compiler, OP_SLICE);
+        return;
+    }
+
     consume(compiler, TOKEN_RIGHT_BRACKET, "Expect ']' after index.");
 
     if(canAssign && match(compiler, TOKEN_ASSIGN)){
