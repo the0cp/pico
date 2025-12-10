@@ -8,5 +8,6 @@ void registerTimeModule(VM* vm);
 void registerOsModule(VM* vm);
 void registerPathModule(VM* vm);
 void registerGlobModule(VM* vm);
+void registerListModule(VM* vm);
 
 #endif // PICO_MODULES_H

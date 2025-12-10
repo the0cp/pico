@@ -9,9 +9,10 @@
 #include "compiler.h"
 #include "mem.h"
 #include "file.h"
-#include "list.h"
+#include "modules/list.h"
 #include "modules/modules.h"
 #include "modules/fs.h"
+#include "modules/string.h"
 
 #ifdef DEBUG_TRACE
 #include "debug.h"
@@ -45,6 +46,8 @@ void initVM(VM* vm){
     registerOsModule(vm);
     registerPathModule(vm);
     registerGlobModule(vm);
+    registerListModule(vm);
+    registerStringModule(vm);
 }
 
 void freeVM(VM* vm){
@@ -226,6 +229,32 @@ static bool bindFileFunc(VM* vm, Value receiver, ObjectString* name){
         return true;
     }
 
+    return false;
+}
+
+static bool bindStringFunc(VM* vm, Value receiver, ObjectString* name){
+    CFunc func = NULL;
+    if(name->length == 3){
+        if(memcmp(name->chars, "len", 3) == 0) func = string_len;
+        else if(memcmp(name->chars, "sub", 3) == 0) func = string_sub;
+    }else if(name->length == 4){
+        if(memcmp(name->chars, "trim", 4) == 0) func = string_trim;
+        else if(memcmp(name->chars, "find", 4) == 0) func = string_find;
+    }else if(name->length == 5){
+        if(memcmp(name->chars, "upper", 5) == 0) func = string_upper;
+        else if(memcmp(name->chars, "lower", 5) == 0) func = string_lower;
+        else if(memcmp(name->chars, "split", 5) == 0) func = string_split;
+    }else if(name->length == 7){
+        if(memcmp(name->chars, "replace", 7) == 0) func = string_replace;
+    }
+
+    if(func){
+        ObjectCFunc* cfuncObj = newCFunc(vm, func);
+        ObjectBoundMethod* bound = newBoundMethod(vm, receiver, (Object*)cfuncObj);
+        pop(vm); // pop receiver
+        push(vm, OBJECT_VAL(bound));
+        return true;
+    }
     return false;
 }
 
@@ -879,6 +908,14 @@ static InterpreterStatus run(VM* vm){
         ObjectString* name = AS_STRING(frame->closure->func->chunk.constants.values[constantIndex]);
         Value receiver = peek(vm, 0);
 
+        if(IS_STRING(receiver)){
+            if(bindStringFunc(vm, receiver, name)){
+                DISPATCH();
+            }
+            runtimeError(vm, "Undefined property '%s' on string.", name->chars);
+            return VM_COMPILE_ERROR;
+        }
+
         if(!IS_OBJECT(receiver)){
             runtimeError(vm, "Only modules and objects have properties.");
             return VM_RUNTIME_ERROR;
@@ -947,6 +984,14 @@ static InterpreterStatus run(VM* vm){
         index |= READ_BYTE();   // avoid precedence error
         ObjectString* name = AS_STRING(frame->closure->func->chunk.constants.values[index]);
         Value receiver = peek(vm, 0);
+
+        if(IS_STRING(receiver)){
+            if(bindStringFunc(vm, receiver, name)){
+                DISPATCH();
+            }
+            runtimeError(vm, "Undefined property '%s' on string.", name->chars);
+            return VM_COMPILE_ERROR;
+        }
 
         if(!IS_OBJECT(receiver)){
             runtimeError(vm, "Only modules and objects have properties.");

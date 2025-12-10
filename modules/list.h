@@ -3,6 +3,8 @@
 
 #include "vm.h"
 
+void registerListModule(VM* vm);
+
 Value list_push(VM* vm, int argCount, Value* args);
 Value list_pop(VM* vm, int argCount, Value* args);
 Value list_size(VM* vm, int argCount, Value* args);

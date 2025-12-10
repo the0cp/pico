@@ -183,7 +183,7 @@ void* reallocate(VM* vm, void* ptr, size_t oldSize, size_t newSize){
         gc_running = false;
     }
     #else
-    if(!gc_running && vm->bytesAllocated > vm->nextGC){
+    if(!gc_running && newSize > oldSize && vm->bytesAllocated > vm->nextGC){
         gc_running = true;
         collectGarbage(vm);
         gc_running = false;

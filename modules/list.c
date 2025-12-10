@@ -41,3 +41,23 @@ Value list_size(VM* vm, int argCount, Value* args){
 
     return NUM_VAL(AS_LIST(receiver)->count);
 }
+
+static void defineCFunc(VM* vm, HashTable* table, const char* name, CFunc func){
+    push(vm, OBJECT_VAL(copyString(vm, name, (int)strlen(name))));
+    push(vm, OBJECT_VAL(newCFunc(vm, func)));
+    tableSet(vm, table, peek(vm, 1), peek(vm, 0));
+    pop(vm);
+    pop(vm);
+}
+
+void registerListModule(VM* vm){
+    ObjectString* moduleName = copyString(vm, "list", 4);
+    push(vm, OBJECT_VAL(moduleName));
+
+    ObjectModule* module = newModule(vm, moduleName);
+    push(vm, OBJECT_VAL(module));
+
+    tableSet(vm, &vm->modules, OBJECT_VAL(moduleName), OBJECT_VAL(module));
+    pop(vm);
+    pop(vm);
+}
