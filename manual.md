@@ -425,6 +425,31 @@ p.move(5, 5);
 
 Inside a method, you can use the `this` keyword to refer to the instance (receiver), or use the name you defined in the method signature (`p` in the example above). Both refer to the same object (Local slot 0).
 
+### Constructors
+
+PiCo uses a special method named `init` as the constructor to initialize new instances.
+
+- **Automatic Invocation**: When you instantiate a class (e.g., `var p = Point(10, 20);`), PiCo automatically calls the `init` method matching that class with the provided arguments.
+- **Implicit Return**: The `init` method is special; it implicitly returns the new instance (`this`). You do not need to write `return`, and returning a specific value from `init` is a syntax error.
+
+Example:
+
+```
+class Point {
+    x = 0;
+    y = 0;
+}
+
+# The constructor method
+method (p Point) init(x, y) {
+    p.x = x;
+    p.y = y;
+    # 'this' (p) is returned automatically
+}
+
+var p = Point(10, 20); # Calls init implicitly
+```
+
 ### Visibility
 
 PiCo enforces access control based on **Capitalization**.
