@@ -37,9 +37,12 @@ void initVM(VM* vm){
     vm->globalStack[0] = vm->curGlobal;
 
     vm->bytesAllocated = 0;
-    vm->nextGC = 1024;   // 1KB
+    vm->nextGC = 1024 * 1024 * 10;   // 10MB
 
     vm->compiler = NULL;
+
+    vm->initString = NULL;
+    vm->initString = copyString(vm, "init", 4);
 
     registerFsModule(vm);
     registerTimeModule(vm);
@@ -544,8 +547,8 @@ static InterpreterStatus run(VM* vm){
             }
             push(vm, NUM_VAL(a / b));
         }else if(IS_STRING(aVal) && IS_STRING(bVal)){
-            ObjectString* bStr = AS_STRING(pop(vm));
-            ObjectString* aStr = AS_STRING(pop(vm));
+            ObjectString* bStr = AS_STRING(peek(vm, 0));
+            ObjectString* aStr = AS_STRING(peek(vm, 1));
 
             #ifdef _WIN32
                 #define PATH_SEP '\\'
@@ -626,6 +629,8 @@ static InterpreterStatus run(VM* vm){
 
                 ObjectString* result = copyString(vm, chars, (int)len);
                 reallocate(vm, chars, len + 1, 0);
+                pop(vm);    
+                pop(vm);
                 push(vm, OBJECT_VAL(result));
             }
             #undef PATH_SEP
@@ -1270,7 +1275,6 @@ static InterpreterStatus run(VM* vm){
     DO_OP_LCLASS:
     {
         uint16_t index = (uint16_t)(READ_BYTE() << 8 | READ_BYTE());
-        frame->ip += 2;
         ObjectString* name = AS_STRING(frame->closure->func->chunk.constants.values[index]);
         ObjectClass* klass = newClass(vm, name);
         push(vm, OBJECT_VAL(klass));
@@ -1279,7 +1283,6 @@ static InterpreterStatus run(VM* vm){
     DO_OP_LMETHOD:
     {
         uint16_t index = (uint16_t)(READ_BYTE() << 8 | READ_BYTE());
-        frame->ip += 2;
         ObjectString* name = AS_STRING(frame->closure->func->chunk.constants.values[index]);
         Value method = peek(vm, 0);
         Value klassVal = peek(vm, 1);
@@ -1657,8 +1660,16 @@ static bool callValue(VM* vm, Value callee, int argCnt){
         switch(OBJECT_TYPE(callee)){
             case OBJECT_CLASS:{
                 ObjectClass* klass = AS_CLASS(callee);
-                vm->stackTop[-argCnt -1] = OBJECT_VAL(newInstance(vm, klass));
-                // init
+                vm->stackTop[-argCnt - 1] = OBJECT_VAL(newInstance(vm, klass));
+                Value initializer;
+                if(tableGet(&klass->methods, OBJECT_VAL(vm->initString), &initializer)){
+                    if (!callValue(vm, initializer, argCnt)){
+                        return false;
+                    }
+                }else if(argCnt != 0){  // no initializer found but got arguments
+                    runtimeError(vm, "Expected 0 arguments but got %d.", argCnt);
+                    return false;
+                }
                 return true;
             }
             case OBJECT_BOUND_METHOD:{

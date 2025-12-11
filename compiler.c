@@ -299,7 +299,7 @@ static void funcDecl(Compiler* compiler){
     defineVar(compiler, global);
 }
 
-static void compileMethod(Compiler* compiler, Token recvName){
+static void compileMethod(Compiler* compiler, Token recvName, FuncType type){
     Compiler* methodCompiler = (Compiler*)reallocate(compiler->vm, NULL, 0, sizeof(Compiler));    
     if(methodCompiler == NULL){
         errorAt(compiler, &compiler->parser.pre, "Not enough memory to compile method.");
@@ -312,7 +312,7 @@ static void compileMethod(Compiler* compiler, Token recvName){
     methodCompiler->func = NULL;  
     compiler->vm->compiler = methodCompiler;
 
-    initCompiler(methodCompiler, compiler->vm, compiler, TYPE_METHOD, compiler->func->srcName);
+    initCompiler(methodCompiler, compiler->vm, compiler, type, compiler->func->srcName);
 
     Local *local = &methodCompiler->locals[0]; 
     local->name = recvName; 
@@ -497,7 +497,11 @@ static void methodDecl(Compiler* compiler){
     uint16_t methodNameConst = addConstant(compiler->vm, &compiler->func->chunk, methodNameValue);
     pop(compiler->vm);
 
-    compileMethod(compiler, recvName);
+    FuncType type = TYPE_METHOD;
+    if(methodName.len == 4 && memcmp(methodName.head, "init", 4) == 0){
+        type = TYPE_INITIALIZER;
+    }
+    compileMethod(compiler, recvName, type);
     if(methodNameConst < 0){
         errorAt(compiler, &compiler->parser.pre, "Failed to add method name constant.");
         return;
@@ -1114,8 +1118,16 @@ static void returnStmt(Compiler* compiler){
     }
 
     if(match(compiler, TOKEN_SEMICOLON)){
+        if(compiler->type == TYPE_INITIALIZER){
+            emitPair(compiler, OP_GET_LOCAL, 0); // return 'this'
+        }else{
+            emitByte(compiler, OP_NULL);
+        }
         emitPair(compiler, OP_NULL, OP_RETURN);
     }else{
+        if(compiler->type == TYPE_INITIALIZER){
+            errorAt(compiler, &compiler->parser.pre, "Can't return a value from an initializer.");
+        }
         expression(compiler);
         consume(compiler, TOKEN_SEMICOLON, "Expected ';' after return value.");
         emitByte(compiler, OP_RETURN);
@@ -1289,7 +1301,11 @@ static void patchJump(Compiler* compiler, int offset){
 }
 
 static ObjectFunc* stopCompiler(Compiler* compiler){
-    emitByte(compiler, OP_NULL);
+    if(compiler->type == TYPE_INITIALIZER){
+        emitPair(compiler, OP_GET_LOCAL, 0);
+    }else{
+        emitByte(compiler, OP_NULL);
+    }
     emitByte(compiler, OP_RETURN);
 
     ObjectFunc* func = compiler->func;

@@ -29,6 +29,7 @@ typedef struct VM{
     int globalCnt;
     HashTable modules;
     Object* objects;
+    ObjectString* initString;
     ObjectUpvalue* openUpvalues;    // descending locations
     CallFrame frames[FRAMES_MAX];
     int frameCount;

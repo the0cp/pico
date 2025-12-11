@@ -238,7 +238,7 @@ static void adjustCapacity(VM* vm, HashTable* table, int capacity){
 bool tableMerge(VM* vm, HashTable* from, HashTable* to){
     for(int i = 0; i < from->capacity; i++){
         Entry* entry = &from->entries[i];
-        if(IS_EMPTY(entry->key)){
+        if(!IS_EMPTY(entry->key)){
             tableSet(vm, to, entry->key, entry->value);
         }
     }

@@ -70,6 +70,8 @@ ObjectString* toString(VM* vm, Value value){
         reallocate(vm, buffer, capacity, 0);
         return result;
     }
+    char* chars = valueToString(value);
+    return copyString(vm, chars, (int)strlen(chars));
 }
 
 void initValueArray(ValueArray* array){

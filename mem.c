@@ -5,6 +5,7 @@
 #include "compiler.h"
 
 #define GC_HEAP_GROW_FACTOR 2
+#define GC_MIN_THRESHOLD 1024 * 1024 * 10
 
 void collectGarbage(VM* vm){
     if(vm->bytesAllocated == 0) return;
@@ -31,7 +32,7 @@ void collectGarbage(VM* vm){
    #endif
     
     vm->nextGC = vm->bytesAllocated * GC_HEAP_GROW_FACTOR;
-    if(vm->nextGC < 1024) vm->nextGC = 1024;
+    if(vm->nextGC < GC_MIN_THRESHOLD) vm->nextGC = GC_MIN_THRESHOLD;
 }
 
 static void traceRef(VM* vm, Object* object){
@@ -143,6 +144,8 @@ static void markRoots(VM* vm){
     if(vm->compiler != NULL){
         markCompilerRoots(vm);
     }
+
+    markObject(vm, (Object*)vm->initString);
 }
 
 static void sweep(VM* vm){

@@ -103,6 +103,7 @@ typedef enum{
     TYPE_SCRIPT,
     TYPE_MODULE,
     TYPE_METHOD,
+    TYPE_INITIALIZER,
 }FuncType;
 
 typedef struct ObjectFunc{
