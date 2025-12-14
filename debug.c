@@ -54,12 +54,18 @@ int dasmInstruction(const Chunk* chunk, int offset){
             printf("OP_DIVIDE\n");          return offset + 1;
         case OP_NEGATE:
             printf("OP_NEGATE\n");          return offset + 1;
+        case OP_MODULO:
+            printf("OP_MODULO\n");          return offset + 1;
         case OP_PRINT:
             printf("OP_PRINT\n");           return offset + 1;
         case OP_POP:
             printf("OP_POP\n");             return offset + 1;
         case OP_DUP:
             printf("OP_DUP\n");             return offset + 1;
+        case OP_DUP_2:
+            printf("OP_DUP_2\n");           return offset + 1;
+        case OP_SWAP_12:
+            printf("OP_SWAP_12\n");         return offset + 1;
         case OP_RETURN:
             printf("OP_RETURN\n");          return offset + 1;
         case OP_SYSTEM:

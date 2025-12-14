@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <stdarg.h>
 #include <ctype.h>
+#include <math.h>
 
 #include "common.h"
 #include "chunk.h"
@@ -275,6 +276,7 @@ static InterpreterStatus run(VM* vm){
         [OP_MULTIPLY]       = &&DO_OP_MULTIPLY,
         [OP_DIVIDE]         = &&DO_OP_DIVIDE,
         [OP_NEGATE]         = &&DO_OP_NEGATE,
+        [OP_MODULO]         = &&DO_OP_MODULO,
 
         [OP_RETURN]         = &&DO_OP_RETURN,
         [OP_SYSTEM]         = &&DO_OP_SYSTEM,
@@ -293,6 +295,8 @@ static InterpreterStatus run(VM* vm){
 
         [OP_POP]            = &&DO_OP_POP,
         [OP_DUP]            = &&DO_OP_DUP,
+        [OP_DUP_2]          = &&DO_OP_DUP_2,
+        [OP_SWAP_12]        = &&DO_OP_SWAP_12,
 
         [OP_PRINT]          = &&DO_OP_PRINT,
         [OP_DEFINE_GLOBAL]  = &&DO_OP_DEFINE_GLOBAL,
@@ -655,6 +659,23 @@ static InterpreterStatus run(VM* vm){
         *(vm->stackTop - 1) = NUM_VAL(-AS_NUM(*(vm->stackTop - 1)));
     } DISPATCH();
 
+    DO_OP_MODULO:
+    {
+        if(vm->stackTop - vm->stack < 2){
+            runtimeError(vm, "Stack underflow.");
+            return VM_RUNTIME_ERROR;
+        }
+
+        if(!IS_NUM(peek(vm, 0)) || !IS_NUM(peek(vm, 1))){
+            runtimeError(vm, "Operands must be numbers.");
+            return VM_RUNTIME_ERROR;
+        }
+
+        double b = AS_NUM(pop(vm));
+        double a = AS_NUM(pop(vm));
+        push(vm, NUM_VAL(fmod(a, b)));
+    } DISPATCH();
+
     DO_OP_POP:
     {
         pop(vm);
@@ -663,6 +684,32 @@ static InterpreterStatus run(VM* vm){
     DO_OP_DUP:
     {
         push(vm, peek(vm, 0));
+    } DISPATCH();
+
+    DO_OP_DUP_2:
+    {
+        if(vm->stackTop - vm->stack < 2){
+            runtimeError(vm, "Stack underflow.");
+            return VM_RUNTIME_ERROR;
+        }
+
+        Value b = peek(vm, 0);
+        Value a = peek(vm, 1);
+        push(vm, a);
+        push(vm, b);
+    } DISPATCH();
+
+    DO_OP_SWAP_12:
+    {
+        if(vm->stackTop - vm->stack < 3){
+            runtimeError(vm, "Stack underflow.");
+            return VM_RUNTIME_ERROR;
+        }
+
+        Value val1 = peek(vm, 1);
+        Value val2 = peek(vm, 2);
+        vm->stackTop[-2] = val2;
+        vm->stackTop[-3] = val1;
     } DISPATCH();
 
     DO_OP_PRINT:

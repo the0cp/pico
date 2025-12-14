@@ -64,6 +64,12 @@ ParseRule rules[] = {
     [TOKEN_MINUS]                   = {handleUnary,     handleBinary,   PREC_TERM},
     [TOKEN_STAR]                    = {NULL,            handleBinary,   PREC_FACTOR},
     [TOKEN_SLASH]                   = {NULL,            handleBinary,   PREC_FACTOR},
+    [TOKEN_PERCENT]                 = {NULL,            handleBinary,   PREC_FACTOR},
+    [TOKEN_PLUS_EQUAL]              = {NULL,            NULL,           PREC_NONE},
+    [TOKEN_MINUS_EQUAL]             = {NULL,            NULL,           PREC_NONE},
+    [TOKEN_PLUS_PLUS]               = {handleUnary,     NULL,           PREC_NONE},
+    [TOKEN_MINUS_MINUS]             = {handleUnary,     NULL,           PREC_NONE},
+
     [TOKEN_NUMBER]                  = {handleNum,       NULL,           PREC_NONE},
     [TOKEN_IDENTIFIER]              = {handleVar,       NULL,           PREC_NONE},
 
@@ -1379,6 +1385,72 @@ static void handleVar(Compiler* compiler, bool canAssign){
         expression(compiler);
         finalOp = setOp;
         finalLOp = setLOp;
+    }else if(canAssign && match(compiler, TOKEN_PLUS_EQUAL)){
+        if(index <= 0xff){
+            emitPair(compiler, getOp, (uint8_t)index);
+        }else{
+            emitByte(compiler, getLOp);
+            emitPair(compiler, (uint8_t)((index >> 8) & 0xff), (uint8_t)(index & 0xff));
+        }
+
+        expression(compiler);
+        emitByte(compiler, OP_ADD);
+        finalOp = setOp;
+        finalLOp = setLOp;
+    }else if(canAssign && match(compiler, TOKEN_MINUS_EQUAL)){
+        if(index <= 0xff){
+            emitPair(compiler, getOp, (uint8_t)index);
+        }else{
+            emitByte(compiler, getLOp);
+            emitPair(compiler, (uint8_t)((index >> 8) & 0xff), (uint8_t)(index & 0xff));
+        }
+
+        expression(compiler);
+        emitByte(compiler, OP_SUBTRACT);
+        finalOp = setOp;
+        finalLOp = setLOp;
+    }else if(canAssign && match(compiler, TOKEN_PLUS_PLUS)){
+        if(index <= 0xff){
+            emitPair(compiler, getOp, (uint8_t)index);
+        }else{
+            emitByte(compiler, getLOp);
+            emitPair(compiler, (uint8_t)((index >> 8) & 0xff), (uint8_t)(index & 0xff));
+        }
+
+        emitByte(compiler, OP_DUP);
+        emitConstant(compiler, NUM_VAL(1));
+        emitByte(compiler, OP_ADD);
+
+        if(index <= 0xff){
+            emitPair(compiler, setOp, (uint8_t)index);
+        }else{
+            emitByte(compiler, setLOp);
+            emitPair(compiler, (uint8_t)((index >> 8) & 0xff), (uint8_t)(index & 0xff));
+        }
+
+        emitByte(compiler, OP_POP);
+        return;
+    }else if(canAssign && match(compiler, TOKEN_MINUS_MINUS)){
+        if(index <= 0xff){
+            emitPair(compiler, getOp, (uint8_t)index);
+        }else{
+            emitByte(compiler, getLOp);
+            emitPair(compiler, (uint8_t)((index >> 8) & 0xff), (uint8_t)(index & 0xff));
+        }
+
+        emitByte(compiler, OP_DUP);
+        emitConstant(compiler, NUM_VAL(1));
+        emitByte(compiler, OP_SUBTRACT);
+
+        if(index <= 0xff){
+            emitPair(compiler, setOp, (uint8_t)index);
+        }else{
+            emitByte(compiler, setLOp);
+            emitPair(compiler, (uint8_t)((index >> 8) & 0xff), (uint8_t)(index & 0xff));
+        }
+
+        emitByte(compiler, OP_POP);
+        return;
     }else{
         finalOp = getOp;
         finalLOp = getLOp;
@@ -1401,6 +1473,45 @@ static void handleGrouping(Compiler* compiler, bool canAssign){
 
 static void handleUnary(Compiler* compiler, bool canAssign){
     TokenType type = compiler->parser.pre.type;
+
+    if(type == TOKEN_PLUS_PLUS || type == TOKEN_MINUS_MINUS){
+        consume(compiler, TOKEN_IDENTIFIER, "Expect variable name after prefix operator.");
+        
+        Token* name = &compiler->parser.pre;
+        uint8_t getOp, setOp, getLOp, setLOp;
+        
+        int index = resolveLocal(compiler, name);
+        if(index != -1){
+            getOp = OP_GET_LOCAL; setOp = OP_SET_LOCAL;
+            getLOp = OP_GET_LLOCAL; setLOp = OP_SET_LLOCAL;
+        }else if((index = resolveUpvalue(compiler, name)) != -1){
+            getOp = OP_GET_UPVALUE; setOp = OP_SET_UPVALUE;
+            getLOp = OP_GET_LUPVALUE; setLOp = OP_SET_LUPVALUE;
+        }else{
+            index = identifierConst(compiler);
+            getOp = OP_GET_GLOBAL; setOp = OP_SET_GLOBAL;
+            getLOp = OP_GET_LGLOBAL; setLOp = OP_SET_LGLOBAL;
+        }
+
+        if(index <= 0xff){
+            emitPair(compiler, getOp, (uint8_t)index);
+        }else{
+            emitByte(compiler, getLOp);
+            emitPair(compiler, (uint8_t)((index >> 8) & 0xff), (uint8_t)(index & 0xff));
+        }
+
+        emitConstant(compiler, NUM_VAL(1));
+        emitByte(compiler, (type == TOKEN_PLUS_PLUS) ? OP_ADD : OP_SUBTRACT);
+
+        if(index <= 0xff){
+            emitPair(compiler, setOp, (uint8_t)index);
+        }else{
+            emitByte(compiler, setLOp);
+            emitPair(compiler, (uint8_t)((index >> 8) & 0xff), (uint8_t)(index & 0xff));
+        }
+        return;
+    }
+
     parsePrecedence(compiler, PREC_UNARY);
 
     switch(type){
@@ -1419,6 +1530,7 @@ static void handleBinary(Compiler* compiler, bool canAssign){
         case TOKEN_MINUS:           emitByte(compiler, OP_SUBTRACT); break;
         case TOKEN_STAR:            emitByte(compiler, OP_MULTIPLY); break;
         case TOKEN_SLASH:           emitByte(compiler, OP_DIVIDE); break;
+        case TOKEN_PERCENT:         emitByte(compiler, OP_MODULO); break;
         case TOKEN_EQUAL:           emitByte(compiler, OP_EQUAL); break;
         case TOKEN_NOT_EQUAL:       emitByte(compiler, OP_NOT_EQUAL); break;
         case TOKEN_GREATER:         emitByte(compiler, OP_GREATER); break;
@@ -1583,23 +1695,103 @@ static void handleDot(Compiler* compiler, bool canAssign){
 
     uint8_t finalOp, finalLOp;
 
+    uint8_t getOp = (index < 0xff) ? OP_GET_PROPERTY : OP_GET_LPROPERTY;
+    uint8_t setOp = (index < 0xff) ? OP_SET_PROPERTY : OP_SET_LPROPERTY;
+
     if(canAssign && match(compiler, TOKEN_ASSIGN)){
         expression(compiler);
-        finalOp = OP_SET_PROPERTY;
-        finalLOp = OP_SET_LPROPERTY;
-    }else{
-        finalOp = OP_GET_PROPERTY;
-        finalLOp = OP_GET_LPROPERTY;
-    }
+        if(index < 0xff){
+            emitPair(compiler, setOp, (uint8_t)index);
+        }else{ 
+            emitByte(compiler, setOp); 
+            emitPair(compiler, (uint8_t)((index >> 8) & 0xff), (uint8_t)(index & 0xff));
+        }
+    }else if(canAssign && match(compiler, TOKEN_PLUS_EQUAL)){
+        emitByte(compiler, OP_DUP);
+        if(index < 0xff){
+            emitPair(compiler, getOp, (uint8_t)index);
+        }else{ 
+            emitByte(compiler, getOp); 
+            emitPair(compiler, (uint8_t)((index >> 8) & 0xff), (uint8_t)(index & 0xff)); 
+        }
 
-    if(index < 256){
-        emitPair(compiler, finalOp, (uint8_t)index);
-    }else if(index < 0xffff){
-        emitByte(compiler, finalLOp);
-        emitByte(compiler, (uint8_t)((index >> 8) & 0xff));
-        emitByte(compiler, (uint8_t)(index & 0xff));
+        expression(compiler);
+        emitByte(compiler, OP_ADD);
+        
+        if(index < 0xff){
+            emitPair(compiler, setOp, (uint8_t)index);
+        }else{ 
+            emitByte(compiler, setOp); 
+            emitPair(compiler, (uint8_t)((index >> 8) & 0xff), (uint8_t)(index & 0xff));
+        }
+    }else if(canAssign && match(compiler, TOKEN_MINUS_EQUAL)){
+        emitByte(compiler, OP_DUP);
+        if(index < 0xff){
+            emitPair(compiler, getOp, (uint8_t)index);
+        }else{ 
+            emitByte(compiler, getOp); 
+            emitPair(compiler, (uint8_t)((index >> 8) & 0xff), (uint8_t)(index & 0xff)); 
+        }
+
+        expression(compiler);
+        emitByte(compiler, OP_SUBTRACT);
+        
+        if(index < 0xff){
+            emitPair(compiler, setOp, (uint8_t)index);
+        }else{ 
+            emitByte(compiler, setOp); 
+            emitPair(compiler, (uint8_t)((index >> 8) & 0xff), (uint8_t)(index & 0xff));
+        }
+    }else if(canAssign && match(compiler, TOKEN_PLUS_PLUS)){
+        emitByte(compiler, OP_DUP);
+        
+        if(index < 0xff){
+            emitPair(compiler, getOp, (uint8_t)index);
+        }else{ 
+            emitByte(compiler, getOp); 
+            emitPair(compiler, (uint8_t)((index >> 8) & 0xff), (uint8_t)(index & 0xff)); 
+        }
+
+        emitConstant(compiler, NUM_VAL(1));
+        emitByte(compiler, OP_ADD);
+
+        if(index < 0xff){
+            emitPair(compiler, setOp, (uint8_t)index);
+        }else{ 
+            emitByte(compiler, setOp); 
+            emitPair(compiler, (uint8_t)((index >> 8) & 0xff), (uint8_t)(index & 0xff));
+        }
+        emitConstant(compiler, NUM_VAL(1)); // [new_val, 1]
+        emitByte(compiler, OP_SUBTRACT);
+    }else if(canAssign && match(compiler, TOKEN_MINUS_MINUS)){
+        emitByte(compiler, OP_DUP);
+        
+        if(index < 0xff){
+            emitPair(compiler, getOp, (uint8_t)index);
+        }else{ 
+            emitByte(compiler, getOp); 
+            emitPair(compiler, (uint8_t)((index >> 8) & 0xff), (uint8_t)(index & 0xff)); 
+        }
+
+        emitConstant(compiler, NUM_VAL(1));
+        emitByte(compiler, OP_SUBTRACT);
+
+        if(index < 0xff){
+            emitPair(compiler, setOp, (uint8_t)index);
+        }else{ 
+            emitByte(compiler, setOp); 
+            emitPair(compiler, (uint8_t)((index >> 8) & 0xff), (uint8_t)(index & 0xff));
+        }
+        emitConstant(compiler, NUM_VAL(1)); // [new_val, 1]
+        emitByte(compiler, OP_ADD);
     }else{
-        errorAt(compiler, &compiler->parser.pre, "Too many constants.");
+        if(index < 0xff){
+            emitPair(compiler, getOp, (uint8_t)index);
+        }else{
+            emitByte(compiler, getOp);
+            emitByte(compiler, (uint8_t)((index >> 8) & 0xff));
+            emitByte(compiler, (uint8_t)(index & 0xff));
+        }
     }
 }
 
@@ -1672,6 +1864,35 @@ static void handleIndex(Compiler* compiler, bool canAssign){
     if(canAssign && match(compiler, TOKEN_ASSIGN)){
         expression(compiler);
         emitByte(compiler, OP_INDEX_SET);
+    }else if(canAssign && match(compiler, TOKEN_PLUS_EQUAL)){
+        emitByte(compiler, OP_DUP_2);       // [list, index, list, index]
+        emitByte(compiler, OP_INDEX_GET);   // [list, index, val]
+        expression(compiler);               // [list, index, val, rhs]
+        emitByte(compiler, OP_ADD);         // [list, index, new_val]
+        emitByte(compiler, OP_INDEX_SET);   // [new_val]
+    }
+    else if(canAssign && match(compiler, TOKEN_MINUS_EQUAL)){
+        emitByte(compiler, OP_DUP_2);
+        emitByte(compiler, OP_INDEX_GET);
+        expression(compiler);
+        emitByte(compiler, OP_SUBTRACT);
+        emitByte(compiler, OP_INDEX_SET);
+    }else if(canAssign && match(compiler, TOKEN_PLUS_PLUS)){
+        emitByte(compiler, OP_DUP_2);       // [list, index, list, index]
+        emitByte(compiler, OP_INDEX_GET);   // [list, index, val]
+        emitConstant(compiler, NUM_VAL(1)); 
+        emitByte(compiler, OP_ADD);         // [list, index, val, new_val] 
+        emitByte(compiler, OP_INDEX_SET);   // [new_val]
+        emitConstant(compiler, NUM_VAL(1)); // [new_val, 1]
+        emitByte(compiler, OP_SUBTRACT);    // [old_val]
+    }else if(canAssign && match(compiler, TOKEN_MINUS_MINUS)){
+        emitByte(compiler, OP_DUP_2);       // [list, index, list, index]
+        emitByte(compiler, OP_INDEX_GET);   // [list, index, val]
+        emitConstant(compiler, NUM_VAL(1)); 
+        emitByte(compiler, OP_SUBTRACT);    // [list, index, new_val]
+        emitByte(compiler, OP_INDEX_SET);   // [new_val]
+        emitConstant(compiler, NUM_VAL(1)); 
+        emitByte(compiler, OP_ADD);         // [old_val]
     }else{
         emitByte(compiler, OP_INDEX_GET);
     }

@@ -24,7 +24,7 @@ add_compile_options(-g)
 
 add_executable(pico ${SOURCE_DIR} ${MODULE_SOURCES})
 
-target_link_libraries(pico PRIVATE xxhash_lib linenoise_lib)
+target_link_libraries(pico PRIVATE xxhash_lib linenoise_lib m)
 
 target_compile_features(pico PRIVATE c_std_11)
 target_compile_options(pico PRIVATE

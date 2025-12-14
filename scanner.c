@@ -199,9 +199,16 @@ static Token scanDefault(){
     }
 
     switch(c){
-        case '+': return pack(TOKEN_PLUS, sc.head, 1, sc.line);
-        case '-': return pack(TOKEN_MINUS, sc.head, 1, sc.line);
+        case '+': 
+            if(is_next('='))    return pack(TOKEN_PLUS_EQUAL, sc.head, 2, sc.line);
+            if(is_next('+'))    return pack(TOKEN_PLUS_PLUS, sc.head, 2, sc.line);
+            return pack(TOKEN_PLUS, sc.head, 1, sc.line);
+        case '-': 
+            if(is_next('='))    return pack(TOKEN_MINUS_EQUAL, sc.head, 2, sc.line);
+            if(is_next('-'))    return pack(TOKEN_MINUS_MINUS, sc.head, 2, sc.line);
+            return pack(TOKEN_MINUS, sc.head, 1, sc.line);
         case '/': return pack(TOKEN_SLASH, sc.head, 1, sc.line);
+        case '%': return pack(TOKEN_PERCENT, sc.head, 1, sc.line);
         case '(': return pack(TOKEN_LEFT_PAREN, sc.head, 1, sc.line);
         case ')': return pack(TOKEN_RIGHT_PAREN, sc.head, 1, sc.line);
         case '[': return pack(TOKEN_LEFT_BRACKET, sc.head, 1, sc.line);
