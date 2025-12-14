@@ -115,11 +115,44 @@ PiCo supports standard operators with precedence rules defined in the compiler.
 
 ### Arithmetic
 
-- `+` (Addition), `-` (Subtraction), `*` (Multiplication), `/` (Division).
+- `+` (Addition), `-` (Subtraction), `*` (Multiplication), `/` (Division), `%` (Modulo).
+
+- Increment & Decrement: `++`, `--`. 
+
+Prefix (`++i`, `--i`): Increments/Decrements the value and returns the new value. Only supported for variables.
+
+Postfix (`i++`, `i--`): Increments/Decrements the value and returns the original value. Supported for variables, object properties, and list indices.
+
+Example:
+
+```
+var a = 15;
+print ++a;      # Output: 16 (a is 16)
+print a++;      # Output: 16 (a becomes 17)
+
+class Box { 
+  Val = 0;
+}
+
+var obj = Box();
+obj.Val++;      # Supported (Postfix)
+
+var list = [10, 20];
+list[0]++;      # Supported (Postfix), list[0] becomes 11
+```
 
 - **String Concatenation**: The `+` operator is overloaded to concatenate strings if operands are strings.
 
 - **Unary**: `-` (Negation).
+
+### Assignment & Increment
+PiCo provides shorthand operators for modifying variables and properties.
+
+- Compound Assignment: `+=`, `-=`.
+
+  - `a += b` is equivalent to `a = a + b`.
+
+  - `a -= b` is equivalent to `a = a - b`.
 
 ### Implicit String Concatenation
 
