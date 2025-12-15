@@ -4,5 +4,6 @@
 #include "vm.h"
 
 void registerGlobModule(VM* vm);
+bool glob_match_string(const char* text, const char* pattern, bool ignoreCase);
 
 #endif

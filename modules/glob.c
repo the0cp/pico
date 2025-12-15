@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <ctype.h>
 
 #include "common.h"
 #include "vm.h"
@@ -12,86 +13,168 @@
 #include "glob.h"
 
 #ifdef _WIN32
-    #include <windows.h>
     #define PATH_SEP '\\'
+    #define PATH_SEP_STR "\\"
 #else
-    #include <glob.h>
     #define PATH_SEP '/'
+    #define PATH_SEP_STR "/"
 #endif
 
-static Value glob_match(VM* vm, int argCount, Value* args){
-    if(argCount != 1 || !IS_STRING(args[0])){
-        fprintf(stderr, "glob.match expects a single string argument as pattern.\n");
-        return NULL_VAL;
-    }
+static char to_lower(char c){
+    return (char)tolower((unsigned char)c);
+}
 
-    char* pattern = AS_CSTRING(args[0]);
-    ObjectList* list = newList(vm);
-    push(vm, OBJECT_VAL(list));
+static bool is_sep(char c){
+    return c == PATH_SEP;
+}
 
-    #ifdef _WIN32
-    WIN32_FIND_DATA fd;
-    HANDLE hFind = FindFirstFile(pattern, &fd);
+static bool match_set(char c, const char* set_st, const char** set_end, bool ignoreCase){
+    const char* p = set_st;
+    bool invert = (*p == '!');
+    if(invert)  p++;
 
-    if(hFind != INVALID_HANDLE_VALUE){
-        char* lastSep = strrchr(pattern, '/');
-        char* lastSepWin = strrchr(pattern, '\\');
-        char* sep = (lastSep > lastSepWin) ? lastSep : lastSepWin;
-        
-        size_t prefixLen = 0;
-        char* prefix = NULL;
+    bool match = false;
+    char target = ignoreCase ? to_lower(c) : c;
 
-        if(sep != NULL){
-            prefixLen = sep - pattern + 1;
-            prefix = (char*)malloc(prefixLen + 1);
-            memcpy(prefix, pattern, prefixLen);
-            prefix[prefixLen] = '\0';
-        }
-
-        do{
-            if(strcmp(fd.cFileName, ".") != 0 && strcmp(fd.cFileName, "..") != 0){
-                ObjectString* pathObj;
-                if(prefix != NULL){
-                    size_t nameLen = strlen(fd.cFileName);
-                    size_t totalLen = prefixLen + nameLen;
-                    char* fullPath = (char*)malloc(totalLen + 1);
-                    memcpy(fullPath, prefix, prefixLen);
-                    memcpy(fullPath + prefixLen, fd.cFileName, nameLen);
-                    fullPath[totalLen] = '\0';
-                    
-                    pathObj = copyString(vm, fullPath, (int)totalLen);
-                    free(fullPath);
-                }else{
-                    pathObj = copyString(vm, fd.cFileName, (int)strlen(fd.cFileName));
-                }
-                
-                push(vm, OBJECT_VAL(pathObj));
-                appendToList(vm, list, OBJECT_VAL(pathObj));
-                pop(vm);
+    while(*p && *p != ']'){
+        char start = *p;
+        p++;
+        if(*p == '-' && p[1] != ']'){
+            p++;
+            char end = *p;
+            char lower_st = ignoreCase ? to_lower(start) : start;
+            char lower_end = ignoreCase ? to_lower(end) : end;
+            if(target >= lower_st && target <= lower_end){
+                match = true;
             }
-        }while(FindNextFile(hFind, &fd));
-
-        if(prefix != NULL) free(prefix);
-        FindClose(hFind);
-    }
-    #else
-    glob_t glob_res;
-    int ret = glob(pattern, GLOB_TILDE, NULL, &glob_res);
-    
-    if(ret == 0){
-        for(size_t i = 0; i < glob_res.gl_pathc; i++){
-            char* matchPath = glob_res.gl_pathv[i];
-            ObjectString* path = copyString(vm, matchPath, (int)strlen(matchPath));
-            push(vm, OBJECT_VAL(path));
-            appendToList(vm, list, OBJECT_VAL(path));
-            pop(vm);
+        }else{
+            if((ignoreCase ? to_lower(start) : start) == target){
+                match = true;
+            }
         }
     }
-    globfree(&glob_res);
-    #endif
+    *set_end = p;
+    return invert ? !match : match;
+}
 
-    pop(vm);    // pop the list
-    return OBJECT_VAL(list);
+static bool match_num_range(const char* text, const char** text_adv, const char* pat_body, const char* pat_end){
+    const char* sep = strstr(pat_body, "..");
+    if(!sep || sep > pat_end)   return false;
+
+    long min = strtol(pat_body, NULL, 10);
+    long max = strtol(sep + 2, NULL, 10);
+
+    char* end_ptr;
+    long val = strtol(text, &end_ptr, 10);
+    if(end_ptr == text) return false;
+
+    if(val >= min && val <= max){
+        *text_adv = end_ptr;
+        return true;
+    }
+    return false;
+}
+
+bool glob_match_string(const char* text, const char* pattern, bool ignoreCase){
+    while(*pattern){
+        char p = *pattern;
+        char t = *text;
+
+        if(p == '*'){
+            if(*(pattern + 1) == '*'){
+                const char* next_pat = pattern + 2;
+                if(is_sep(*next_pat))   next_pat++;
+                const char* cur_text = text;
+                while(true){
+                    if(glob_match_string(cur_text, next_pat, ignoreCase)) return true;
+                    if(*cur_text == '\0') break;
+                    cur_text++;
+                }
+                return false;
+            }else{
+                while(*(pattern + 1) == '*')    pattern++;
+                if(glob_match_string(text, pattern + 1, ignoreCase))    return true;
+                while(*text && !is_sep(*text)){
+                    if(glob_match_string(text + 1, pattern + 1, ignoreCase))    return true;
+                    text++;
+                }
+                return false;
+            }
+        }else if(p == '?'){
+            if(!t)  return false;
+            text++;
+            pattern++;
+        }else if(p == '['){
+            if(!t)  return false;
+            const char* end;
+            if(!match_set(t, pattern + 1, &end, ignoreCase))    return false;
+            pattern = end + 1;
+            text++;
+        }else if(p == '{'){
+            const char* close = strchr(pattern, '}');
+            if(!close)  return false;
+
+            const char* dots = strstr(pattern, "..");
+            if(dots && dots < close){
+                const char* text_next;
+                if(match_num_range(text, &text_next, pattern + 1, close)){
+                    return glob_match_string(text_next, close + 1, ignoreCase);
+                }
+                return false;
+            }else{
+                const char* cur = pattern + 1;
+                while(cur < close){
+                    const char* comma = strchr(cur, ',');
+                    const char* end_opt = (comma && comma < close) ? comma : close;
+                    size_t opt_len = end_opt - cur;
+                    bool match_opt = true;
+
+                    for(size_t i = 0; i < opt_len; i++){
+                        char tc = text[i];
+                        if(!tc){
+                            match_opt = false;
+                            break;
+                        }
+                        char pc = cur[i];
+                        if(ignoreCase){
+                            if(to_lower(tc) != to_lower(pc))    match_opt = false;
+                        }else{
+                            if(tc != pc)    match_opt = false;
+                        }
+                    }
+
+                    if(match_opt){
+                        if(glob_match_string(text + opt_len, close + 1, ignoreCase))    return true;
+                    }
+
+                    cur = end_opt + 1;
+                }
+                return false;
+            }
+        }else{
+            bool match;
+            if(is_sep(p)){
+                match = is_sep(t);
+            }else if(ignoreCase){
+                match = (to_lower(t) == to_lower(p));
+            }else{
+                match = (t == p);
+            }
+            if(!match) return false;
+            text++;
+            pattern++;
+        }
+    }
+    return *text == '\0' && *pattern == '\0';
+}
+
+static Value glob_match(VM* vm, int argCount, Value* args){
+    if(argCount != 2 || !IS_STRING(args[0]) || !IS_STRING(args[1])){
+        fprintf(stderr, "glob.match(pattern, text) expect two strings.\n");
+        return BOOL_VAL(false);
+    }
+    bool matched = glob_match_string(AS_CSTRING(args[1]), AS_CSTRING(args[0]), false);
+    return BOOL_VAL(matched);
 }
 
 static void defineCFunc(VM* vm, HashTable* table, const char* name, CFunc func){
@@ -108,6 +191,20 @@ void registerGlobModule(VM* vm){
 
     ObjectModule* module = newModule(vm, moduleName);
     push(vm, OBJECT_VAL(module));
+
+    ObjectString* className = copyString(vm, "Glob", 4);
+    push(vm, OBJECT_VAL(className));
+    ObjectClass* klass = newClass(vm, className);
+    push(vm, OBJECT_VAL(klass));
+
+    tableSet(vm, &klass->fields, OBJECT_VAL(copyString(vm, "Pattern", 7)), OBJECT_VAL(copyString(vm, "*", 1)));
+    tableSet(vm, &klass->fields, OBJECT_VAL(copyString(vm, "Dir", 3)), OBJECT_VAL(copyString(vm, ".", 1)));
+    tableSet(vm, &klass->fields, OBJECT_VAL(copyString(vm, "IgnoreCase", 10)), BOOL_VAL(false));
+    tableSet(vm, &klass->fields, OBJECT_VAL(copyString(vm, "Exclude", 7)), NULL_VAL);
+    tableSet(vm, &klass->fields, OBJECT_VAL(copyString(vm, "Recursive", 9)), BOOL_VAL(false));
+    tableSet(vm, &module->members, OBJECT_VAL(className), OBJECT_VAL(klass));
+    pop(vm); // klass
+    pop(vm); // className
 
     defineCFunc(vm, &module->members, "match", glob_match);
 

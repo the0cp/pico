@@ -1,3 +1,6 @@
+#ifndef _WIN32
+#define _DEFAULT_SOURCE
+#endif
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -15,6 +18,18 @@
 #include "value.h"
 #include "modules.h"
 #include "fs.h"
+#include "glob.h"
+
+#ifdef _WIN32
+    #include <windows.h>
+    #define PATH_SEP '\\'
+    #define PATH_SEP_STR "\\"
+#else
+    #include <dirent.h>
+    #include <sys/stat.h>
+    #define PATH_SEP '/'
+    #define PATH_SEP_STR "/"
+#endif
 
 #define GET_FILE(val) \
     if(!IS_FILE(val)){ \
@@ -263,48 +278,49 @@ static Value fs_remove(VM* vm, int argCount, Value* args){
 #endif
 
 static Value fs_listDir(VM* vm, int argCount, Value* args){
-    if(argCount != 1 || !IS_STRING(args[0])){
-        fprintf(stderr, "fs.list expects a single dir string argument.\n");
+    if(argCount != 1){
+        fprintf(stderr, "fs.list expects a single argument.\n");
         return NULL_VAL;
     }
 
-    char* path = AS_CSTRING(args[0]);
+    GlobConfig config;
+
+    config.pattern = "*";
+    config.ignoreCase = false;
+    config.excludeVal = NULL_VAL;
+    config.recursive = false;
+    const char* baseDir = ".";
+
+    if(IS_STRING(args[0])){
+        baseDir = AS_CSTRING(args[0]);
+    }else if(IS_INSTANCE(args[0])){
+        ObjectInstance* instant = AS_INSTANCE(args[0]);
+        Value val;
+        
+        if(tableGet(&instant->fields, OBJECT_VAL(copyString(vm, "Dir", 3)), &val) && IS_STRING(val)){
+            baseDir = AS_CSTRING(val);
+        }
+        if(tableGet(&instant->fields, OBJECT_VAL(copyString(vm, "Pattern", 7)), &val) && IS_STRING(val)){
+            config.pattern = AS_CSTRING(val);
+        }
+        if(tableGet(&instant->fields, OBJECT_VAL(copyString(vm, "IgnoreCase", 10)), &val) && IS_BOOL(val)){
+            config.ignoreCase = AS_BOOL(val);
+        }
+        if(tableGet(&instant->fields, OBJECT_VAL(copyString(vm, "Exclude", 7)), &val)){
+            config.excludeVal = val;
+        }
+        if(tableGet(&instant->fields, OBJECT_VAL(copyString(vm, "Recursive", 9)), &val) && IS_BOOL(val)){
+            config.recursive = AS_BOOL(val);
+        }
+    }else{
+        fprintf(stderr, "fs.list argument must be a string or a Glob object.\n");
+        return NULL_VAL;
+    }
 
     ObjectList* list = newList(vm);
     push(vm, OBJECT_VAL(list));
 
-#ifdef _WIN32
-    char listPath[2048];
-    snprintf(listPath, 2048, "%s\\*.*", path);
-    WIN32_FIND_DATA fd;
-    HANDLE hFind = FindFirstFile(listPath, &fd);
-    if(hFind != INVALID_HANDLE_VALUE){
-        do{
-            if(strcmp(fd.cFileName, ".") != 0 && strcmp(fd.cFileName, "..") != 0){
-                ObjectString* name = copyString(vm, fd.cFileName, strlen(fd.cFileName));
-                push(vm, OBJECT_VAL(name));
-                appendToList(vm, list, OBJECT_VAL(name));
-                pop(vm);
-            }
-        }while(FindNextFile(hFind, &fd));
-        FindClose(hFind);
-    }
-#else
-    DIR* dir;
-    struct dirent* ent;
-    if((dir = opendir(path)) != NULL){
-        while((ent = readdir(dir)) != NULL){
-            if(strcmp(ent->d_name, ".") != 0 && strcmp(ent->d_name, "..") != 0){
-                ObjectString* name = copyString(vm, ent->d_name, strlen(ent->d_name));
-                push(vm, OBJECT_VAL(name));
-                appendToList(vm, list, OBJECT_VAL(name));
-                pop(vm);
-            }
-        }
-        closedir(dir);
-    }
-#endif
-
+    scan_dir(vm, baseDir, "", list, &config);
     pop(vm);
     return OBJECT_VAL(list);
 }
@@ -346,6 +362,113 @@ static Value fs_isDir(VM* vm, int argCount, Value* args){
     }
 
     return BOOL_VAL(false);
+}
+
+static bool is_excluded(VM* vm, const char* filename, Value excludeVal, bool ignoreCase){
+    if(IS_NUM(excludeVal))  return false;
+    if(IS_STRING(excludeVal))   return glob_match_string(filename, AS_CSTRING(excludeVal), ignoreCase);
+    if(IS_LIST(excludeVal)){
+        ObjectList* list = AS_LIST(excludeVal);
+        for(int i = 0; i < list->count; i++){
+            if(IS_STRING(list->items[i])){
+                if(glob_match_string(filename, AS_CSTRING(list->items[i]), ignoreCase)){
+                    return true;
+                }
+            }
+        }
+    }
+    return false;
+}
+
+static void scan_dir(VM* vm, const char* baseDir, const char* relDir, ObjectList* list, GlobConfig* config){
+    char fullPath[2048];
+    if(strlen(relDir) == 0){
+        snprintf(fullPath, sizeof(fullPath), "%s", baseDir);
+    }else{
+        snprintf(fullPath, sizeof(fullPath), "%s%c%s", baseDir, PATH_SEP, relDir);
+    }
+#ifdef _WIN32
+    char searchPath[2048];
+    snprintf(searchPath, sizeof(searchPath), "%s\\*.*", fullPath);
+
+    WIN32_FIND_DATA fd;
+    HANDLE hFind = FindFirstFile(searchPath, &fd);
+    
+    if(hFind != INVALID_HANDLE_VALUE){
+        do {
+            if(strcmp(fd.cFileName, ".") == 0 || strcmp(fd.cFileName, "..") == 0) continue;
+            
+            char relPath[1024];
+            if(strlen(relDir) == 0){
+                snprintf(relPath, sizeof(relPath), "%s", fd.cFileName);
+            }else{
+                snprintf(relPath, sizeof(relPath), "%s\\%s", relDir, fd.cFileName);
+            }
+
+            bool isDir = (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY);
+
+            if(glob_match_string(relPath, config->pattern, config->ignoreCase)){
+                if(!is_excluded(vm, relPath, config->excludeVal, config->ignoreCase)){
+                    ObjectString* str = copyString(vm, relPath, strlen(relPath));
+                    push(vm, OBJECT_VAL(str));
+                    appendToList(vm, list, OBJECT_VAL(str));
+                    pop(vm);
+                }
+            }
+
+            if(isDir && config->recursive){
+                scan_dir(vm, baseDir, relPath, list, config);
+            }
+
+        }while(FindNextFile(hFind, &fd));
+        FindClose(hFind);
+    }
+#else
+    DIR* dir = opendir(fullPath);
+    if (!dir) return;
+
+    struct dirent* ent;
+    while((ent = readdir(dir)) != NULL){
+        if(strcmp(ent->d_name, ".") == 0 || strcmp(ent->d_name, "..") == 0) continue;
+
+        char relPath[1024];
+        if(strlen(relDir) == 0){
+            snprintf(relPath, sizeof(relPath), "%s", ent->d_name);
+        }else{
+            snprintf(relPath, sizeof(relPath), "%s/%s", relDir, ent->d_name);
+        }
+
+        bool isDir = false;
+
+    #ifdef _DIRENT_HAVE_D_TYPE
+        if(ent->d_type == DT_DIR) isDir = true;
+        else if(ent->d_type == DT_UNKNOWN){
+             struct stat st;
+             char absStatPath[2048];
+             snprintf(absStatPath, sizeof(absStatPath), "%s/%s", fullPath, ent->d_name);
+             if (stat(absStatPath, &st) == 0 && S_ISDIR(st.st_mode)) isDir = true;
+        }
+    #else
+        struct stat st;
+        char absStatPath[2048];
+        snprintf(absStatPath, sizeof(absStatPath), "%s/%s", fullPath, ent->d_name);
+        if(stat(absStatPath, &st) == 0 && S_ISDIR(st.st_mode)) isDir = true;
+    #endif
+        if(glob_match_string(relPath, config->pattern, config->ignoreCase)){
+            if(!is_excluded(vm, relPath, config->excludeVal, config->ignoreCase)){
+                ObjectString* str = copyString(vm, relPath, strlen(relPath));
+                push(vm, OBJECT_VAL(str));
+                appendToList(vm, list, OBJECT_VAL(str));
+                pop(vm);
+            }
+        }
+
+        if(isDir && config->recursive){
+            scan_dir(vm, baseDir, relPath, list, config);
+        }
+    }
+    closedir(dir);
+#endif
 }
 
 static void defineCFunc(VM* vm, HashTable* table, const char* name, CFunc func){
