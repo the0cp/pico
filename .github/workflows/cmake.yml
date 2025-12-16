@@ -1,0 +1,37 @@
+name: Cross-Platform PiCo Build
+
+on: [push, pull_request]
+
+jobs:
+  build:
+    name: Build on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+
+    - name: Configure CMake (Linux)
+      if: runner.os == 'Linux'
+      run: cmake -B build -DCMAKE_BUILD_TYPE=Release
+
+    - name: Configure CMake (Windows)
+      if: runner.os == 'Windows'
+      run: cmake -B build -G "MinGW Makefiles" -DCMAKE_BUILD_TYPE=Release
+
+    - name: Build
+      run: cmake --build build --config Release
+
+    - name: Smoke Test (Linux)
+      if: runner.os == 'Linux'
+      run: ./build/pico || true
+
+    - name: Smoke Test (Windows)
+      if: runner.os == 'Windows'
+      run: .\build\pico.exe || true

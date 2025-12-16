@@ -40,7 +40,7 @@ static double getSteady(){
 
 static double getSystemHighRes(){
 #ifdef _WIN32
-    struct timeespec ts;
+    struct timespec ts;
     if(timespec_get(&ts, TIME_UTC) == 0){
         return (double)ts.tv_sec + (double)ts.tv_nsec / 1e9;
     }

@@ -5,6 +5,8 @@
 #include "repl.h"
 #include "vm.h"
 
+#ifndef _WIN32
+
 #include "linenoise.h"
 
 static const char* keywords[] = {
@@ -23,8 +25,30 @@ void completion(const char *buf, linenoiseCompletions *lc){
         }
     }
 }
+#endif
 
 void repl(VM* vm){
+#ifdef _WIN32
+    char line[1024];
+    printf("PiCo REPL. Press Ctrl+C to exit.\n");
+    while(true){
+        printf(">>> ");
+        
+        if(fgets(line, sizeof(line), stdin) == NULL){
+            printf("\n");
+            break; // EOF (Ctrl+Z)
+        }
+
+        size_t len = strlen(line);
+        if(len > 0 && line[len - 1] == '\n'){
+            line[len - 1] = '\0';
+        }
+
+        if(line[0] != '\0'){
+            interpret(vm, line, "<stdin>");
+        }
+    }
+#else
     char* line;
     const char* his = ".pico_history";
 
@@ -42,4 +66,5 @@ void repl(VM* vm){
         }
         free(line);
     }
+#endif
 }
