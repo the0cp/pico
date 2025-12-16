@@ -606,9 +606,9 @@ import "fs";
   
   - *Returns*: `true` on success.
 
-- `fs.list(dirPath)`
+- `fs.list(arg)`
   
-  - *Description*: Lists all files and directories in the specified directory (excluding `.` and `..`).
+  - *Description*: Lists all files and directories in the specified directory. If `arg` is a string, it treats it as a directory path and lists all files/directories in it (excluding `.` and `..`). If `arg` is a `glob.Glob` object, it performs a search based on the object's configuration.
   
   - *Returns*: A List of Strings (filenames).
 
@@ -772,11 +772,57 @@ import "glob";
 
 #### Funtions:
 
-`glob.match(pattern)`
+- `glob.match(pattern, text)`
+  - *Description*: Checks if the text string matches the specified pattern. It supports:
+  - Wildcards: * (any sequence), ? (single char).
+  - Character Sets: [a-z], [!0-9] (negation).
+  - Numeric Ranges: {0..10} (inclusive).
+  - Enumerations: {jpg, png, gif}.
+  - Deep Matching: ** (matches across directories).
+  - *Arguments*: pattern (String), text (String).
+  - *Returns*: true if it matches, false otherwise.
 
-- *Description*: Finds files matching a pattern (e.g., `*.txt`).
+Example:
 
-- *Returns*: A List of Strings.
+```
+glob.match("*.txt", "doc.txt");            # true
+glob.match("img_{0..5}.png", "img_2.png"); # true
+```
+
+#### `glob.Glob`
+
+The `Glob` class is used to configure complex file searches. Instances of this class can be passed to `fs.list()` to retrieve matching files.
+
+Properties:
+- `Dir` (String): The root directory to start the search from. Defaults to "`.`" (current directory).
+- `Pattern` (String): The glob pattern to match files against (e.g., "`*.txt`", "`**/*.c`"). Defaults to "`*`" (match all files).
+- `Recursive` (Boolean): If true, the search will traverse subdirectories recursively. Defaults to false.
+- `IgnoreCase` (Boolean): If true, the pattern matching and filename comparison will be case-insensitive. Defaults to false.
+- `Exclude` (List): A list of glob pattern strings. Files matching any pattern in this list will be excluded from the results. Defaults to null.
+
+Example:
+
+To search for files, instantiate `glob.Glob`, configure its properties, and pass the object to `fs.list()`.
+
+```
+import "fs";
+import "glob";
+
+var config = glob.Glob();
+config.Dir = "src";
+config.Pattern = "*.c";
+
+var c_files = fs.list(config);
+
+var search = glob.Glob();
+search.Dir = ".";
+search.Recursive = true;
+search.Pattern = "**/*.{c,h}";        # Match C sources and headers
+search.Exclude = ["vendor/*", "tmp"]; # Exclude specific directories
+search.IgnoreCase = true;             # Match .C or .H too
+
+var all_source_files = fs.list(search);
+```
 
 ### string - String Module
 
