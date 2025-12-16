@@ -823,7 +823,7 @@ static void forStmt(Compiler* compiler){
                 emitPair(compiler, OP_GET_PROPERTY, sizeConst);
             }else if(sizeConst <= 0xffff){
                 emitByte(compiler, OP_GET_LPROPERTY);
-                emitPair(compiler, (uint8_t)((idxSlot >> 8) & 0xff), (uint8_t)(idxSlot & 0xff));
+                emitPair(compiler, (uint8_t)((sizeConst >> 8) & 0xff), (uint8_t)(sizeConst & 0xff));
             }else{
                 errorAt(compiler, &compiler->parser.pre, "Too many local constants.");
                 return;
@@ -1216,7 +1216,7 @@ static void defineVar(Compiler* compiler, int global){
         emitByte(compiler, OP_DEFINE_GLOBAL);
         emitByte(compiler, (uint8_t)global);
     }else if(global <= 0xffff){
-        emitByte(compiler, OP_DEFINE_GLOBAL);
+        emitByte(compiler, OP_DEFINE_LGLOBAL);
         emitPair(compiler, (uint8_t)((global >> 8) & 0xff), (uint8_t)(global & 0xff));
     }else{
         errorAt(compiler, &compiler->parser.pre, "Too many variables declared");

@@ -176,7 +176,12 @@ static void sweep(VM* vm){
 }
 
 void* reallocate(VM* vm, void* ptr, size_t oldSize, size_t newSize){
-    vm->bytesAllocated += newSize - oldSize;
+    if(newSize >= oldSize){
+        vm->bytesAllocated += newSize - oldSize;
+    }else{
+        vm->bytesAllocated -= oldSize - newSize;
+    }
+    
     static bool gc_running = false;
    
     #ifdef DEBUG_STRESS_GC

@@ -120,6 +120,12 @@ bool tableSet(VM* vm, HashTable* table, Value key, Value value){
         adjustCapacity(vm, table, new_capacity);
     }
 
+    Entry* existing = findEntry(table->entries, table->capacity, key);
+    if(existing != NULL){
+        existing->value = value;
+        return false;
+    }
+
     Entry entryToInsert;
     entryToInsert.key = key;
     entryToInsert.value = value;
@@ -311,8 +317,7 @@ void tableRemoveWhite(VM* vm, HashTable* table) {
         if(IS_EMPTY(entry->key))    continue;
 
         if(IS_OBJECT(entry->key) && AS_OBJECT(entry->key)->isMarked){
-            
-            push(vm, OBJECT_VAL(entry->key)); 
+            push(vm, entry->key); 
             push(vm, entry->value);           
 
             tableSet(vm, 

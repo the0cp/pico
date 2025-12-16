@@ -764,7 +764,7 @@ static InterpreterStatus run(VM* vm){
         ObjectString* name = AS_STRING(frame->closure->func->chunk.constants.values[READ_BYTE()]);
         if(tableSet(vm, vm->curGlobal, OBJECT_VAL(name), peek(vm, 0))){
             // empty bucket, undefined
-            tableRemove(vm, &vm->globals, OBJECT_VAL(name));
+            tableRemove(vm, vm->curGlobal, OBJECT_VAL(name));
             runtimeError(vm, "Undefined variable '%.*s'.", name->length, name->chars);
             return VM_RUNTIME_ERROR;
         }
@@ -776,7 +776,7 @@ static InterpreterStatus run(VM* vm){
         frame->ip += 2;
         ObjectString* name = AS_STRING(frame->closure->func->chunk.constants.values[index]);
         if(tableSet(vm, vm->curGlobal, OBJECT_VAL(name), peek(vm, 0))){
-            tableRemove(vm, &vm->globals, OBJECT_VAL(name));
+            tableRemove(vm, vm->curGlobal, OBJECT_VAL(name));
             runtimeError(vm, "Undefined variable '%.*s'.", name->length, name->chars);
             return VM_RUNTIME_ERROR;
         }
