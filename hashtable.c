@@ -11,30 +11,13 @@
 
 #define TABLE_MAX_LOAD 0.75
 
-static uint64_t g_hash_seed = 0;
-
 void initHashTable(HashTable* table){
     table->count = 0;
     table->capacity = 0;
     table->entries = NULL;
 }
 
-static void initHashSeed(){
-    srand((unsigned int)time(NULL));
-    uint64_t p1 = (uint64_t)rand();
-    uint64_t p2 = (uint64_t)rand();
-    g_hash_seed = (p1 << 32) | p2;
-
-    if(g_hash_seed == 0){
-        g_hash_seed = 1;
-    }
-}
-
-static uint64_t hashValue(Value value){
-    if(g_hash_seed == 0){
-        initHashSeed();
-    }
-
+static uint64_t hashValue(Value value, uint64_t seed){
     if(IS_STRING(value)){
         return AS_STRING(value)->hash;
     }
@@ -43,7 +26,7 @@ static uint64_t hashValue(Value value){
         if(num == 0.0)    num = 0.0;
         //  0.0: 0x0000000000000000
         // -0.0: 0x8000000000000000
-        return XXH3_64bits_withSeed(&num, sizeof(double), g_hash_seed);
+        return XXH3_64bits_withSeed(&num, sizeof(double), seed);
     }
     if(IS_OBJECT(value))    return (uint64_t)AS_OBJECT(value);
     if(IS_BOOL(value))  return AS_BOOL(value) ? 3 : 5;
@@ -67,12 +50,12 @@ static uint32_t get_distance(int capacity, uint32_t ideal_index, uint32_t cur_in
     }
 }
 
-static Entry* findEntry(Entry* entries, int capacity, Value key){
+static Entry* findEntry(Entry* entries, int capacity, Value key, uint64_t seed){
     if(capacity == 0){
         return NULL;    
     }
 
-    uint64_t hash = hashValue(key);
+    uint64_t hash = hashValue(key, seed);
     uint32_t ideal_index = hash & (capacity - 1);
     uint32_t probe_dist = 0;
 
@@ -84,7 +67,7 @@ static Entry* findEntry(Entry* entries, int capacity, Value key){
             return NULL;    
         }
 
-        uint64_t bucket_hash = hashValue(bucket->key);
+        uint64_t bucket_hash = hashValue(bucket->key, seed);
         uint32_t bucket_ideal_index = bucket_hash & (capacity - 1);
         uint32_t bucket_dist = get_distance(capacity, bucket_ideal_index, cur_index);
         if(probe_dist > bucket_dist){
@@ -98,12 +81,12 @@ static Entry* findEntry(Entry* entries, int capacity, Value key){
     }
 }
 
-bool tableGet(HashTable* table, Value key, Value* value){
+bool tableGet(VM* vm, HashTable* table, Value key, Value* value){
     if(table->count == 0){
         return false;
     }
 
-    Entry* entry = findEntry(table->entries, table->capacity, key);
+    Entry* entry = findEntry(table->entries, table->capacity, key, vm->hash_seed);
     if(entry == NULL || IS_EMPTY(entry->key)){
         return false;
     }
@@ -120,7 +103,7 @@ bool tableSet(VM* vm, HashTable* table, Value key, Value value){
         adjustCapacity(vm, table, new_capacity);
     }
 
-    Entry* existing = findEntry(table->entries, table->capacity, key);
+    Entry* existing = findEntry(table->entries, table->capacity, key, vm->hash_seed);
     if(existing != NULL){
         existing->value = value;
         return false;
@@ -130,7 +113,7 @@ bool tableSet(VM* vm, HashTable* table, Value key, Value value){
     entryToInsert.key = key;
     entryToInsert.value = value;
 
-    uint64_t key_hash = hashValue(key);
+    uint64_t key_hash = hashValue(key, vm->hash_seed);
     uint32_t ideal_index = key_hash & (table->capacity - 1);
     uint32_t probe_dist = 0;
 
@@ -150,7 +133,7 @@ bool tableSet(VM* vm, HashTable* table, Value key, Value value){
         }
 
         // robbing
-        uint64_t bucket_hash = hashValue(bucket->key);
+        uint64_t bucket_hash = hashValue(bucket->key, vm->hash_seed);
         uint32_t bucket_ideal_index = bucket_hash & (table->capacity - 1);
         uint32_t bucket_dist = get_distance(table->capacity, bucket_ideal_index, cur_index);
 
@@ -159,7 +142,7 @@ bool tableSet(VM* vm, HashTable* table, Value key, Value value){
             *bucket = entryToInsert;
             entryToInsert = tmp;
             
-            key_hash = hashValue(entryToInsert.key);
+            key_hash = hashValue(entryToInsert.key, vm->hash_seed);
             ideal_index = key_hash & (table->capacity - 1);
             probe_dist = get_distance(table->capacity, ideal_index, cur_index);
         }
@@ -172,7 +155,7 @@ bool tableRemove(VM* vm, HashTable* table, Value key){
         return false;
     }
 
-    Entry* entry = findEntry(table->entries, table->capacity, key);
+    Entry* entry = findEntry(table->entries, table->capacity, key, vm->hash_seed);
     if(entry == NULL || IS_EMPTY(entry->key)){
         return false;
     }
@@ -190,7 +173,7 @@ bool tableRemove(VM* vm, HashTable* table, Value key){
             break;
         }
 
-        uint64_t next_hash = hashValue(next_bucket->key);
+        uint64_t next_hash = hashValue(next_bucket->key, vm->hash_seed);
         uint32_t next_ideal = next_hash & (capacity - 1);
         if(get_distance(capacity, next_ideal, next_bucket_index) == 0){
             break;  // next entry already in its ideal bucket
@@ -251,7 +234,7 @@ bool tableMerge(VM* vm, HashTable* from, HashTable* to){
     return true;
 }
 
-ObjectString* tableGetInternedString(HashTable* table, const char* chars, int len, uint64_t hash){
+ObjectString* tableGetInternedString(VM* vm, HashTable* table, const char* chars, int len, uint64_t hash){
     if(table->count == 0){
         return NULL;
     }
@@ -272,7 +255,7 @@ ObjectString* tableGetInternedString(HashTable* table, const char* chars, int le
             continue;
         }
 
-        uint64_t entry_hash = hashValue(entry->key);
+        uint64_t entry_hash = hashValue(entry->key, vm->hash_seed);
         uint32_t entry_ideal_index = entry_hash & (capacity - 1);
         uint32_t entry_dist = get_distance(capacity, entry_ideal_index, cur_index);
         

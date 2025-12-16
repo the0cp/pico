@@ -12,8 +12,6 @@
 
 #include "xxhash.h"
 
-static uint64_t g_hash_seed = 0;
-
 // FNV-1a Hash
 /*
 static uint64_t hashString(const char* key, int len){
@@ -26,22 +24,8 @@ static uint64_t hashString(const char* key, int len){
 }
 */
 
-static void initHashSeed(){
-    srand((unsigned int)time(NULL));
-    uint64_t p1 = (uint64_t)rand();
-    uint64_t p2 = (uint64_t)rand();
-    g_hash_seed = (p1 << 32) | p2;
-
-    if(g_hash_seed == 0){
-        g_hash_seed = 1;
-    }
-}
-
-static uint64_t hashString(const char* key, int len){
-    if(g_hash_seed == 0){
-        initHashSeed();
-    }
-    return XXH3_64bits_withSeed(key, (size_t)len, g_hash_seed);
+static uint64_t hashString(const char* key, int len, uint64_t seed){
+    return XXH3_64bits_withSeed(key, (size_t)len, seed);
 }
 
 static ObjectString* allocString(VM* vm, int len, uint64_t hash){
@@ -58,9 +42,9 @@ static ObjectString* allocString(VM* vm, int len, uint64_t hash){
 }
 
 ObjectString* copyString(VM* vm, const char* chars, int len){
-    uint64_t hash = hashString(chars, len);
+    uint64_t hash = hashString(chars, len, vm->hash_seed);
 
-    ObjectString* interned = tableGetInternedString(&vm->strings, chars, len, hash);
+    ObjectString* interned = tableGetInternedString(vm, &vm->strings, chars, len, hash);
     if(interned != NULL){
         return interned;
     }
@@ -77,8 +61,8 @@ ObjectString* copyString(VM* vm, const char* chars, int len){
 }
 
 ObjectString* takeString(VM* vm, char* chars, int length){
-    uint64_t hash = hashString(chars, length);
-    ObjectString* interned = tableGetInternedString(&vm->strings, chars, length, hash);
+    uint64_t hash = hashString(chars, length, vm->hash_seed);
+    ObjectString* interned = tableGetInternedString(vm, &vm->strings, chars, length, hash);
     if (interned != NULL) {
         reallocate(vm, chars, length + 1, 0); 
         return interned;

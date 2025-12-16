@@ -36,6 +36,7 @@ typedef struct VM{
     size_t bytesAllocated;
     size_t nextGC;
     Compiler* compiler;
+    uint64_t hash_seed;
 }VM;
 
 typedef enum{

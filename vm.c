@@ -3,6 +3,7 @@
 #include <stdarg.h>
 #include <ctype.h>
 #include <math.h>
+#include <time.h>
 
 #include "common.h"
 #include "chunk.h"
@@ -23,12 +24,18 @@ void resetStack(VM* vm){
     vm->stackTop = vm->stack;
 }
 
-
 void initVM(VM* vm){
     resetStack(vm);
     vm->objects = NULL;
     vm->openUpvalues = NULL;
     vm->frameCount = 0;
+
+    srand((unsigned int)time(NULL));
+    uint64_t p1 = (uint64_t)rand();
+    uint64_t p2 = (uint64_t)rand();
+    vm->hash_seed = (p1 << 32) | p2;
+    if(vm->hash_seed == 0) vm->hash_seed = 1;
+
     initHashTable(&vm->strings);
     initHashTable(&vm->globals);
     initHashTable(&vm->modules);
@@ -739,7 +746,7 @@ static InterpreterStatus run(VM* vm){
     {
         ObjectString* name = AS_STRING(frame->closure->func->chunk.constants.values[READ_BYTE()]);
         Value value;
-        if (!tableGet(vm->curGlobal, OBJECT_VAL(name), &value)) {
+        if (!tableGet(vm, vm->curGlobal, OBJECT_VAL(name), &value)) {
             runtimeError(vm, "Undefined variable '%.*s'.", name->length, name->chars);
             return VM_RUNTIME_ERROR;
         }
@@ -752,7 +759,7 @@ static InterpreterStatus run(VM* vm){
         frame->ip += 2;
         ObjectString* name = AS_STRING(frame->closure->func->chunk.constants.values[index]);
         Value value;
-        if(!tableGet(vm->curGlobal, OBJECT_VAL(name), &value)){
+        if(!tableGet(vm, vm->curGlobal, OBJECT_VAL(name), &value)){
             runtimeError(vm, "Undefined variable '%.*s'.", name->length, name->chars);
             return VM_RUNTIME_ERROR;
         }
@@ -848,7 +855,7 @@ static InterpreterStatus run(VM* vm){
         push(vm, OBJECT_VAL(path));
 
         Value modVal;
-        if(tableGet(&vm->modules, OBJECT_VAL(path), &modVal)){
+        if(tableGet(vm, &vm->modules, OBJECT_VAL(path), &modVal)){
             pop(vm);
             push(vm, modVal);
             DISPATCH(); // next dispatch
@@ -913,7 +920,7 @@ static InterpreterStatus run(VM* vm){
         push(vm, OBJECT_VAL(path));
 
         Value modVal;
-        if(tableGet(&vm->modules, OBJECT_VAL(path), &modVal)){
+        if(tableGet(vm, &vm->modules, OBJECT_VAL(path), &modVal)){
             pop(vm);
             push(vm, modVal);
             DISPATCH(); // next dispatch
@@ -994,7 +1001,7 @@ static InterpreterStatus run(VM* vm){
             ObjectInstance* instance = AS_INSTANCE(receiver);
 
             Value value;
-            if(tableGet(&instance->fields, OBJECT_VAL(name), &value)){
+            if(tableGet(vm, &instance->fields, OBJECT_VAL(name), &value)){
                 if(!checkAccess(vm, instance->klass, name)){
                     runtimeError(vm, "Cannot access private field '%s' of instance of '%s'.", name->chars, instance->klass->name->chars);
                     return VM_RUNTIME_ERROR;
@@ -1004,7 +1011,7 @@ static InterpreterStatus run(VM* vm){
                 DISPATCH();
             }
 
-            if(tableGet(&instance->klass->methods, OBJECT_VAL(name), &value)){
+            if(tableGet(vm, &instance->klass->methods, OBJECT_VAL(name), &value)){
                 ObjectBoundMethod* bound = newBoundMethod(vm, receiver, (Object*)AS_CLOSURE(value));
                 pop(vm);
                 push(vm, OBJECT_VAL(bound));
@@ -1018,7 +1025,7 @@ static InterpreterStatus run(VM* vm){
             ObjectModule* module = AS_MODULE(receiver);
 
             Value value;
-            if(!tableGet(&module->members, OBJECT_VAL(name), &value)){
+            if(!tableGet(vm, &module->members, OBJECT_VAL(name), &value)){
                 runtimeError(vm, "Undefined property '%s' on module '%s'.", name->chars, module->name->chars);
                 return VM_RUNTIME_ERROR;
             }
@@ -1070,7 +1077,7 @@ static InterpreterStatus run(VM* vm){
         if(IS_INSTANCE(receiver)){
             ObjectInstance* instance = AS_INSTANCE(receiver);
             Value value;
-            if(tableGet(&instance->fields, OBJECT_VAL(name), &value)){
+            if(tableGet(vm, &instance->fields, OBJECT_VAL(name), &value)){
                 if(!checkAccess(vm, instance->klass, name)){
                     runtimeError(vm, "Cannot access private field '%s' of instance of '%s'.", name->chars, instance->klass->name->chars);
                     return VM_RUNTIME_ERROR;
@@ -1080,7 +1087,7 @@ static InterpreterStatus run(VM* vm){
                 DISPATCH();
             }
 
-            if(tableGet(&instance->klass->methods, OBJECT_VAL(name), &value)){
+            if(tableGet(vm, &instance->klass->methods, OBJECT_VAL(name), &value)){
                 ObjectBoundMethod* bound = newBoundMethod(vm, receiver, (Object*)AS_CLOSURE(value));
                 pop(vm);
                 push(vm, OBJECT_VAL(bound));
@@ -1093,7 +1100,7 @@ static InterpreterStatus run(VM* vm){
         if(IS_MODULE(receiver)){
             ObjectModule* module = AS_MODULE(receiver);
             Value value;
-            if(!tableGet(&module->members, OBJECT_VAL(name), &value)){
+            if(!tableGet(vm, &module->members, OBJECT_VAL(name), &value)){
                 runtimeError(vm, "Undefined property '%s' on module '%s'.", name->chars, module->name->chars);
                 return VM_RUNTIME_ERROR;
             }
@@ -1121,7 +1128,7 @@ static InterpreterStatus run(VM* vm){
         if(IS_INSTANCE(receiver)){
             ObjectInstance* instance = AS_INSTANCE(receiver);
             Value dummy;
-            if(!tableGet(&instance->fields, OBJECT_VAL(name), &dummy)){
+            if(!tableGet(vm, &instance->fields, OBJECT_VAL(name), &dummy)){
                 runtimeError(vm, "Undefined property '%s' on instance of '%s'.", name->chars, instance->klass->name->chars);
                 return VM_RUNTIME_ERROR;
             }
@@ -1170,7 +1177,7 @@ static InterpreterStatus run(VM* vm){
         if(IS_INSTANCE(receiver)){
             ObjectInstance* instance = AS_INSTANCE(receiver);
             Value dummy;
-            if(!tableGet(&instance->fields, OBJECT_VAL(name), &dummy)){
+            if(!tableGet(vm, &instance->fields, OBJECT_VAL(name), &dummy)){
                 runtimeError(vm, "Undefined property '%s' on instance of '%s'.", name->chars, instance->klass->name->chars);
                 return VM_RUNTIME_ERROR;
             }
@@ -1433,7 +1440,7 @@ static InterpreterStatus run(VM* vm){
             ObjectMap* map = AS_MAP(target);
             Value value;
 
-            if(tableGet(&map->table, indexVal, &value)){
+            if(tableGet(vm, &map->table, indexVal, &value)){
                 push(vm, value);
             }else{
                 push(vm, NULL_VAL);
@@ -1709,7 +1716,7 @@ static bool callValue(VM* vm, Value callee, int argCnt){
                 ObjectClass* klass = AS_CLASS(callee);
                 vm->stackTop[-argCnt - 1] = OBJECT_VAL(newInstance(vm, klass));
                 Value initializer;
-                if(tableGet(&klass->methods, OBJECT_VAL(vm->initString), &initializer)){
+                if(tableGet(vm, &klass->methods, OBJECT_VAL(vm->initString), &initializer)){
                     if (!callValue(vm, initializer, argCnt)){
                         return false;
                     }
