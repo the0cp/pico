@@ -170,7 +170,7 @@ bool glob_match_string(const char* text, const char* pattern, bool ignoreCase){
 
 static Value glob_match(VM* vm, int argCount, Value* args){
     if(argCount != 2 || !IS_STRING(args[0]) || !IS_STRING(args[1])){
-        fprintf(stderr, "glob.match(pattern, text) expect two strings.\n");
+        runtimeError(vm, "glob.match(pattern, text) expect two strings.\n");
         return BOOL_VAL(false);
     }
     bool matched = glob_match_string(AS_CSTRING(args[1]), AS_CSTRING(args[0]), false);

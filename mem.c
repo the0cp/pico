@@ -93,6 +93,11 @@ static void traceRef(VM* vm, Object* object){
             markObject(vm, (Object*)bound->method);
             break;
         }
+        case OBJECT_ITERATOR:{
+            ObjectIterator* iterator = (ObjectIterator*)object;
+            markValue(vm, iterator->receiver);
+            break;
+        }
         case OBJECT_STRING:
         case OBJECT_CFUNC:  
         case OBJECT_FILE:

@@ -755,6 +755,20 @@ static void whileStmt(Compiler* compiler){
     compiler->loopCnt--;
 }
 
+static void emitGetGlobal(Compiler* compiler, const char* name){
+    Value strVal = OBJECT_VAL(copyString(compiler->vm, name, strlen(name)));
+    push(compiler->vm, strVal);
+    int index = addConstant(compiler->vm, &compiler->func->chunk, strVal);
+    pop(compiler->vm);
+
+    if(index <= 0xff){
+        emitPair(compiler, OP_GET_GLOBAL, (uint8_t)index);
+    }else{
+        emitByte(compiler, OP_GET_LGLOBAL);
+        emitPair(compiler, (uint8_t)((index >> 8) & 0xff), (uint8_t)(index & 0xff));
+    }
+}
+
 static void forStmt(Compiler* compiler){
     /*
     code: for (init; condition; increment) { body }
@@ -779,145 +793,61 @@ static void forStmt(Compiler* compiler){
         if(match(compiler, TOKEN_COLON)){
             emitByte(compiler, OP_NULL);
             defineVar(compiler, varConst);
+
+            emitGetGlobal(compiler, "iter"); // [x, iter_func]
             expression(compiler);
 
-            Token seqToken;
-            seqToken.head = "$seq";
-            seqToken.type = TOKEN_IDENTIFIER;
-            seqToken.len = 4;
-            seqToken.line = 0;
-            addLocal(compiler, seqToken);
+            emitPair(compiler, OP_CALL, 1);  // [x, iterator]
+
+            Token iterToken;
+            iterToken.head = "$iter";
+            iterToken.len = 5;
+            iterToken.type = TOKEN_IDENTIFIER;
+            iterToken.line = 0;
+            addLocal(compiler, iterToken);
             compiler->locals[compiler->localCnt - 1].depth = compiler->scopeDepth;
-            emitConstant(compiler, NUM_VAL(0));
 
-            Token idxToken;
-            idxToken.head = "$idx";
-            idxToken.type = TOKEN_IDENTIFIER;
-            idxToken.len = 4;
-            idxToken.line = 0;
-            addLocal(compiler, idxToken);
-            compiler->locals[compiler->localCnt - 1].depth = compiler->scopeDepth;
+            int loopStart = compiler->func->chunk.count;
+            emitGetGlobal(compiler, "next");
+
+            emitPair(compiler, OP_GET_LOCAL, (uint8_t)(compiler->localCnt - 1)); 
+            // [x, iterator, next_func, iterator]
+            emitPair(compiler, OP_CALL, 1);  
+            // [x, iterator, next_val]
+            emitPair(compiler, OP_SET_LOCAL, (uint8_t)(compiler->localCnt - 2)); 
+
+            emitByte(compiler, OP_DUP);  
+            // [..., next_val, next_val]
+            emitByte(compiler, OP_NULL); 
+            // [..., next_val, next_val, null]
+            emitByte(compiler, OP_EQUAL); 
+            // [..., next_val, is_null]
             
-            int nSlot = compiler->localCnt - 3;
-            int seqSlot = compiler->localCnt - 2;
-            int idxSlot = compiler->localCnt - 1;
-
-            int condSt = compiler->func->chunk.count;
-
-            if(seqSlot <= 0xff){
-                emitPair(compiler, OP_GET_LOCAL, (uint8_t)seqSlot);
-            }else if(seqSlot <= 0xffff){
-                emitByte(compiler, OP_GET_LLOCAL);
-                emitPair(compiler, (uint8_t)((seqSlot >> 8) & 0xff), (uint8_t)(seqSlot & 0xff));
-            }else{
-                errorAt(compiler, &compiler->parser.pre, "Too many local constants.");
-                return;
-            }
-
-            Value sizeStr = OBJECT_VAL(copyString(compiler->vm, "size", 4));
-            push(compiler->vm, sizeStr);
-            int sizeConst = addConstant(compiler->vm, &compiler->func->chunk, sizeStr);
-            pop(compiler->vm);
-
-            if(sizeConst <= 0xff){
-                emitPair(compiler, OP_GET_PROPERTY, sizeConst);
-            }else if(sizeConst <= 0xffff){
-                emitByte(compiler, OP_GET_LPROPERTY);
-                emitPair(compiler, (uint8_t)((sizeConst >> 8) & 0xff), (uint8_t)(sizeConst & 0xff));
-            }else{
-                errorAt(compiler, &compiler->parser.pre, "Too many local constants.");
-                return;
-            }
-
-            emitPair(compiler, OP_CALL, 0); 
-            
-            if(idxSlot <= 0xff){
-                emitPair(compiler, OP_GET_LOCAL, (uint8_t)idxSlot);
-            }else if(idxSlot <= 0xffff){
-                emitByte(compiler, OP_GET_LLOCAL);
-                emitPair(compiler, (uint8_t)((idxSlot >> 8) & 0xff), (uint8_t)(idxSlot & 0xff));
-            }else{
-                errorAt(compiler, &compiler->parser.pre, "Too many local constants.");
-                return;
-            }
-
-            emitByte(compiler, OP_GREATER);
-
+            emitByte(compiler, OP_NOT);   
+            // [..., next_val, is_valid]
             int exitJump = emitJump(compiler, OP_JUMP_IF_FALSE);
-            emitByte(compiler, OP_POP);
-
-            int bodyJump = emitJump(compiler, OP_JUMP);
-
-            int incSt = compiler->func->chunk.count;
-
-            if(idxSlot <= 0xff){
-                emitPair(compiler, OP_GET_LOCAL, (uint8_t)idxSlot);
-            }else if(idxSlot <= 0xffff){
-                emitByte(compiler, OP_GET_LLOCAL);
-                emitPair(compiler, (uint8_t)((idxSlot >> 8) & 0xff), (uint8_t)(idxSlot & 0xff));
-            }
             
-            emitConstant(compiler, NUM_VAL(1));
-            emitByte(compiler, OP_ADD);
-
-            if(idxSlot <= 0xff){
-                emitPair(compiler, OP_SET_LOCAL, (uint8_t)idxSlot);
-            }else if(idxSlot <= 0xffff){
-                emitByte(compiler, OP_SET_LLOCAL);
-                emitPair(compiler, (uint8_t)((idxSlot >> 8) & 0xff), (uint8_t)(idxSlot & 0xff));
-            }
             emitByte(compiler, OP_POP);
-
-            emitLoop(compiler, condSt);
-            patchJump(compiler, bodyJump);
-
-            if(seqSlot <= 0xff){
-                emitPair(compiler, OP_GET_LOCAL, (uint8_t)seqSlot);
-            }else if(seqSlot <= 0xffff){
-                emitByte(compiler, OP_GET_LLOCAL);
-                emitPair(compiler, (uint8_t)((seqSlot >> 8) & 0xff), (uint8_t)(seqSlot & 0xff));
-            }
-
-            if(idxSlot <= 0xff){
-                emitPair(compiler, OP_GET_LOCAL, (uint8_t)idxSlot);
-            }else if(idxSlot <= 0xffff){
-                emitByte(compiler, OP_GET_LLOCAL);
-                emitPair(compiler, (uint8_t)((idxSlot >> 8) & 0xff), (uint8_t)(idxSlot & 0xff));
-            }
-
-            emitByte(compiler, OP_INDEX_GET);
-
-            if(nSlot <= 0xff){
-                emitPair(compiler, OP_SET_LOCAL, (uint8_t)nSlot);
-            }else if(nSlot <= 0xffff){
-                emitByte(compiler, OP_SET_LLOCAL);
-                emitPair(compiler, (uint8_t)((nSlot >> 8) & 0xff), (uint8_t)(nSlot & 0xff));
-            }
             emitByte(compiler, OP_POP);
 
             consume(compiler, TOKEN_RIGHT_PAREN, "Expect ')' after foreach.");
 
-            if(compiler->localCnt == LOOP_MAX){
-                errorAt(compiler, &compiler->parser.pre, "Too many nested loops.");
-                return;
-            }
-
             Loop* loop = &compiler->loops[compiler->loopCnt++];
-            loop->start = incSt;
+            loop->start = loopStart;
             loop->scopeDepth = compiler->scopeDepth;
             loop->breakCnt = 0;
 
             stmt(compiler);
 
-            emitLoop(compiler, incSt);
+            emitLoop(compiler, loopStart);
 
             patchJump(compiler, exitJump);
+            emitByte(compiler, OP_POP);
             emitByte(compiler, OP_POP);
 
             for(int i = 0; i < loop->breakCnt; i++){
                 patchJump(compiler, loop->breakJump[i]);
             }
-
             compiler->loopCnt--;
             endScope(compiler);
             return;

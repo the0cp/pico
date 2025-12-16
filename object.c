@@ -250,6 +250,18 @@ ObjectFile* newFile(VM* vm, FILE* file){
     return fileObj;
 }
 
+ObjectIterator* newIterator(VM* vm, Value receiver){
+    ObjectIterator* iterator = (ObjectIterator*)reallocate(vm, NULL, 0, sizeof(ObjectIterator));
+    iterator->obj.type = OBJECT_ITERATOR;
+    iterator->obj.isMarked = false;
+    iterator->receiver = receiver;
+    iterator->index = 0;
+
+    iterator->obj.next = vm->objects;
+    vm->objects = (Object*)iterator;
+    return iterator;
+}
+
 void freeObject(VM* vm, Object* object){
     switch(object->type){
         case OBJECT_STRING:{
@@ -318,6 +330,10 @@ void freeObject(VM* vm, Object* object){
                 fclose(fileObj->handle);
             }
             reallocate(vm, object, sizeof(ObjectFile), 0);
+            break;
+        }
+        case OBJECT_ITERATOR:{
+            reallocate(vm, object, sizeof(ObjectIterator), 0);
             break;
         }
     }
@@ -389,6 +405,9 @@ void printObject(Value value){
             break;
         case OBJECT_FILE:
             printf("<file '%s'>", AS_FILE(value)->isOpen ? "open" : "closed");
+            break;
+        case OBJECT_ITERATOR:
+            printf("<iterator>");
             break;
     }
 }

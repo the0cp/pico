@@ -9,5 +9,6 @@ void registerOsModule(VM* vm);
 void registerPathModule(VM* vm);
 void registerGlobModule(VM* vm);
 void registerListModule(VM* vm);
+void registerIterModule(VM* vm);
 
 #endif // PICO_MODULES_H

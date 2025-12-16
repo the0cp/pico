@@ -22,14 +22,14 @@
 
 static Value os_exec(VM* vm, int argCount, Value* args){
     if(argCount != 1 || !IS_STRING(args[0])){
-        fprintf(stderr, "os.exec expects a single string argument.\n");
+        runtimeError(vm, "os.exec expects a single string argument.\n");
         return NULL_VAL;
     }
 
     char* command = AS_CSTRING(args[0]);
     FILE* pipe = popen(command, "r");
     if(!pipe){
-        fprintf(stderr, "Failed to execute command: %s\n", strerror(errno));
+        runtimeError(vm, "Failed to execute command: %s\n", strerror(errno));
         return NULL_VAL;
     }
 
@@ -37,7 +37,7 @@ static Value os_exec(VM* vm, int argCount, Value* args){
     size_t length = 0;
     char* buffer = (char*)reallocate(vm, NULL, 0, capacity);
     if(!buffer){
-        fprintf(stderr, "Memory allocation failed\n");
+        runtimeError(vm, "Memory allocation failed\n");
         pclose(pipe);
         return NULL_VAL;
     }
@@ -52,7 +52,7 @@ static Value os_exec(VM* vm, int argCount, Value* args){
             }
             buffer = (char*)reallocate(vm, buffer, old, capacity);
             if(!buffer){
-                fprintf(stderr, "Memory allocation failed\n");
+                runtimeError(vm, "Memory allocation failed\n");
                 pclose(pipe);
                 return NULL_VAL;
             }
@@ -76,7 +76,7 @@ static Value os_exec(VM* vm, int argCount, Value* args){
 
 static Value os_system(VM* vm, int argCount, Value* args){
     if(argCount != 1 || !IS_STRING(args[0])){
-        fprintf(stderr, "os.system expects a single string argument.\n");
+        runtimeError(vm, "os.system expects a single string argument.\n");
         return NULL_VAL;
     }
 
@@ -87,7 +87,7 @@ static Value os_system(VM* vm, int argCount, Value* args){
     return NUM_VAL((double)status);
 #else
     if(WIFEXITED(status) == 0){
-        fprintf(stderr, "Failed to execute command: %s\n", strerror(errno));
+        runtimeError(vm, "Failed to execute command: %s\n", strerror(errno));
         return NULL_VAL;
     }
     return NUM_VAL((double)status);
@@ -96,7 +96,7 @@ static Value os_system(VM* vm, int argCount, Value* args){
 
 static Value os_getenv(VM* vm, int argCount, Value* args){
     if(argCount != 1 || !IS_STRING(args[0])){
-        fprintf(stderr, "os.getenv expects a single string argument.\n");
+        runtimeError(vm, "os.getenv expects a single string argument.\n");
         return NULL_VAL;
     }
 

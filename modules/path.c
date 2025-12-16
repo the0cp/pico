@@ -72,7 +72,7 @@ static bool hasDriveLetter(ObjectString* str){
 
 static Value path_join(VM* vm, int argCount, Value* args){
     if(argCount < 1){
-        fprintf(stderr, "path.join expects at least one argument.\n");
+        runtimeError(vm, "path.join expects at least one argument.\n");
         return NULL_VAL;
     }
 
@@ -80,7 +80,7 @@ static Value path_join(VM* vm, int argCount, Value* args){
 
     for(int i = 1; i < argCount; i++){
         if(!IS_STRING(args[i])){
-            fprintf(stderr, "path.join expects string arguments.\n");
+            runtimeError(vm, "path.join expects string arguments.\n");
             continue;
         }
 
@@ -104,7 +104,7 @@ static Value path_join(VM* vm, int argCount, Value* args){
         char* chars = (char*)reallocate(vm, NULL, 0, len + 1); // add 1 for '\0'
 
         if(chars == NULL){
-            fprintf(stderr, "Memory allocation failed for path join.\n");
+            runtimeError(vm, "Memory allocation failed for path join.\n");
             pop(vm);
             return NULL_VAL;
         }
@@ -132,14 +132,14 @@ static Value path_join(VM* vm, int argCount, Value* args){
 
 static Value path_base(VM* vm, int argCount, Value* args){
     if(argCount != 1 || !IS_STRING(args[0])){
-        fprintf(stderr, "path.base expects a single string argument.\n");
+        runtimeError(vm, "path.base expects a single string argument.\n");
         return NULL_VAL;
     }
 
     ObjectString* pathStr = AS_STRING(args[0]);
 
     if(!isValid(pathStr)){
-        fprintf(stderr, "path.base received an invalid path string.\n");
+        runtimeError(vm, "path.base received an invalid path string.\n");
         return NULL_VAL;
     }
 
@@ -166,14 +166,14 @@ static Value path_base(VM* vm, int argCount, Value* args){
 
 static Value path_dirname(VM* vm, int argCount, Value* args){
     if(argCount != 1 || !IS_STRING(args[0])){
-        fprintf(stderr, "path.dir expects a single string argument.\n");
+        runtimeError(vm, "path.dir expects a single string argument.\n");
         return NULL_VAL;
     }
     
     ObjectString* pathStr = AS_STRING(args[0]);
     
     if(!isValid(pathStr)){
-        fprintf(stderr, "path.dir received an invalid path string.\n");
+        runtimeError(vm, "path.dir received an invalid path string.\n");
         return NULL_VAL;
     }
 
@@ -204,14 +204,14 @@ static Value path_dirname(VM* vm, int argCount, Value* args){
 
 static Value path_ext(VM* vm, int argCount, Value* args){
     if(argCount != 1 || !IS_STRING(args[0])){
-        fprintf(stderr, "path.ext expects a single string argument.\n");
+        runtimeError(vm, "path.ext expects a single string argument.\n");
         return NULL_VAL;
     }
 
     ObjectString* pathStr = AS_STRING(args[0]);
 
     if(!isValid(pathStr)){
-        fprintf(stderr, "path.ext received an invalid path string.\n");
+        runtimeError(vm, "path.ext received an invalid path string.\n");
         return NULL_VAL;
     }
 
@@ -231,14 +231,14 @@ static Value path_ext(VM* vm, int argCount, Value* args){
 
 static Value path_isAbs(VM* vm, int argCount, Value* args){
     if(argCount != 1 || !IS_STRING(args[0])){
-        fprintf(stderr, "path.isAbs expects a single string argument.\n");
+        runtimeError(vm, "path.isAbs expects a single string argument.\n");
         return NULL_VAL;
     }
 
     ObjectString* pathStr = AS_STRING(args[0]);
     
     if(!isValid(pathStr)){
-        fprintf(stderr, "path.isAbs received an invalid path string.\n");
+        runtimeError(vm, "path.isAbs received an invalid path string.\n");
         return NULL_VAL;
     }
 
@@ -258,7 +258,7 @@ static Value path_isAbs(VM* vm, int argCount, Value* args){
 
 static Value path_abs(VM* vm, int argCount, Value* args){
     if(argCount != 1 || !IS_STRING(args[0])){
-        fprintf(stderr, "path.abs expects a single string argument.\n");
+        runtimeError(vm, "path.abs expects a single string argument.\n");
         return NULL_VAL;
     }
 
@@ -266,7 +266,7 @@ static Value path_abs(VM* vm, int argCount, Value* args){
     // PATH_MAX 4096 from limits.h
 
     if(!isValid(pathStr)){
-        fprintf(stderr, "path.abs received an invalid path string.\n");
+        runtimeError(vm, "path.abs received an invalid path string.\n");
         return NULL_VAL;
     }
 
@@ -277,7 +277,7 @@ static Value path_abs(VM* vm, int argCount, Value* args){
 
     char cwd[PATH_MAX];
     if(getcwd(cwd, sizeof(cwd)) == NULL){
-        fprintf(stderr, "Failed to get current working directory.\n");
+        runtimeError(vm, "Failed to get current working directory.\n");
         return NULL_VAL;
     }
 
@@ -298,7 +298,7 @@ static Value path_abs(VM* vm, int argCount, Value* args){
 
 static Value path_sep(VM* vm, int argCount, Value* args){
     if(argCount != 0){
-        fprintf(stderr, "path.sep expects no arguments.\n");
+        runtimeError(vm, "path.sep expects no arguments.\n");
         return NULL_VAL;
     }
 

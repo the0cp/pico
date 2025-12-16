@@ -33,12 +33,12 @@
 
 #define GET_FILE(val) \
     if(!IS_FILE(val)){ \
-        fprintf(stderr, "Expected a file object.\n"); \
+        runtimeError(vm, "Expected a file object.\n"); \
         return NULL_VAL; \
     } \
     ObjectFile* fileObj = AS_FILE(val); \
     if(!fileObj->isOpen || fileObj->handle == NULL){ \
-        fprintf(stderr, "File is not open.\n"); \
+        runtimeError(vm, "File is not open.\n"); \
         return NULL_VAL; \
     }
 
@@ -52,7 +52,7 @@ Value file_read(VM* vm, int argCount, Value* args){
     size_t size = endPos - curPos;
     char* content = (char*)malloc(size + 1);
     if(!content){
-        fprintf(stderr, "Could not allocate memory for file content\n");
+        runtimeError(vm, "Could not allocate memory for file content\n");
         return NULL_VAL;
     }
 
@@ -72,7 +72,7 @@ Value file_close(VM* vm, int argCount, Value* args){
 Value file_write(VM* vm, int argCount, Value* args){
     GET_FILE(args[-1]);
     if(argCount != 1 || !IS_STRING(args[0])){
-        fprintf(stderr, "file.write expects a single string argument.\n");
+        runtimeError(vm, "file.write expects a single string argument.\n");
         return NULL_VAL;
     }
     char* content = AS_CSTRING(args[0]);
@@ -113,7 +113,7 @@ Value file_readLine(VM* vm, int argCount, Value* args){
 
 static Value fs_open(VM* vm, int argCount, Value* args){
     if(argCount < 1 || !IS_STRING(args[0])){
-        fprintf(stderr, "fs.open expects a file path string as the first argument.\n");
+        runtimeError(vm, "fs.open expects a file path string as the first argument.");
         return NULL_VAL;
     }
 
@@ -125,7 +125,7 @@ static Value fs_open(VM* vm, int argCount, Value* args){
 
     FILE* file = fopen(path, mode);
     if(!file){
-        fprintf(stderr, "Could not open file %s with mode %s\n", path, mode);
+        runtimeError(vm, "Could not open file '%s' with mode '%s'", path, mode);
         return NULL_VAL;
     }
     return OBJECT_VAL(newFile(vm, file));
@@ -134,14 +134,14 @@ static Value fs_open(VM* vm, int argCount, Value* args){
 
 static Value fs_readFile(VM* vm, int argCount, Value* args){
     if(argCount != 1 || !IS_STRING(args[0])){
-        fprintf(stderr, "fs.read expects a single string argument.\n");
+        runtimeError(vm, "fs.read expects a single string argument.\n");
         return NULL_VAL;
     }
 
     char* path = AS_CSTRING(args[0]);
     FILE* file = fopen(path, "rb");
     if(!file){
-        fprintf(stderr, "Could not open file %s\n", path);
+        runtimeError(vm, "Could not open file %s\n", path);
         return NULL_VAL;
     }
     fseek(file, 0L, SEEK_END);
@@ -150,7 +150,7 @@ static Value fs_readFile(VM* vm, int argCount, Value* args){
 
     char* content = malloc(size + 1);
     if(!content){
-        fprintf(stderr, "Could not allocate memory for file content\n");
+        runtimeError(vm, "Could not allocate memory for file content\n");
         fclose(file);
         return NULL_VAL;
     }
@@ -164,14 +164,14 @@ static Value fs_readFile(VM* vm, int argCount, Value* args){
 static Value fs_readLines(VM* vm, int argCount, Value* args){
     // read all lines
     if(argCount != 1 || !IS_STRING(args[0])){
-        fprintf(stderr, "fs.rline expects a single string argument.\n");
+        runtimeError(vm, "fs.rline expects a single string argument.\n");
         return NULL_VAL;
     }
 
     char* path = AS_CSTRING(args[0]);
     FILE* file = fopen(path, "r");
     if(!file){
-        fprintf(stderr, "Could not open file %s\n", path);
+        runtimeError(vm, "Could not open file %s\n", path);
         return NULL_VAL;
     }
 
@@ -199,7 +199,7 @@ static Value fs_readLines(VM* vm, int argCount, Value* args){
 
 static Value fs_writeFile(VM* vm, int argCount, Value* args){
     if(argCount != 2 || !IS_STRING(args[0]) || !IS_STRING(args[1])){
-        fprintf(stderr, "fs.write expects two string arguments.\n");
+        runtimeError(vm, "fs.write expects two string arguments.\n");
         return NULL_VAL;
     }
 
@@ -208,14 +208,14 @@ static Value fs_writeFile(VM* vm, int argCount, Value* args){
 
     FILE* file = fopen(path, "wb");
     if(!file){
-        fprintf(stderr, "Could not open file %s for writing\n", path);
+        runtimeError(vm, "Could not open file %s for writing\n", path);
         return NULL_VAL;
     }
     size_t written = fwrite(content, sizeof(char), strlen(content), file);
     fclose(file);
 
     if(written < strlen(content)){
-        fprintf(stderr, "Could not write all content to file %s\n", path);
+        runtimeError(vm, "Could not write all content to file %s\n", path);
         return NULL_VAL;
     }
 
@@ -224,7 +224,7 @@ static Value fs_writeFile(VM* vm, int argCount, Value* args){
 
 static Value fs_appendFile(VM* vm, int argCount, Value* args){
     if(argCount != 2 || !IS_STRING(args[0]) || !IS_STRING(args[1])){
-        fprintf(stderr, "fs.append expects path and content strings.\n");
+        runtimeError(vm, "fs.append expects path and content strings.\n");
         return NULL_VAL;
     }
 
@@ -233,7 +233,7 @@ static Value fs_appendFile(VM* vm, int argCount, Value* args){
 
     FILE* file = fopen(path, "ab");
     if(!file){
-        fprintf(stderr, "Could not open file %s\n", path);
+        runtimeError(vm, "Could not open file %s\n", path);
         return NULL_VAL;
     }
 
@@ -244,7 +244,7 @@ static Value fs_appendFile(VM* vm, int argCount, Value* args){
 
 static Value fs_exists(VM* vm, int argCount, Value* args){
     if(argCount != 1 || !IS_STRING(args[0])){
-        fprintf(stderr, "fs.exists expects a single string argument.\n");
+        runtimeError(vm, "fs.exists expects a single string argument.\n");
         return NULL_VAL;
     }
 
@@ -259,7 +259,7 @@ static Value fs_exists(VM* vm, int argCount, Value* args){
 
 static Value fs_remove(VM* vm, int argCount, Value* args){
     if(argCount != 1 || !IS_STRING(args[0])){
-        fprintf(stderr, "fs.remove expects a single string argument.\n");
+        runtimeError(vm, "fs.remove expects a single string argument.\n");
         return NULL_VAL;
     }
 
@@ -279,7 +279,7 @@ static Value fs_remove(VM* vm, int argCount, Value* args){
 
 static Value fs_listDir(VM* vm, int argCount, Value* args){
     if(argCount != 1){
-        fprintf(stderr, "fs.list expects a single argument.\n");
+        runtimeError(vm, "fs.list expects a single argument.\n");
         return NULL_VAL;
     }
 
@@ -313,7 +313,7 @@ static Value fs_listDir(VM* vm, int argCount, Value* args){
             config.recursive = AS_BOOL(val);
         }
     }else{
-        fprintf(stderr, "fs.list argument must be a string or a Glob object.\n");
+        runtimeError(vm, "fs.list argument must be a string or a Glob object.\n");
         return NULL_VAL;
     }
 
@@ -327,7 +327,7 @@ static Value fs_listDir(VM* vm, int argCount, Value* args){
 
 static Value fs_mkdir(VM* vm, int argCount, Value* args){
     if(argCount != 1 || !IS_STRING(args[0])){
-        fprintf(stderr, "fs.mkdir expects a single string argument.\n");
+        runtimeError(vm, "fs.mkdir expects a single string argument.\n");
         return NULL_VAL;
     }
 
@@ -346,7 +346,7 @@ static Value fs_mkdir(VM* vm, int argCount, Value* args){
 
 static Value fs_isDir(VM* vm, int argCount, Value* args){
     if(argCount != 1 || !IS_STRING(args[0])){
-        fprintf(stderr, "fs.isdir expects a single string argument.\n");
+        runtimeError(vm, "fs.isdir expects a single string argument.\n");
         return NULL_VAL;
     }
 

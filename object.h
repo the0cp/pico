@@ -47,6 +47,9 @@ typedef Value (*CFunc)(VM* vm, int argCount, Value* args);
 #define IS_FILE(value)          (IS_OBJECT(value) && OBJECT_TYPE(value) == OBJECT_FILE)
 #define AS_FILE(value)          ((ObjectFile*)AS_OBJECT(value))
 
+#define IS_ITERATOR(value)      (IS_OBJECT(value) && OBJECT_TYPE(value) == OBJECT_ITERATOR)
+#define AS_ITERATOR(value)      ((ObjectIterator*)AS_OBJECT(value))
+
 typedef enum{
     OBJECT_STRING,
     OBJECT_LIST,
@@ -60,6 +63,7 @@ typedef enum{
     OBJECT_INSTANCE,
     OBJECT_BOUND_METHOD,
     OBJECT_FILE,
+    OBJECT_ITERATOR,
 }ObjectType;
 
 typedef struct Object{
@@ -183,6 +187,14 @@ typedef struct ObjectFile{
 }ObjectFile;
 
 ObjectFile* newFile(VM* vm, FILE* file);
+
+typedef struct ObjectIterator{
+    Object obj;
+    Value receiver;
+    int index;
+}ObjectIterator;
+
+ObjectIterator* newIterator(VM* vm, Value receiver);
 
 void freeObject(VM* vm, Object* object);
 void freeObjects(VM* vm);

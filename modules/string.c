@@ -15,7 +15,7 @@
 Value string_len(VM* vm, int argCount, Value* args){
     Value receiver = args[-1];
     if(!IS_STRING(receiver)){
-        fprintf(stderr, ".len() expect a string.\n");
+        runtimeError(vm, ".len() expect a string.\n");
         return NULL_VAL;
     }
     return NUM_VAL((double)AS_STRING(receiver)->length);
@@ -24,7 +24,7 @@ Value string_len(VM* vm, int argCount, Value* args){
 Value string_sub(VM* vm, int argCount, Value* args){
     Value receiver = args[-1];
     if(argCount < 1 || !IS_NUM(args[0])){
-        fprintf(stderr, ".sub() expects (start, [end]).\n");
+        runtimeError(vm, ".sub() expects (start, [end]).\n");
         return NULL_VAL;
     }
 
@@ -104,7 +104,7 @@ Value string_find(VM* vm, int argCount, Value* args){
 Value string_split(VM* vm, int argCount, Value* args){
     Value receiver = args[-1];
     if(argCount != 1 || !IS_STRING(args[0])){
-        fprintf(stderr, ".split() expects a delimiter string.\n");
+        runtimeError(vm, ".split() expects a delimiter string.\n");
         return NULL_VAL;
     }
 

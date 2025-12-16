@@ -308,16 +308,17 @@ All three clauses are optional (e.g., `for (;;) { ... }` creates an infinite loo
 
 #### foreach
 
-PiCo supports a simplified syntax for iterating over lists using the `:` operator in a for loop.
+PiCo supports a simplified syntax for iterating over any iterable object (List, Map, File, etc.) using the `:` operator. This is syntactic sugar for the underlying `iter()` and `next()` protocol.
 
-- **Syntax**: `for (var item : list) { ... }`
+- **Syntax**: `for (var item : iterable) { ... }`
 
 Example:
 
 ```
+# Iterating over a List
 var nums = [10, 20, 30];
 for (var n : nums) {
-   print n;
+    print n;
 }
 
 #{
@@ -326,6 +327,19 @@ for (var n : nums) {
    20
    30
 }#
+
+# Iterating over a Map (Keys)
+var dict = { "a": 1, "b": 2 }; 
+for (var key : dict) { 
+    print key; # Prints "a" or "b" 
+}
+
+# Iterating over a File (Lazy Line-by-Line)
+var f = fs.open("log.txt", "r");
+for (var line : f) { 
+    print line; 
+} 
+f.close();
 ```
 
 #### break & continue
@@ -381,6 +395,27 @@ print "Listing files:";
 $> ls -la
 print "Done.";
 ```
+
+## Iterators
+
+PiCo provides a built-in iterator protocol to traverse collections efficiently. This mechanism underpins the `foreach` loop but can also be used manually.
+
+PiCo exposes two global functions to work with iterators:
+
+- `iter(iterable)`
+  
+  - *Description*: Creates and returns an **Iterator** object for the given receiver.
+  
+  - *Supported Types*: List, Map, File.
+  
+  - *Returns*: Iterator Object.
+
+- `next(iterator)`
+  
+  - *Description*: Advances the iterator and returns the next value.
+  
+  - *Returns*: The next value, or `null` if the iteration has finished.
+
 
 ## Functions
 
@@ -632,7 +667,7 @@ import "fs";
 
 - `fs.open(path, [mode])`
   
-  - *Description*: Opens a file and returns a **File Object** for advanced operations.
+  - *Description*: Opens a file and returns a iterable **File Object** for advanced operations.
   
   - *Arguments*:
     

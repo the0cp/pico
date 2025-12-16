@@ -59,6 +59,7 @@ void initVM(VM* vm){
     registerGlobModule(vm);
     registerListModule(vm);
     registerStringModule(vm);
+    registerIterModule(vm);
 }
 
 void freeVM(VM* vm){
@@ -1745,6 +1746,10 @@ static bool callValue(VM* vm, Value callee, int argCnt){
             case OBJECT_CFUNC:{
                 CFunc cfunc = AS_CFUNC(callee);
                 Value result = cfunc(vm, argCnt, vm->stackTop - argCnt);
+                if(vm->stackTop == vm->stack){  
+                    // stack is reseted by runtimeError
+                    return false;
+                }
                 vm->stackTop -= argCnt + 1;
                 push(vm, result);
                 return true;

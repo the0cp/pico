@@ -67,13 +67,13 @@ static Value time_system(VM* vm, int argCount, Value* args){
 
 static Value time_sleep(VM* vm, int argCount, Value* args){
     if(argCount != 1 || !IS_NUM(args[0])){
-        fprintf(stderr, "time.sleep expects a single numeric argument.\n");
+        runtimeError(vm, "time.sleep expects a single numeric argument.\n");
         return NULL_VAL;
     }
 
     double seconds = AS_NUM(args[0]);
     if(seconds < 0){
-        fprintf(stderr, "time.sleep expects a non-negative number.\n");
+        runtimeError(vm, "time.sleep expects a non-negative number.\n");
         return NULL_VAL;
     }
 
@@ -88,7 +88,7 @@ static Value time_sleep(VM* vm, int argCount, Value* args){
 static Value time_fmt(VM* vm, int argCount, Value* args){
     if(argCount < 1)    return NULL_VAL;
     if(!IS_NUM(args[0])){
-        fprintf(stderr, "time.fmt expects a time number.\n");
+        runtimeError(vm, "time.fmt expects a time number.\n");
         return NULL_VAL;
     }
 
@@ -100,14 +100,14 @@ static Value time_fmt(VM* vm, int argCount, Value* args){
     
     struct tm* timeinfo = localtime(&rawtime);
     if(timeinfo == NULL){
-        fprintf(stderr, "time.fmt: invalid time value.\n");
+        runtimeError(vm, "time.fmt: invalid time value.\n");
         return NULL_VAL;
     }
 
     char buffer[128];
     size_t len = strftime(buffer, sizeof(buffer), format, timeinfo);
     if(len == 0){
-        fprintf(stderr, "time.fmt: formatting error.\n");
+        runtimeError(vm, "time.fmt: formatting error.\n");
         return NULL_VAL;
     }
 
