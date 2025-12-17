@@ -91,9 +91,6 @@ typedef struct ObjectList{
 
 ObjectList* newList(VM* vm);
 void appendToList(VM* vm, ObjectList* list, Value value);
-void insertToList(VM* vm, ObjectList* list, int index, Value value);
-Value getListItem(VM* vm, ObjectList* list, int index);
-void deleteListItem(VM* vm, ObjectList* list, int index);
 
 typedef struct ObjectMap{
     Object obj;

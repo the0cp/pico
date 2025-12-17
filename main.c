@@ -9,18 +9,22 @@ int main(int argc, const char* argv[]){
     
     VM vm;
 
-    initVM(&vm);
-
     if(argc == 1){
+        initVM(&vm, 0, NULL);
         repl(&vm);
-    }else if(argc == 2){
-        runScript(&vm, argv[1]);
-    }else if(argc == 3 && strcmp(argv[1], "run") == 0){
-        runScript(&vm, argv[2]);
     }else{
-        fprintf(stderr, "Usage: %s [script]\n", argv[0]);
-        return 64;
+        int scriptArgsSt = 1;
+        if(strcmp(argv[1], "run") == 0){
+            scriptArgsSt = 2;
+        }
+        if(scriptArgsSt >= argc){
+             fprintf(stderr, "Usage: %s [run] [script] [args...]\n", argv[0]);
+             return 64;
+        }
+        initVM(&vm, argc - scriptArgsSt, argv + scriptArgsSt);
+        runScript(&vm, argv[scriptArgsSt]);
     }
+    
     freeVM(&vm);
     return 0;
 }

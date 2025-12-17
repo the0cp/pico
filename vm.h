@@ -45,7 +45,7 @@ typedef enum{
     VM_RUNTIME_ERROR
 }InterpreterStatus;
 
-void initVM(VM* vm);
+void initVM(VM* vm, int argc, const char* argv[]);
 void freeVM(VM* vm);
 void resetStack(VM* vm);
 void push(VM* vm, Value value);

@@ -24,7 +24,7 @@ void resetStack(VM* vm){
     vm->stackTop = vm->stack;
 }
 
-void initVM(VM* vm){
+void initVM(VM* vm, int argc, const char* argv[]){
     resetStack(vm);
     vm->objects = NULL;
     vm->openUpvalues = NULL;
@@ -60,6 +60,32 @@ void initVM(VM* vm){
     registerListModule(vm);
     registerStringModule(vm);
     registerIterModule(vm);
+
+    if(argc > 0 && argv != NULL){
+        Value osModVal;
+        ObjectString* osName = copyString(vm, "os", 2);
+        push(vm, OBJECT_VAL(osName));
+
+        if(tableGet(vm, &vm->modules, OBJECT_VAL(osName), &osModVal)){
+            ObjectModule* osMod = AS_MODULE(osModVal);
+            ObjectList* argvList = newList(vm);
+            push(vm, OBJECT_VAL(argvList));
+
+            for(int i = 0; i < argc; i++){
+                ObjectString* arg = copyString(vm, argv[i], (int)strlen(argv[i]));
+                push(vm, OBJECT_VAL(arg));
+                appendToList(vm, argvList, OBJECT_VAL(arg));
+                pop(vm);    // arg
+            }
+
+            ObjectString* argvKey = copyString(vm, "argv", 4);
+            push(vm, OBJECT_VAL(argvKey));
+            tableSet(vm, &osMod->members, OBJECT_VAL(argvKey), OBJECT_VAL(argvList));
+            pop(vm);    // argvKey
+            pop(vm);    // argvList
+        }
+        pop(vm);    // osName
+    }
 }
 
 void freeVM(VM* vm){
