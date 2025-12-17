@@ -76,7 +76,7 @@ static Value os_exec(VM* vm, int argCount, Value* args){
 
 static Value os_system(VM* vm, int argCount, Value* args){
     if(argCount != 1 || !IS_STRING(args[0])){
-        runtimeError(vm, "os.system expects a single string argument.\n");
+        runtimeError(vm, "os.run expects a single string argument.\n");
         return NULL_VAL;
     }
 
@@ -86,11 +86,11 @@ static Value os_system(VM* vm, int argCount, Value* args){
 #ifdef _WIN32
     return NUM_VAL((double)status);
 #else
-    if(WIFEXITED(status) == 0){
-        runtimeError(vm, "Failed to execute command: %s\n", strerror(errno));
-        return NULL_VAL;
+    if(WIFEXITED(status)){
+        return NUM_VAL((double)WEXITSTATUS(status));
+    }else{
+        return NUM_VAL(-1);
     }
-    return NUM_VAL((double)status);
 #endif
 }
 
@@ -108,6 +108,29 @@ static Value os_getenv(VM* vm, int argCount, Value* args){
     }
 
     return OBJECT_VAL(copyString(vm, value, (int)strlen(value)));
+}
+
+static Value os_setenv(VM* vm, int argCount, Value* args){
+    if(argCount != 2 || !IS_STRING(args[0]) || !IS_STRING(args[1])){
+        runtimeError(vm, "os.setenv expects two string arguments: key and value.\n");
+        return NULL_VAL;
+    }
+
+    char* key = AS_CSTRING(args[0]);
+    char* value = AS_CSTRING(args[1]);
+
+    int result = 0;
+
+#ifdef _WIN32
+    result = _putenv_s(key, value);
+#else
+    result = setenv(key, value, 1);
+#endif
+    if(result == 0){
+        return BOOL_VAL(true);
+    }else{
+        return BOOL_VAL(false);
+    }
 }
 
 static Value os_exit(VM* vm, int argCount, Value* args){
@@ -137,6 +160,7 @@ void registerOsModule(VM* vm){
     defineCFunc(vm, &module->members, "exec", os_exec);
     defineCFunc(vm, &module->members, "run", os_system);
     defineCFunc(vm, &module->members, "getenv", os_getenv);
+    defineCFunc(vm, &module->members, "setenv", os_setenv);
     defineCFunc(vm, &module->members, "exit", os_exit);
 
     tableSet(vm, &vm->modules, OBJECT_VAL(moduleName), OBJECT_VAL(module));
