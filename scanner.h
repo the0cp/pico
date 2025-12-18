@@ -37,6 +37,7 @@ typedef enum{
     TOKEN_PRINT,
     TOKEN_IMPORT,
     TOKEN_SYSTEM,
+    TOKEN_DEFER, 
 }TokenType;
 
 typedef struct{

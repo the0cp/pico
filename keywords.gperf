@@ -1,3 +1,5 @@
+// gperf -L C -E -t -C -G -N findKeyword -H keywordHash keywords.gperf
+
 %includes
 %{
 #include <string.h>
@@ -32,3 +34,4 @@ continue,   TOKEN_CONTINUE
 switch,     TOKEN_SWITCH
 default,    TOKEN_DEFAULT
 import,     TOKEN_IMPORT
+defer,      TOKEN_DEFER

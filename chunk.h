@@ -36,7 +36,7 @@ typedef enum {
     OP_BUILD_LIST, OP_FILL_LIST, OP_INDEX_GET, OP_INDEX_SET,
     OP_SLICE,
     OP_BUILD_MAP,
-    OP_SYSTEM,
+    OP_SYSTEM, OP_DEFER, OP_DEFER_RETURN,
 } OpCode;
 
 typedef struct Chunk {

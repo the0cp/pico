@@ -313,6 +313,8 @@ static InterpreterStatus run(VM* vm){
         [OP_MODULO]         = &&DO_OP_MODULO,
 
         [OP_RETURN]         = &&DO_OP_RETURN,
+        [OP_DEFER]          = &&DO_OP_DEFER,
+        [OP_DEFER_RETURN]   = &&DO_OP_DEFER_RETURN,
         [OP_SYSTEM]         = &&DO_OP_SYSTEM,
         [OP_NULL]           = &&DO_OP_NULL,
         [OP_TRUE]           = &&DO_OP_TRUE,
@@ -1689,8 +1691,46 @@ static InterpreterStatus run(VM* vm){
         push(vm, NUM_VAL((double)status));
     } DISPATCH();
 
+    DO_OP_DEFER:
+    {
+        Value closureVal = pop(vm);
+        ObjectClosure* closure = AS_CLOSURE(closureVal);
+
+        if(frame->deferCnt >= MAX_DEFERS){
+            runtimeError(vm, "Too many deferred functions.");
+            return VM_RUNTIME_ERROR;
+        }
+
+        frame->defers[frame->deferCnt++] = closure;
+    } DISPATCH();
+
+    DO_OP_DEFER_RETURN:
+    {
+        closeUpvalues(vm, frame->slots);
+        vm->frameCount--;
+        vm->stackTop = frame->slots;
+
+        frame = &vm->frames[vm->frameCount - 1];
+    } DISPATCH();
+
     DO_OP_RETURN:
     {
+        if(frame->deferCnt > 0){
+            ObjectClosure* deferClosure = frame->defers[--frame->deferCnt];
+
+            push(vm, OBJECT_VAL(deferClosure));
+            if(!call(vm, deferClosure, 0)){
+                return VM_RUNTIME_ERROR;
+            }
+
+            CallFrame* callerFrame = &vm->frames[vm->frameCount - 2];
+            callerFrame->ip--;
+
+            frame = &vm->frames[vm->frameCount - 1];
+
+            DISPATCH();
+        }
+
         Value result = pop(vm);
 
         closeUpvalues(vm, frame->slots);
@@ -1732,6 +1772,7 @@ static bool call(VM* vm, ObjectClosure* closure, int argCnt){
     frame->closure = closure;
     frame->ip = closure->func->chunk.code;
     frame->slots = vm->stackTop - argCnt - 1;   // -1 to skip func self
+    frame->deferCnt = 0;
 
     return true;
 }

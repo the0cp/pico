@@ -1,4 +1,4 @@
-/* C code produced by gperf version 3.1 */
+/* C code produced by gperf version 3.2.1 */
 /* Command-line: gperf -L C -E -t -C -G -N findKeyword -H keywordHash keywords.gperf  */
 /* Computed positions: -k'1-2' */
 
@@ -29,11 +29,11 @@
 error "gperf generated tables don't work with this execution character set. Please report a bug to <bug-gperf@gnu.org>."
 #endif
 
-#line 2 "keywords.gperf"
+#line 4 "keywords.gperf"
 
 #include <string.h>
 #include "scanner.h"
-#line 9 "keywords.gperf"
+#line 11 "keywords.gperf"
 struct Keyword {
     const char* name;
     TokenType type;
@@ -41,14 +41,14 @@ struct Keyword {
 #include <string.h>
 enum
   {
-    TOTAL_KEYWORDS = 21,
+    TOTAL_KEYWORDS = 22,
     MIN_WORD_LENGTH = 2,
     MAX_WORD_LENGTH = 8,
     MIN_HASH_VALUE = 2,
-    MAX_HASH_VALUE = 26
+    MAX_HASH_VALUE = 30
   };
 
-/* maximum key range = 25, duplicates = 0 */
+/* maximum key range = 29, duplicates = 0 */
 
 #ifdef __GNUC__
 __inline
@@ -64,32 +64,32 @@ keywordHash (str, len)
 {
   static const unsigned char asso_values[] =
     {
-      27, 27, 27, 27, 27, 27, 27, 27, 27, 27,
-      27, 27, 27, 27, 27, 27, 27, 27, 27, 27,
-      27, 27, 27, 27, 27, 27, 27, 27, 27, 27,
-      27, 27, 27, 27, 27, 27, 27, 27, 27, 27,
-      27, 27, 27, 27, 27, 27, 27, 27, 27, 27,
-      27, 27, 27, 27, 27, 27, 27, 27, 27, 27,
-      27, 27, 27, 27, 27, 27, 27, 27, 27, 27,
-      27, 27, 27, 27, 27, 27, 27, 27, 27, 27,
-      27, 27, 27, 27, 27, 27, 27, 27, 27, 27,
-      27, 27, 27, 27, 27, 27, 27, 15, 15,  5,
-       0, 10,  5, 27,  5,  0, 27, 27,  0,  5,
-       0,  0,  0, 27,  0, 15, 15,  0,  5,  5,
-      27, 27, 27, 27, 27, 27, 27, 27, 27, 27,
-      27, 27, 27, 27, 27, 27, 27, 27, 27, 27,
-      27, 27, 27, 27, 27, 27, 27, 27, 27, 27,
-      27, 27, 27, 27, 27, 27, 27, 27, 27, 27,
-      27, 27, 27, 27, 27, 27, 27, 27, 27, 27,
-      27, 27, 27, 27, 27, 27, 27, 27, 27, 27,
-      27, 27, 27, 27, 27, 27, 27, 27, 27, 27,
-      27, 27, 27, 27, 27, 27, 27, 27, 27, 27,
-      27, 27, 27, 27, 27, 27, 27, 27, 27, 27,
-      27, 27, 27, 27, 27, 27, 27, 27, 27, 27,
-      27, 27, 27, 27, 27, 27, 27, 27, 27, 27,
-      27, 27, 27, 27, 27, 27, 27, 27, 27, 27,
-      27, 27, 27, 27, 27, 27, 27, 27, 27, 27,
-      27, 27, 27, 27, 27, 27
+      31, 31, 31, 31, 31, 31, 31, 31, 31, 31,
+      31, 31, 31, 31, 31, 31, 31, 31, 31, 31,
+      31, 31, 31, 31, 31, 31, 31, 31, 31, 31,
+      31, 31, 31, 31, 31, 31, 31, 31, 31, 31,
+      31, 31, 31, 31, 31, 31, 31, 31, 31, 31,
+      31, 31, 31, 31, 31, 31, 31, 31, 31, 31,
+      31, 31, 31, 31, 31, 31, 31, 31, 31, 31,
+      31, 31, 31, 31, 31, 31, 31, 31, 31, 31,
+      31, 31, 31, 31, 31, 31, 31, 31, 31, 31,
+      31, 31, 31, 31, 31, 31, 31, 15, 25,  5,
+       0, 10,  5, 31,  5,  0, 31, 31,  0,  5,
+       0,  0,  0, 31,  0, 10, 15,  0,  5, 10,
+      31, 31, 31, 31, 31, 31, 31, 31, 31, 31,
+      31, 31, 31, 31, 31, 31, 31, 31, 31, 31,
+      31, 31, 31, 31, 31, 31, 31, 31, 31, 31,
+      31, 31, 31, 31, 31, 31, 31, 31, 31, 31,
+      31, 31, 31, 31, 31, 31, 31, 31, 31, 31,
+      31, 31, 31, 31, 31, 31, 31, 31, 31, 31,
+      31, 31, 31, 31, 31, 31, 31, 31, 31, 31,
+      31, 31, 31, 31, 31, 31, 31, 31, 31, 31,
+      31, 31, 31, 31, 31, 31, 31, 31, 31, 31,
+      31, 31, 31, 31, 31, 31, 31, 31, 31, 31,
+      31, 31, 31, 31, 31, 31, 31, 31, 31, 31,
+      31, 31, 31, 31, 31, 31, 31, 31, 31, 31,
+      31, 31, 31, 31, 31, 31, 31, 31, 31, 31,
+      31, 31, 31, 31, 31, 31
     };
   return len + asso_values[(unsigned char)str[1]] + asso_values[(unsigned char)str[0]];
 }
@@ -101,52 +101,55 @@ keywordHash (str, len)
 static const struct Keyword wordlist[] =
   {
     {""}, {""},
-#line 29 "keywords.gperf"
+#line 31 "keywords.gperf"
     {"or",         TOKEN_OR},
     {""},
-#line 22 "keywords.gperf"
+#line 24 "keywords.gperf"
     {"null",       TOKEN_NULL},
-#line 23 "keywords.gperf"
+#line 25 "keywords.gperf"
     {"print",      TOKEN_PRINT},
     {""},
-#line 21 "keywords.gperf"
+#line 23 "keywords.gperf"
     {"if",         TOKEN_IF},
-#line 17 "keywords.gperf"
+#line 19 "keywords.gperf"
     {"for",        TOKEN_FOR},
-#line 18 "keywords.gperf"
+#line 20 "keywords.gperf"
     {"func",       TOKEN_FUNC},
-#line 14 "keywords.gperf"
+#line 16 "keywords.gperf"
     {"class",      TOKEN_CLASS},
-#line 34 "keywords.gperf"
+#line 36 "keywords.gperf"
     {"import",     TOKEN_IMPORT},
     {""},
-#line 31 "keywords.gperf"
-    {"continue",   TOKEN_CONTINUE},
-#line 15 "keywords.gperf"
-    {"else",       TOKEN_ELSE},
-#line 27 "keywords.gperf"
-    {"while",      TOKEN_WHILE},
-#line 24 "keywords.gperf"
-    {"return",     TOKEN_RETURN},
 #line 33 "keywords.gperf"
-    {"default",    TOKEN_DEFAULT},
-#line 28 "keywords.gperf"
-    {"and",        TOKEN_AND},
+    {"continue",   TOKEN_CONTINUE},
+#line 17 "keywords.gperf"
+    {"else",       TOKEN_ELSE},
+#line 37 "keywords.gperf"
+    {"defer",      TOKEN_DEFER},
 #line 26 "keywords.gperf"
-    {"true",       TOKEN_TRUE},
+    {"return",     TOKEN_RETURN},
+#line 35 "keywords.gperf"
+    {"default",    TOKEN_DEFAULT},
 #line 30 "keywords.gperf"
-    {"break",      TOKEN_BREAK},
-#line 19 "keywords.gperf"
+    {"and",        TOKEN_AND},
+#line 28 "keywords.gperf"
+    {"true",       TOKEN_TRUE},
+#line 29 "keywords.gperf"
+    {"while",      TOKEN_WHILE},
+#line 21 "keywords.gperf"
     {"method",     TOKEN_METHOD},
     {""},
-#line 20 "keywords.gperf"
+#line 22 "keywords.gperf"
     {"var",        TOKEN_VAR},
-#line 25 "keywords.gperf"
+#line 27 "keywords.gperf"
     {"this",       TOKEN_THIS},
-#line 16 "keywords.gperf"
+#line 18 "keywords.gperf"
     {"false",      TOKEN_FALSE},
+#line 34 "keywords.gperf"
+    {"switch",     TOKEN_SWITCH},
+    {""}, {""}, {""},
 #line 32 "keywords.gperf"
-    {"switch",     TOKEN_SWITCH}
+    {"break",      TOKEN_BREAK}
   };
 #if (defined __GNUC__ && __GNUC__ + (__GNUC_MINOR__ >= 6) > 4) || (defined __clang__ && __clang_major__ >= 3)
 #pragma GCC diagnostic pop
@@ -169,5 +172,5 @@ findKeyword (str, len)
             return &wordlist[key];
         }
     }
-  return 0;
+  return (struct Keyword *) 0;
 }

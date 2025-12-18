@@ -625,6 +625,8 @@ static void stmt(Compiler* compiler){
         continueStmt(compiler);
     else if(match(compiler, TOKEN_SYSTEM))
         systemStmt(compiler);
+    else if(match(compiler, TOKEN_DEFER))
+        deferStmt(compiler);
     else if(match(compiler, TOKEN_RETURN))
         returnStmt(compiler);
     else if(match(compiler, TOKEN_LEFT_BRACE)){
@@ -1049,6 +1051,51 @@ static void systemStmt(Compiler* compiler){
 
     emitByte(compiler, OP_SYSTEM);
     emitByte(compiler, OP_POP);  // pop status code
+}
+
+static void deferStmt(Compiler* compiler){
+    Compiler* funcCompiler = (Compiler*)reallocate(compiler->vm, NULL, 0, sizeof(Compiler));
+    if(funcCompiler == NULL){
+        errorAt(compiler, &compiler->parser.pre, "Not enough memory for defer.");
+        return;
+    }
+
+    funcCompiler->parser = compiler->parser;
+    funcCompiler->enclosing = compiler;
+    funcCompiler->vm = compiler->vm;
+    funcCompiler->func = NULL;
+    compiler->vm->compiler = funcCompiler;
+
+    initCompiler(funcCompiler, compiler->vm, compiler, TYPE_FUNC, compiler->func->srcName);
+
+    beginScope(funcCompiler);
+    stmt(funcCompiler);
+
+    emitByte(funcCompiler, OP_DEFER_RETURN);
+    ObjectFunc* func = funcCompiler->func;
+
+    push(compiler->vm, OBJECT_VAL(func));
+    int constIndex = addConstant(compiler->vm, &compiler->func->chunk, OBJECT_VAL(func));
+    pop(compiler->vm);
+
+    if(constIndex <= 0xff){
+        emitPair(compiler, OP_CLOSURE, (uint8_t)constIndex);
+    }else{
+        emitByte(compiler, OP_LCLOSURE);
+        emitPair(compiler, (uint8_t)((constIndex >> 8) & 0xff), (uint8_t)(constIndex & 0xff));
+    }
+
+    for(int i = 0; i < func->upvalueCnt; i++){
+        emitByte(compiler, funcCompiler->upvalues[i].isLocal ? 1 : 0);
+        emitPair(compiler, (uint8_t)((funcCompiler->upvalues[i].index >> 8) & 0xff), 
+                           (uint8_t)(funcCompiler->upvalues[i].index & 0xff));
+    }
+
+    compiler->parser = funcCompiler->parser;
+    compiler->vm->compiler = compiler;
+    reallocate(compiler->vm, funcCompiler, sizeof(Compiler), 0);
+
+    emitByte(compiler, OP_DEFER);
 }
 
 static void returnStmt(Compiler* compiler){

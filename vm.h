@@ -11,12 +11,14 @@ typedef struct Compiler Compiler;
 #define FRAMES_MAX 64
 #define STACK_MAX (FRAMES_MAX * 256)
 #define GLOBAL_STATCK_MAX 64
+#define MAX_DEFERS 255
 
 typedef struct CallFrame{
-    // ObjectFunc* func;
     ObjectClosure* closure;
     uint8_t* ip;
     Value* slots;
+    ObjectClosure* defers[MAX_DEFERS];
+    int deferCnt;
 }CallFrame;
 
 typedef struct VM{
