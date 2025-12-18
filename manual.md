@@ -186,6 +186,20 @@ var path = "users" / "docs" / "report.txt";
 
 > Lists are compared by value, not by reference. Two separate list objects containing the same elements in the same order are considered equal. `[1, 2] == [1, 2]; # true`
 
+### Ternary Operator
+
+PiCo supports the conditional (ternary) operator, which is the only operator that takes three operands. It is frequently used as a shortcut for the `if` statement.
+
+- *Syntax*: `condition ? expression1 : expression2`
+- *Behavior*: If `condition` is truthy, `expression1` is evaluated and returned; otherwise, `expression2` is evaluated and returned.
+
+Example:
+
+```
+var age = 20;
+var status = age >= 18 ? "Adult" : "Minor";
+print status; # Output: Adult
+```
 
 ### Logic
 
@@ -371,6 +385,48 @@ switch(value){
 - **No Fallthrough**: Unlike C, PiCo switches **do not** fall through automatically. You do not need to write `break`.
 
 - **Default**: An optional `default` case handles values not matched by any case.
+
+### Defer Statement
+
+The `defer` statement defers the execution of a statement (or a block of code) until the surrounding function returns.
+
+- **Syntax**: `defer statement;`
+- **Execution Order**: Deferred statements are executed in **Last In, First Out (LIFO)** order. The last deferred statement is executed first when the function exits.
+- **Scope**: `defer` is function-scoped. It executes when the enclosing function returns, regardless of where `return` is called.
+
+Example:
+
+```
+func processFile() {
+    var f = fs.open("log.txt", "w");
+    if (!f) return;
+    
+    # Ensure file is closed when function exits, 
+    # even if an error occurs later.
+    defer f.close();
+    
+    defer print "Function finishing...";
+
+    f.write("Log entry");
+}
+
+func test() {
+    print("Function enter");
+    
+    defer {
+        print("Defer 1 (Last In, First Out)");
+    }
+
+    defer print("Defer 2");
+
+    print("Function exit");
+    return "Result";
+}
+
+var res = test();
+
+```
+
 
 ### Command Statement
 
@@ -687,6 +743,12 @@ The `os` module provides tools to interact with the underlying operating system.
 import "os";
 ```
 
+#### Variables:
+
+- `os.argv`
+  
+  - *Description*: A List of Strings containing the command-line arguments passed to the PiCo script. `os.argv[0]` is the script name.
+
 #### Functions:
 
 - `os.run(command)`
@@ -710,6 +772,16 @@ import "os";
   - *Description*: Gets the value of an environment variable.
   
   - *Returns*: String (value) or `null` if not found.
+
+- `os.setenv(key, value)`
+  
+  - *Description*: Sets or creates an environment variable.
+  
+  - *Arguments*: 
+    - `key` (String).
+    - `value` (String).
+  
+  - *Returns*: `true` on success, `false` on failure.
 
 - `os.exit(code)`
   
