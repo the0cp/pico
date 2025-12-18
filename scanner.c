@@ -246,6 +246,9 @@ static Token scanDefault(){
         case '$':
             if(is_next('>'))    return scanSystem();
             return error("Unexpected character after '$'.", sc.line);
+        case '|':
+            if(is_next('>'))    return pack(TOKEN_PIPE, sc.head, 2, sc.line);
+            return error("Unexpected character '|'.", sc.line);
     }
     return error("Unrecognized character", sc.line);
 }

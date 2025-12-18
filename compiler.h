@@ -89,6 +89,8 @@ static void handleMap(Compiler* compiler, bool canAssign);
 
 static void handleThis(Compiler* compiler, bool canAssign);
 
+static void handlePipe(Compiler* compiler, bool canAssign);
+
 static void advance(Compiler* compiler);
 
 static void expression(Compiler* compiler);
@@ -97,6 +99,7 @@ static void decl(Compiler* compiler);
 static void varDecl(Compiler* compiler);
 static void defineVar(Compiler* compiler, int global);
 static void funcDecl(Compiler* compiler);
+static void funcExpr(Compiler* compiler, bool canAssign);
 static void classDecl(Compiler* compiler);
 static void methodDecl(Compiler* compiler);
 static void importDecl(Compiler* compiler);

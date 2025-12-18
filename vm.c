@@ -333,6 +333,7 @@ static InterpreterStatus run(VM* vm){
         [OP_DUP]            = &&DO_OP_DUP,
         [OP_DUP_2]          = &&DO_OP_DUP_2,
         [OP_SWAP_12]        = &&DO_OP_SWAP_12,
+        [OP_SWAP]           = &&DO_OP_SWAP,
 
         [OP_PRINT]          = &&DO_OP_PRINT,
         [OP_DEFINE_GLOBAL]  = &&DO_OP_DEFINE_GLOBAL,
@@ -746,6 +747,14 @@ static InterpreterStatus run(VM* vm){
         Value val2 = peek(vm, 2);
         vm->stackTop[-2] = val2;
         vm->stackTop[-3] = val1;
+    } DISPATCH();
+
+    DO_OP_SWAP:
+    {
+        Value a = pop(vm);
+        Value b = pop(vm);
+        push(vm, a);
+        push(vm, b);
     } DISPATCH();
 
     DO_OP_PRINT:

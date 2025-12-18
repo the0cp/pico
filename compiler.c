@@ -15,6 +15,7 @@ typedef enum{
     PREC_TERNARY,    // ?:
     PREC_OR,         // or
     PREC_AND,        // and
+    PREC_PIPE,       // |>
     PREC_EQUALITY,   // == !=
     PREC_COMPARISON, // < > <= >=
     PREC_TERM,       // + -
@@ -47,6 +48,7 @@ static void handleList(Compiler* compiler, bool canAssign);
 static void handleMap(Compiler* compiler, bool canAssign);
 static void handleIndex(Compiler* compiler, bool canAssign);
 static void handleThis(Compiler* compiler, bool canAssign);
+static void handlePipe(Compiler* compiler, bool canAssign);
 
 static void addLocal(Compiler* compiler, Token name);
 static int resolveLocal(Compiler* compiler, Token* name);
@@ -101,6 +103,9 @@ ParseRule rules[] = {
     [TOKEN_DOT]                     = {NULL,            handleDot,      PREC_CALL},
 
     [TOKEN_THIS]                    = {handleThis,      NULL,           PREC_NONE},  
+
+    [TOKEN_PIPE]                    = {NULL,            handlePipe,     PREC_PIPE},
+    [TOKEN_FUNC]                    = {funcExpr,        NULL,           PREC_NONE},
 
     [TOKEN_EOF]                     = {NULL,            NULL,           PREC_NONE},
 };
@@ -299,6 +304,10 @@ static void compileFunc(Compiler* compiler, FuncType type){
     compiler->parser = funcCompiler->parser;
     compiler->vm->compiler = compiler;
     reallocate(compiler->vm, funcCompiler, sizeof(Compiler), 0);
+}
+
+static void funcExpr(Compiler* compiler, bool canAssign){
+    compileFunc(compiler, TYPE_FUNC);
 }
 
 static void funcDecl(Compiler* compiler){
@@ -1648,6 +1657,13 @@ static void handleCall(Compiler* compiler, bool canAssign){
     uint8_t argCount = argList(compiler);
     emitByte(compiler, OP_CALL);
     emitByte(compiler, argCount);
+}
+
+static void handlePipe(Compiler* compiler, bool canAssign){
+    parsePrecedence(compiler, PREC_PIPE + 1);
+    emitByte(compiler, OP_SWAP);
+    emitByte(compiler, OP_CALL);
+    emitByte(compiler, 1);  // 1 arg
 }
 
 static void handleImport(Compiler* compiler, bool canAssign){

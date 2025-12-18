@@ -209,6 +209,30 @@ print status; # Output: Adult
 
 - `!`: Logical NOT.
 
+### Pipe Operator
+
+The pipe operator `|>` allows for chaining function calls in a readable, left-to-right manner. It takes the result of the expression on the left and passes it as the *first argument* to the function on the right.
+
+- **Syntax**: `x |> f` is equivalent to `f(x)`.
+- **Chaining**: `x |> f |> g` is equivalent to `g(f(x))`.
+
+Example:
+
+```
+func addOne(n) { 
+    return n + 1; 
+}
+
+func double(n) { 
+    return n * 2; 
+}
+
+print double(addOne(5)); # Output: 12
+
+5 |> addOne |> double |> println; # Output: 12
+"hello" |> func(s) { return s + " world"; } |> println; # Output: hello world
+```
+
 ### Indexing & Slicing
 
 PiCo supports powerful indexing and slicing operations for both **Lists** and **Strings**.
@@ -506,6 +530,17 @@ func makeCounter(){
 var counter = makeCounter();
 print counter(); # 1
 print counter(); # 2
+```
+
+### Anonymous Functions
+
+Functions can be created without a name and used as expressions. This is particularly useful for assigning functions to variables, passing them as arguments, or using them in pipe operations.
+
+Example:
+
+```
+var square = func(x) { return x * x; };
+print square(5); # Output: 25
 ```
 
 ## Class & Objects
