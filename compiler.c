@@ -12,6 +12,7 @@
 typedef enum{
     PREC_NONE,
     PREC_ASSIGNMENT,  // =
+    PREC_TERNARY,    // ?:
     PREC_OR,         // or
     PREC_AND,        // and
     PREC_EQUALITY,   // == !=
@@ -34,6 +35,7 @@ static void handleLiteral(Compiler* compiler, bool canAssign);
 static void handleGrouping(Compiler* compiler, bool canAssign);
 static void handleUnary(Compiler* compiler, bool canAssign);
 static void handleBinary(Compiler* compiler, bool canAssign);
+static void handleTernary(Compiler* compiler, bool canAssign);
 static void handleNum(Compiler* compiler, bool canAssign);
 static void handleString(Compiler* compiler, bool canAssign);
 static void handleAnd(Compiler* compiler, bool canAssign);
@@ -69,6 +71,7 @@ ParseRule rules[] = {
     [TOKEN_MINUS_EQUAL]             = {NULL,            NULL,           PREC_NONE},
     [TOKEN_PLUS_PLUS]               = {handleUnary,     NULL,           PREC_NONE},
     [TOKEN_MINUS_MINUS]             = {handleUnary,     NULL,           PREC_NONE},
+    [TOKEN_QUESTION]                = {NULL,            handleTernary,  PREC_TERNARY},
 
     [TOKEN_NUMBER]                  = {handleNum,       NULL,           PREC_NONE},
     [TOKEN_IDENTIFIER]              = {handleVar,       NULL,           PREC_NONE},
@@ -1469,6 +1472,21 @@ static void handleBinary(Compiler* compiler, bool canAssign){
         case TOKEN_LESS_EQUAL:      emitByte(compiler, OP_LESS_EQUAL); break;
         default: return;
     }
+}
+
+static void handleTernary(Compiler* compiler, bool canAssign){
+    int elseJump = emitJump(compiler, OP_JUMP_IF_FALSE);
+    emitByte(compiler, OP_POP);
+    expression(compiler);
+
+    int endJump = emitJump(compiler, OP_JUMP);
+
+    patchJump(compiler, elseJump);
+    emitByte(compiler, OP_POP);
+
+    consume(compiler, TOKEN_COLON, "Expect ':' after the else branch of ternary operator.");
+    expression(compiler);
+    patchJump(compiler, endJump);
 }
 
 static void handleLiteral(Compiler* compiler, bool canAssign){
