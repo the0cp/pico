@@ -468,6 +468,12 @@ PiCo features a simple syntax for executing system shell commands directly.
   
   4. This is a statement, not an expression. The exit code is discarded in the current implementation (verified via `OP_POP` in compiler).
 
+Exit Status (`_exit_code`): Unlike standard function calls, the `$>` command does not return a value directly to the expression. Instead, the exit status of the executed command is stored in a special global variable named `_exit_code`.
+
+`0`: Typically indicates success.
+
+Non-zero: Indicates an error or a specific status code returned by the command.
+
 Example:
 
 ```

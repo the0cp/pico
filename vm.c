@@ -1698,6 +1698,9 @@ static InterpreterStatus run(VM* vm){
         ObjectString* cmd = AS_STRING(pop(vm));
         int status = system(cmd->chars);
         push(vm, NUM_VAL((double)status));
+
+        ObjectString* exitCodeKey = copyString(vm, "_exit_code", 10);
+        tableSet(vm, vm->curGlobal, OBJECT_VAL(exitCodeKey), NUM_VAL((double)status));
     } DISPATCH();
 
     DO_OP_DEFER:
