@@ -6,11 +6,14 @@ BOLD='\033[1m'
 NC='\033[0m'
 
 PICO_EXEC="../build/pico"
-LOG_FILE="test_output.tmp"
+LOG_FILE="test_output.log"
 
-if [ ! -f "$PICO_EXEC" ]; then
-    echo "Error: Executable not found."
-    exit 1
+if [ -f "../build/pico.exe" ]; then
+    PICO_EXEC="../build/pico.exe"
+elif [ -f "../build/pico" ]; then
+    PICO_EXEC="../build/pico"
+else
+    PICO_EXEC=$(find ../build -name "pico*" -type f | head -n 1)
 fi
 
 passed=0

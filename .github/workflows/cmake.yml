@@ -28,10 +28,15 @@ jobs:
     - name: Build
       run: cmake --build build --config Release
 
-    - name: Smoke Test (Linux)
+    - name: Run Tests (Linux)
       if: runner.os == 'Linux'
-      run: ./build/pico || true
+      working-directory: tests
+      run: |
+        chmod +x run_tests.sh
+        ./run_tests.sh
 
-    - name: Smoke Test (Windows)
+    - name: Run Tests (Windows)
       if: runner.os == 'Windows'
-      run: .\build\pico.exe || true
+      working-directory: tests
+      shell: bash
+      run: ./run_tests.sh
