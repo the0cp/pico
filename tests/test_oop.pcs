@@ -1,0 +1,20 @@
+import "assert.pcs";
+
+class User {
+    Name = "Anon";
+    age = 0; 
+}
+
+method (u User) init(n, a) {
+    u.Name = n;
+    u.age = a;
+}
+
+method (u User) getAge() {
+    return u.age;
+}
+
+var u = User("Soyo", 18);
+
+assert.eq(u.Name, "Soyo", "Public field access");
+assert.eq(u.getAge(), 18, "Method accessing private field");

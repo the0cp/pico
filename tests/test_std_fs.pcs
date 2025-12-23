@@ -1,0 +1,35 @@
+import "fs";
+import "path";
+import "glob";
+import "assert.pcs";
+
+var fname = "test_file.tmp";
+
+# File Write and Read
+fs.write(fname, "Hello IO");
+var content = fs.read(fname);
+assert.eq(content, "Hello IO", "File write and read integrity");
+
+# Path Module
+var absPath = path.abs(fname);
+assert.ok(path.isAbs(absPath), "Path absolute check");
+assert.eq(path.ext(fname), ".tmp", "Path extension extraction");
+
+# Glob Module
+var search = glob.Glob();
+search.Pattern = "*.tmp";
+
+var files = fs.list(search);
+var found = false;
+
+for (var f : files) {
+    if (path.base(f) == fname) {
+        found = true;
+    }
+}
+
+assert.ok(found, "Glob search found the created file");
+
+# Cleanup
+fs.remove(fname);
+assert.ok(!fs.exists(fname), "File removal");

@@ -1,0 +1,24 @@
+import "assert.pcs";
+
+# Comments
+# This is a single line comment
+#{ 
+   This is a block comment 
+   #{ Nested comments are supported }#
+}#
+
+# Literals
+var n = null;
+var b = true;
+var num = 123.456;
+
+assert.eq(n, null, "Null literal check");
+assert.eq(b, true, "Boolean literal check");
+assert.ok(num > 100, "Number literal check");
+
+# Variable Declaration
+var x = 10;
+var y; 
+
+assert.eq(x, 10, "Variable assignment");
+assert.eq(y, null, "Uninitialized variable defaults to null");

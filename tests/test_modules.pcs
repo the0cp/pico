@@ -1,0 +1,12 @@
+import "math_lib.pcs";
+import "assert.pcs";
+
+# Variable Export
+assert.eq(math_lib.PI, 3.14159, "Imported variable value");
+
+# Function Export
+assert.eq(math_lib.add(10, 20), 30, "Imported function execution");
+
+# Class Export
+var calc = math_lib.Calculator(100);
+assert.eq(calc.calc(50), 150, "Imported class instantiation and method call");

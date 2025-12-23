@@ -937,14 +937,17 @@ static InterpreterStatus run(VM* vm){
         tableSet(vm, &vm->modules, OBJECT_VAL(path), OBJECT_VAL(module));
 
         pushGlobal(vm, &module->members);
+
+        Value moduleValue = pop(vm);
+        pop(vm);
+        pop(vm);
+        push(vm, moduleValue);
         
         if(!call(vm, closure, 0)){
             popGlobal(vm);
-            pop(vm); pop(vm); pop(vm); // module, closure, path
             return VM_RUNTIME_ERROR;
         }
 
-        pop(vm); // path
         frame = &vm->frames[vm->frameCount - 1];
 
     } DISPATCH();
@@ -991,6 +994,10 @@ static InterpreterStatus run(VM* vm){
         pop(vm);
 
         pushGlobal(vm, &module->members);
+
+        pop(vm); 
+        pop(vm); 
+        push(vm, OBJECT_VAL(module));
         
         if(!call(vm, closure, 0)){
             popGlobal(vm);
@@ -1483,6 +1490,26 @@ static InterpreterStatus run(VM* vm){
             }else{
                 push(vm, NULL_VAL);
             }
+        }else if(IS_STRING(target)){
+            if(!IS_NUM(indexVal)){
+                runtimeError(vm, "String index must be a number.");
+                return VM_RUNTIME_ERROR;
+            }
+
+            ObjectString* str = AS_STRING(target);
+            int index = (int)AS_NUM(indexVal);
+
+            if(index < 0){
+                index += str->length;
+            }
+
+            if(index < 0 || index >= str->length){
+                runtimeError(vm, "String index out of bounds.");
+                return VM_RUNTIME_ERROR;
+            }
+
+            char chars[2] = { str->chars[index], '\0' };
+            push(vm, OBJECT_VAL(copyString(vm, chars, 1)));
         }else{
             runtimeError(vm, "Illegal index operation.");
             return VM_RUNTIME_ERROR;

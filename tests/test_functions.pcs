@@ -1,0 +1,21 @@
+import "assert.pcs";
+
+# Closures
+func makeAdder(x) {
+    return func(y) { 
+        return x + y; 
+    };
+}
+
+var add5 = makeAdder(5);
+assert.eq(add5(10), 15, "Closure captures outer variable");
+
+# Recursion
+func fib(n) {
+    if (n <= 1) {
+        return n;
+    }
+    return fib(n - 1) + fib(n - 2);
+}
+
+assert.eq(fib(10), 55, "Recursive function call");

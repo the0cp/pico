@@ -1,0 +1,18 @@
+# math_lib.pcs
+var PI = 3.14159;
+
+func add(a, b) {
+    return a + b;
+}
+
+class Calculator {
+    base = 0;
+}
+
+method (c Calculator) init(b) { 
+    c.base = b; 
+}
+
+method (c Calculator) calc(v) { 
+    return c.base + v; 
+}

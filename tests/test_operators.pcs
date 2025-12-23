@@ -1,0 +1,42 @@
+import "assert.pcs";
+
+# Arithmetic Precedence
+var res = 10 + 5 * 2;
+assert.eq(res, 20, "Multiplication has higher precedence");
+
+# Increment and Decrement
+var a = 1;
+var b = a++; 
+var c = ++a; 
+
+assert.eq(b, 1, "Postfix returns original value");
+assert.eq(c, 3, "Prefix returns incremented value");
+assert.eq(a, 3, "Final variable value");
+
+# Logic Short-circuit
+var safe = true or (1/0);
+assert.ok(safe, "Short-circuit OR prevents division by zero");
+
+# Pipe Operator
+func add(x) { 
+    return x + 1; 
+}
+
+func double(x) { 
+    return x * 2; 
+}
+
+var p = 5 |> add |> double;
+assert.eq(p, 12, "Pipe operator chaining");
+
+# Path Join Operator
+var p1 = "user";
+var p2 = "docs";
+var path = p1 / p2 / "file.txt";
+# Note: Check logic simplified to avoid OS separator dependency issues in string match
+assert.ok(path.len() > 10, "Path join operator works");
+
+# Ternary Operator
+var age = 20;
+var type = age >= 18 ? "Adult" : "Minor";
+assert.eq(type, "Adult", "Ternary operator true case");

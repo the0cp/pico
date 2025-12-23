@@ -1,0 +1,39 @@
+import "assert.pcs";
+
+# Loops with break and continue
+var sum = 0;
+for (var i = 0; i < 10; i++) {
+    if (i % 2 == 0) {
+        continue;
+    }
+    if (i > 5) {
+        break;
+    }
+    sum += i;
+}
+# Expected: 1 + 3 + 5 = 9
+assert.eq(sum, 9, "For loop with break and continue");
+
+# Switch Statement
+var val = 2;
+var res = "";
+
+switch (val) {
+    1, 2 => { res = "Low"; }
+    3 => { res = "High"; }
+    default => { res = "Unknown"; }
+}
+assert.eq(res, "Low", "Switch statement with multiple case values");
+
+# Defer Statement
+var deferCheck = [];
+func testDefer() {
+    defer {
+        deferCheck.push("second");
+    }
+    deferCheck.push("first");
+}
+
+testDefer();
+assert.eq(deferCheck[0], "first", "Normal execution order");
+assert.eq(deferCheck[1], "second", "Defer execution order");

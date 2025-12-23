@@ -1,0 +1,51 @@
+import "time";
+import "assert.pcs";
+
+class Node {
+    Data;
+    Next;
+}
+
+func createChain(depth) {
+    var head = Node();
+    var current = head;
+    
+    for (var i = 0; i < depth; i++) {
+        var n = Node();
+        # Allocate a list to consume memory
+        n.Data = [i; 100]; 
+        current.Next = n;
+        current = n;
+    }
+    return head;
+}
+
+print "Starting allocation loop...";
+
+# Allocate large amount of memory to trigger GC multiple times
+for (var i = 0; i < 50; i++) {
+    var chain = createChain(1000); 
+    # Detach chain to allow collection
+    chain = null; 
+}
+
+print "Allocation loop finished.";
+
+# Closure Retention Test
+# Objects captured by closures must NOT be collected
+func createKeeper() {
+    var secret = [1, 2, 3, "kept alive"];
+    return func() {
+        return secret;
+    };
+}
+
+var keeper = createKeeper();
+
+# Force more allocation to trigger potential sweep
+for (var i = 0; i < 10; i++) { 
+    createChain(1000); 
+}
+
+var data = keeper();
+assert.eq(data[3], "kept alive", "Closure upvalue retention after GC");

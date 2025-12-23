@@ -1,0 +1,27 @@
+import "assert.pcs";
+
+# Interpolation
+var name = "PiCo";
+var msg = "Hello, ${name}!";
+assert.eq(msg, "Hello, PiCo!", "String interpolation");
+
+# Indexing
+var s = "abcdef";
+assert.eq(s[0], "a", "String positive index");
+assert.eq(s[-1], "f", "String negative index");
+
+# Slicing
+var slice1 = s[1:4];
+assert.eq(slice1, "bcd", "Basic slicing");
+
+var slice2 = s[::-1];
+assert.eq(slice2, "fedcba", "Reverse slicing with negative step");
+
+# Methods
+var text = "  Hello World  ";
+var clean = text.trim().upper();
+assert.eq(clean, "HELLO WORLD", "Method chaining (trim and upper)");
+
+var parts = "a,b,c".split(",");
+assert.eq(parts.size(), 3, "Split size");
+assert.eq(parts[1], "b", "Split content");

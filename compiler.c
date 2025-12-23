@@ -1014,9 +1014,11 @@ static void switchStmt(Compiler* compiler){
                 
                 int failedMatchJump = emitJump(compiler, OP_JUMP_IF_FALSE);
 
+                emitByte(compiler, OP_POP); // pop true
                 bodyJumps[bodyJumpCount++] = emitJump(compiler, OP_JUMP);
                 
                 patchJump(compiler, failedMatchJump);
+                emitByte(compiler, OP_POP); // pop false
 
             }while(match(compiler, TOKEN_COMMA));
             
