@@ -4,6 +4,16 @@
 #include "common.h"
 #include "vm.h"
 
+#define GROW_CAPACITY(capacity) \
+    ((capacity) < 8 ? 8 : (capacity) * 2)
+
+#define GROW_ARRAY(vm, type, pointer, oldCount, newCount) \
+    (type*)reallocate(vm, pointer, sizeof(type) * (oldCount), \
+    sizeof(type) * (newCount))
+
+#define FREE_ARRAY(vm, type, pointer, oldCount) \
+    reallocate(vm, pointer, sizeof(type) * (oldCount), 0)
+
 static void markRoots(VM* vm);
 static void traceRef(VM* vm, Object* object);
 void markObject(VM* vm, Object* object);

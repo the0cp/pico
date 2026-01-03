@@ -13,56 +13,39 @@ void initChunk(Chunk* chunk){
     initValueArray(&chunk->constants);
 }
 
-void writeChunk(VM* vm, Chunk* chunk, uint8_t byte, int line){
+void writeChunk(VM* vm, Chunk* chunk, Instruction instruction, int line){
     if(chunk->count + 1 > chunk->capacity){
         size_t oldCapacity = chunk->capacity;
-        chunk->capacity = oldCapacity < 8 ? 8 : oldCapacity * 2;
-        chunk->code = (uint8_t*)reallocate(
+        chunk->capacity = GROW_CAPACITY(oldCapacity);
+        chunk->code = GROW_ARRAY(
             vm,
-            chunk->code, 
-            sizeof(uint8_t) * oldCapacity, 
-            sizeof(uint8_t) * chunk->capacity
+            Instruction,
+            chunk->code,
+            oldCapacity,
+            chunk->capacity
+        );
+        chunk->lines = GROW_ARRAY(
+            vm,
+            int,
+            chunk->lines,
+            oldCapacity * 2,
+            chunk->capacity * 2
         );
     }
-    chunk->code[chunk->count++] = byte;
-    if(chunk->lineCount == 0 || chunk->lines[chunk->lineCount * 2 - 1] != line){
-        if(chunk->lineCount + 1 > chunk->lineCapacity){
-            int oldLineCapacity = chunk->lineCapacity;
-            chunk->lineCapacity = oldLineCapacity < 8 ? 8 : oldLineCapacity * 2;
-            chunk->lines = (int*)reallocate(
-                vm,
-                chunk->lines,
-                sizeof(int) * oldLineCapacity * 2,  
-                sizeof(int) * chunk->lineCapacity * 2
-                // Each (offset, line) pair takes 2 ints
-            );
-        }
-        chunk->lines[chunk->lineCount * 2] = chunk->count - 1;
-        chunk->lines[chunk->lineCount * 2 + 1] = line;
-        chunk->lineCount++; 
-    }
+    chunk->code[chunk->count] = instruction;
+    chunk->lines[chunk->count] = line;
+    chunk->count++;
+    
 }
 
 void freeChunk(VM* vm, Chunk* chunk){
-    reallocate(vm, chunk->code, sizeof(uint8_t) * chunk->capacity, 0);
+    FREE_ARRAY(vm, Instruction, chunk->code, chunk->capacity);
+    FREE_ARRAY(vm, int, chunk->lines, chunk->lineCapacity * 2);
     freeValueArray(vm, &chunk->constants);
-    reallocate(vm, chunk->lines, sizeof(int) * chunk->lineCapacity * 2, 0);
     initChunk(chunk);
 }
 
 int addConstant(VM* vm, Chunk* chunk, Value value){
     writeValueArray(vm, &chunk->constants, value);
     return (int)(chunk->constants.count - 1);
-}
-
-void writeConstant(VM* vm, Chunk* chunk, Value value, int line){
-    int constantIndex = addConstant(vm, chunk, value);
-    if(constantIndex < 256){
-        writeChunk(vm, chunk, OP_CONSTANT, line);
-        writeChunk(vm, chunk, (uint8_t)constantIndex, line);
-    }else{
-        writeChunk(vm, chunk, OP_LCONSTANT, line);
-        writeChunk(vm, chunk, (uint8_t)((constantIndex >> 8) & 0xff), line);
-        writeChunk(vm, chunk, (uint8_t)(constantIndex & 0xff), line);
-    }
 }
