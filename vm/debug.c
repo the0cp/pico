@@ -2,236 +2,183 @@
 
 #include "debug.h"
 #include "value.h"
+#include "instruction.h"
 
-void dasmChunk(const Chunk* chunk, const char* name){
-    printf("=== Chunk: %s ===\n", name);
-    for(int offset = 0; offset < chunk->count;){
-        offset = dasmInstruction(chunk, offset);
+static const char* opNames[] = {
+    "MOVE",
+    "LOADK",
+    "LOADBOOL",
+    "LOADNULL",
+    "GET_GLOBAL",
+    "SET_GLOBAL",
+    "GET_UPVAL",
+    "SET_UPVAL",
+    "GET_TABLE",
+    "SET_TABLE",
+    "GET_FIELD",
+    "SET_FIELD",
+    "ADD",
+    "SUB",
+    "MUL",
+    "DIV",
+    "MOD",
+    "NOT",
+    "NEG",
+    "EQ",
+    "LT",
+    "LE",
+    "JMP",
+    "CALL",
+    "TAILCALL",
+    "RETURN",
+    "CLOSURE",
+    "CLASS",
+    "METHOD",
+    "NEW_LIST",
+    "NEW_MAP",
+    "INIT_LIST",    
+    "IMPORT",
+    "FOREACH",
+    "PRINT",
+};
+
+void dasmChunk(Chunk* chunk, const char* name){
+    printf("== %s ==\n", name);
+    for(size_t offset = 0; offset < chunk->count; ){
+        offset = disassembleInstruction(chunk, offset);
     }
+}
+
+static void dasmABC(const char* name, Instruction instruction){
+    int a = GET_ARG_A(instruction);
+    int b = GET_ARG_B(instruction);
+    int c = GET_ARG_C(instruction);
+    printf("%-16s %4d %4d %4d\n", name, a, b, c);
+}
+
+static void dasmABx(const char* name, Instruction instruction){
+    int a = GET_ARG_A(instruction);
+    int bx = GET_ARG_Bx(instruction);
+    printf("%-16s %4d %4d\n", name, a, bx);
+}
+
+static void dasmAsBx(const char* name, Instruction instruction){
+    int a = GET_ARG_A(instruction);
+    int sbx = GET_ARG_sBx(instruction);
+    printf("%-16s %4d %4d\n", name, a, sbx);
+}
+
+static void dasmLoadK(const char* name, const Chunk* chunk, Instruction instruction){
+    int a = GET_ARG_A(instruction);
+    int bx = GET_ARG_Bx(instruction);
+    Value constant = chunk->constants.values[bx];
+    printf("%-16s %4d %4d '", name, a, bx);
+    printValue(constant);
+}
+
+static dasmGlobal(const char* name, Chunk* chunk, Instruction instruction){
+    int a = GET_ARG_A(instruction);
+    int bx = GET_ARG_Bx(instruction);
+    Value constant = chunk->constants.values[bx];
+    printf("%-16s %4d %4d '", name, a, bx);
+    printValue(constant);
+}
+
+static void dasmField(const char* name, const Chunk* chunk, Instruction instruction){
+    int a = GET_ARG_A(instruction);
+    int b = GET_ARG_B(instruction);
+    int c = GET_ARG_C(instruction);
+    Value constant = chunk->constants.values[c];
+    printf("%-16s %4d %4d %4d '", name, a, b, c);
+    printValue(constant);
 }
 
 int dasmInstruction(const Chunk* chunk, int offset){
-    printf("%04d ", offset);
-    if(offset > 0 && getLine(chunk, offset) == getLine(chunk, offset - 1)){
-        printf("\t    ");
+    print("offset: %04d ", offset);
+    int line = chunk->lines[offset];
+    if(offset > 0 && line == chunk->lines[offset - 1]){
+        printf("\t| ");
     }else{
-        printf("(Line:%4d) ", getLine(chunk, offset));
+        printf("%4d ", line);
     }
 
-    uint8_t instruction = chunk->code[offset];
-    switch(instruction){
-        case OP_CONSTANT:
-            return dasmConstant(chunk, offset);
-        case OP_LCONSTANT:
-            return dasmLConstant(chunk, offset);
-        case OP_NULL:
-            printf("OP_NULL\n");            return offset + 1;
-        case OP_TRUE:
-            printf("OP_TRUE\n");            return offset + 1;
-        case OP_FALSE:
-            printf("OP_FALSE\n");           return offset + 1;
-        case OP_NOT:
-            printf("OP_NOT\n");             return offset + 1;
-        case OP_NOT_EQUAL:
-            printf("OP_NOT_EQUAL\n");       return offset + 1;
-        case OP_EQUAL:
-            printf("OP_EQUAL\n");           return offset + 1;
-        case OP_GREATER:
-            printf("OP_GREATER\n");         return offset + 1;
-        case OP_LESS:
-            printf("OP_LESS\n");            return offset + 1;
-        case OP_GREATER_EQUAL:
-            printf("OP_GREATER_EQUAL\n");   return offset + 1;
-        case OP_LESS_EQUAL:
-            printf("OP_LESS_EQUAL\n");      return offset + 1;
+    Instruction instruction = chunk->code[offset];
+    OpCode op = GET_OPCODE(instruction);
+
+    int opCnt = sizeof(opNames) / sizeof(opNames[0]);
+    const char* opName = (op < opCnt) ? opNames[op] : "UNKNOWN";
+
+    switch(op){
+        // iABC
+        case OP_MOVE:
+        case OP_LOADBOOL:
+        case OP_LOADNULL:
+        case OP_GET_UPVAL:
+        case OP_SET_UPVAL:
+        case OP_GET_TABLE:
+        case OP_SET_TABLE:
+
         case OP_ADD:
-            printf("OP_ADD\n");             return offset + 1;
-        case OP_SUBTRACT:
-            printf("OP_SUBTRACT\n");        return offset + 1;
-        case OP_MULTIPLY:
-            printf("OP_MULTIPLY\n");        return offset + 1;
-        case OP_DIVIDE:
-            printf("OP_DIVIDE\n");          return offset + 1;
-        case OP_NEGATE:
-            printf("OP_NEGATE\n");          return offset + 1;
-        case OP_MODULO:
-            printf("OP_MODULO\n");          return offset + 1;
-        case OP_PRINT:
-            printf("OP_PRINT\n");           return offset + 1;
-        case OP_POP:
-            printf("OP_POP\n");             return offset + 1;
-        case OP_DUP:
-            printf("OP_DUP\n");             return offset + 1;
-        case OP_DUP_2:
-            printf("OP_DUP_2\n");           return offset + 1;
-        case OP_SWAP_12:
-            printf("OP_SWAP_12\n");         return offset + 1;
+        case OP_SUB:
+        case OP_MUL:
+        case OP_DIV:
+        case OP_MOD: 
+
+        case OP_EQ: 
+        case OP_LT: 
+        case OP_LE:
+
+        case OP_CALL: 
+        case OP_TAILCALL: 
         case OP_RETURN:
-            printf("OP_RETURN\n");          return offset + 1;
-        case OP_SYSTEM:
-            printf("OP_SYSTEM\n");          return offset + 1;
 
-        case OP_DEFINE_GLOBAL:
-            return dasmGlobal("OP_DEFINE_GLOBAL", chunk, offset);
-        case OP_DEFINE_LGLOBAL:
-            return dasmLGlobal("OP_DEFINE_LGLOBAL", chunk, offset);
-        case OP_GET_GLOBAL:
-            return dasmGlobal("OP_GET_GLOBAL", chunk, offset);
-        case OP_GET_LGLOBAL:
-            return dasmLGlobal("OP_GET_LGLOBAL", chunk, offset);
-        case OP_SET_GLOBAL:
-            return dasmGlobal("OP_SET_GLOBAL", chunk, offset);
-        case OP_SET_LGLOBAL:
-            return dasmLGlobal("OP_SET_LGLOBAL", chunk, offset);
-        case OP_GET_LOCAL:
-            return dasmLocal("OP_GET_LOCAL", chunk, offset);
-        case OP_SET_LOCAL:
-            return dasmLocal("OP_SET_LOCAL", chunk, offset);
-        case OP_GET_LLOCAL:
-            return dasmLLocal("OP_GET_LLOCAL", chunk, offset);
-        case OP_SET_LLOCAL:
-            return dasmLLocal("OP_SET_LLOCAL", chunk, offset);
-        case OP_JUMP:
-            return dasmJump("OP_JUMP", 1, chunk, offset);
-        case OP_JUMP_IF_FALSE:
-            return dasmJump("OP_JUMP_IF_FALSE", 1, chunk, offset);
-        case OP_LOOP:
-            return dasmJump("OP_LOOP", -1, chunk, offset);
-        case OP_CALL:
-            return dasmLocal("OP_CALL", chunk, offset);
-        case OP_IMPORT:
-            return dasmLocal("OP_IMPORT", chunk, offset);
-        case OP_LIMPORT:
-            return dasmLocal("OP_LIMPORT", chunk, offset);
-
-        case OP_CLOSURE:
-            return dasmConstant(chunk, offset);
-        case OP_LCLOSURE:
-            return dasmLConstant(chunk, offset);
-        case OP_GET_UPVALUE:
-            return dasmLocal("OP_GET_UPVALUE", chunk, offset);
-        case OP_SET_UPVALUE:
-            return dasmLocal("OP_SET_UPVALUE", chunk, offset);
-        case OP_GET_LUPVALUE:
-            return dasmLLocal("OP_GET_LUPVALUE", chunk, offset);
-        case OP_SET_LUPVALUE:
-            return dasmLLocal("OP_SET_LUPVALUE", chunk, offset);
-        case OP_CLOSE_UPVALUE:
-            printf("OP_CLOSE_UPVALUE\n");
-            return offset + 1;
-
-        case OP_GET_PROPERTY:
-            return dasmGlobal("OP_GET_PROPERTY", chunk, offset); // Uses constant for property name
-        case OP_GET_LPROPERTY:
-            return dasmLGlobal("OP_GET_LPROPERTY", chunk, offset);
-        case OP_SET_PROPERTY:
-            return dasmGlobal("OP_SET_PROPERTY", chunk, offset);
-        case OP_SET_LPROPERTY:
-            return dasmLGlobal("OP_SET_LPROPERTY", chunk, offset);
-
-        case OP_CLASS:
-            return dasmGlobal("OP_CLASS", chunk, offset);
         case OP_METHOD:
-            return dasmGlobal("OP_METHOD", chunk, offset);
-        case OP_LCLASS:
-            return dasmLGlobal("OP_LCLASS", chunk, offset);
-        case OP_LMETHOD:
-            return dasmLGlobal("OP_LMETHOD", chunk, offset);
+
+        case OP_NEW_LIST: 
+        case OP_NEW_MAP: 
+        case OP_INIT_LIST:
+            dasmABC(opName, instruction);
+            break;
+
+        // iAB(C==0)
+        case OP_NEG:
+        case OP_NOT:
+            dasmABC(opName, instruction);
+            break;
+
+        // iABx
+        case OP_CLOSURE:
+        case OP_IMPORT:
+        case OP_CLASS:
+            dasmABx(opName, instruction);
+            break;
+        
+        // iABx (with constant & global)
+        case OP_LOADK:
+            dasmLoadK(opName, chunk, instruction);
+            break;
+
+        case OP_GET_GLOBAL:
+        case OP_SET_GLOBAL:
+            dasmGlobal(opName, chunk, instruction);
+            break;
+
+        case OP_GET_FIELD:
+        case OP_SET_FIELD:
+            dasmField(opName, chunk, instruction);
+            break;
+
+        // iAsBx
+        case OP_JMP:
+        case OP_FOREACH:
+            dasmAsBx(opName, instruction);
+            break;
 
         default:
-            printf("Unknown opcode %d\n", instruction);
-            return offset + 1;
+            printf("Unknown opcode %d\n", op);
+            break;
     }
-}
 
-static int dasmConstant(const Chunk* chunk, int offset){
-    uint8_t constantIndex = chunk->code[offset + 1];
-    printf("OP_CONSTANT %d ", constantIndex);
-    if(constantIndex < chunk->constants.count){
-        printValue(chunk->constants.values[constantIndex]);
-    }else{
-        printf("Unknown constant");
-    }
     printf("\n");
-    return offset + 2; 
+    return offset + 1;
 }
-
-static int dasmLConstant(const Chunk* chunk, int offset){
-    uint32_t constantIndex = (uint32_t)chunk->code[offset + 1] | 
-                                      (chunk->code[offset + 2] << 8);
-    printf("OP_LCONSTANT %d '", constantIndex);
-    if(constantIndex < chunk->constants.count){
-        printValue(chunk->constants.values[constantIndex]);
-    }else{
-        printf("Unknown long constant");
-    }
-    printf("'\n");
-    return offset + 4; 
-    // 1 byte for opcode + 1 byte for long constant index
-}
-
-static int dasmGlobal(const char* opName, const Chunk* chunk, int offset) {
-    uint8_t constantIndex = chunk->code[offset + 1];
-    printf("%-22s %d '", opName, constantIndex); // Adjusted alignment for longer names
-    if(constantIndex < chunk->constants.count) {
-        printValue(chunk->constants.values[constantIndex]);
-    }else{
-        printf("Unknown variable");
-    }
-    printf("'\n");
-    return offset + 2;
-}
-
-static int dasmLGlobal(const char* opName, const Chunk* chunk, int offset) {
-    uint32_t constantIndex = (uint32_t)chunk->code[offset + 1] |
-                                    (chunk->code[offset + 2] << 8);
-    printf("%-22s %d '", opName, constantIndex); // Adjusted alignment
-    if(constantIndex < chunk->constants.count){
-        printValue(chunk->constants.values[constantIndex]);
-    }else{
-        printf("Unknown long variable");
-    }
-    printf("'\n");
-    return offset + 4;
-}
-
-static int dasmLocal(const char* opName, const Chunk* chunk, int offset){
-    uint8_t slot = chunk->code[offset+1];
-    printf("%-16s %4d\n", opName, slot);
-    return offset + 2;
-}
-
-static int dasmLLocal(const char* opName, const Chunk* chunk, int offset){
-    uint16_t slot = (uint16_t)(chunk->code[offset+1] | (chunk->code[offset+2] << 8));
-    printf("%-16s %4d\n", opName, slot);
-    return offset + 3;
-}
-
-static int dasmJump(const char* name, int sign, const Chunk* chunk, int offset){
-    uint16_t jump = (uint16_t)(chunk->code[offset+1] << 8) | chunk->code[offset+2];
-    printf("%-16s %4d -> %d\n", name, offset, offset + 3 + sign * jump);
-    return offset + 3;
-}
-
-int getLine(const Chunk* chunk, int offset){
-    int low = 0;
-    int high = chunk->lineCount - 1;
-    int match = -1;
-    while(low <= high){
-        int mid = low + ((high - low) >> 1);
-        if(chunk->lines[mid * 2] <= offset){
-            match = mid;
-            low = mid + 1;
-        }else{
-            high = mid - 1;
-        }
-    }
-
-    if(match != -1){
-        return chunk->lines[match * 2 + 1];
-    }
-
-    return -1;  // No matching line found
-}
-
-
