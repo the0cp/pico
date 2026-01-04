@@ -9,7 +9,7 @@
 #include "object.h"
 #include "value.h"
 #include "list.h"
-#include "modules.h"
+#include "registry.h"
 #include "glob.h"
 
 #ifdef _WIN32

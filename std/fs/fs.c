@@ -16,7 +16,7 @@
 #include "vm.h"
 #include "object.h"
 #include "value.h"
-#include "modules.h"
+#include "registry.h"
 #include "fs.h"
 #include "glob.h"
 

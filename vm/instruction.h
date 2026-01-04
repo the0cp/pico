@@ -83,12 +83,13 @@ typedef enum{
 
     OP_GET_UPVAL,  // R[A] <= Upv[B]
     OP_SET_UPVAL,  // Upv[B] <= R[A]
+    OP_CLOSE_UPVAL,
 
-    OP_GET_TABLE, // R[A] <= R[B][R[C]]
-    OP_SET_TABLE, // R[A][R[B]] <= R[C]
+    OP_GET_INDEX, // R[A] <= R[B][R[C]]
+    OP_SET_INDEX, // R[A][R[B]] <= R[C]
 
-    OP_GET_FIELD, // R[A] <= R[B].K[C]
-    OP_SET_FIELD, // R[A].K[B] <= R[C]
+    OP_GET_PROPERTY, // R[A] <= R[B].K[C]
+    OP_SET_PROPERTY, // R[A].K[B] <= R[C]
 
     OP_ADD, OP_SUB, OP_MUL, OP_DIV, OP_MOD,
 
@@ -99,6 +100,8 @@ typedef enum{
     OP_JMP,
     OP_CALL,
     OP_TAILCALL,
+    OP_DEFER,
+    OP_SYSTEM,
     OP_RETURN,
 
     OP_CLOSURE,
@@ -106,9 +109,12 @@ typedef enum{
     OP_CLASS,
     OP_METHOD,
 
-    OP_NEW_LIST,
-    OP_NEW_MAP,
+    OP_BUILD_LIST,
+    OP_BUILD_MAP,
     OP_INIT_LIST,
+    OP_FILL_LIST,
+    OP_SLICE,
+    OP_TO_STRING,
 
     OP_IMPORT,
 

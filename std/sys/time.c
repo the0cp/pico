@@ -13,7 +13,7 @@
 #include <sys/time.h>
 #endif
 
-#include "modules.h"
+#include "registry.h"
 #include "object.h"
 #include "value.h"
 #include "vm.h"

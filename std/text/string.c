@@ -9,7 +9,7 @@
 #include "object.h"
 #include "value.h"
 #include "list.h"
-#include "modules.h"
+#include "registry.h"
 #include "string.h"
 
 Value string_len(VM* vm, int argCount, Value* args){

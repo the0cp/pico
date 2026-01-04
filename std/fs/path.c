@@ -7,7 +7,7 @@
 #include "mem.h"
 #include "object.h"
 #include "value.h"
-#include "modules.h"
+#include "registry.h"
 
 #ifdef _WIN32
     #include <dirent.h>

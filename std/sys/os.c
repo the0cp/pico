@@ -8,7 +8,7 @@
 #include "vm.h"
 #include "object.h"
 #include "value.h"
-#include "modules.h"
+#include "registry.h"
 
 #include "os.h"
 

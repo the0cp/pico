@@ -3,6 +3,7 @@
 
 #include "hashtable.h"
 #include "object.h"
+#include "instruction.h"
 
 typedef struct Chunk Chunk;
 typedef struct Object Object;
@@ -15,15 +16,15 @@ typedef struct Compiler Compiler;
 
 typedef struct CallFrame{
     ObjectClosure* closure;
-    uint8_t* ip;
-    Value* slots;
+    Instruction* ip;
+    Value* base;
     ObjectClosure* defers[MAX_DEFERS];
     int deferCnt;
 }CallFrame;
 
 typedef struct VM{
     Value stack[STACK_MAX];  // Stack for values
-    Value* stackTop;
+    Value* stackTop;         // for alloc new CallFrame
     HashTable strings;
     HashTable globals;
     HashTable* curGlobal;
