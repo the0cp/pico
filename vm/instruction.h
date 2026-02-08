@@ -91,6 +91,8 @@ typedef enum{
     OP_GET_PROPERTY, // R[A] <= R[B].K[C]
     OP_SET_PROPERTY, // R[A].K[B] <= R[C]
 
+    OP_FIELD,
+
     OP_ADD, OP_SUB, OP_MUL, OP_DIV, OP_MOD,
 
     OP_NOT, OP_NEG,
@@ -98,6 +100,8 @@ typedef enum{
     OP_EQ, OP_LT, OP_LE,
 
     OP_JMP,
+    OP_JMP_IF_FALSE,  // R[A] is condition
+    OP_JMP_IF_TRUE,   // R[A] is condition
     OP_CALL,
     OP_TAILCALL,
     OP_DEFER,
@@ -150,6 +154,7 @@ typedef enum{
 
 // Signed Bx
 #define MAX_BX          MASK_BX
+#define MAX_ARG_BX      65535
 #define OFFSET_sBx      (MAX_BX >> 1)
 #define GET_ARG_sBx(i)  (GET_ARG_Bx(i) - OFFSET_sBx)
 

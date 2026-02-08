@@ -346,6 +346,8 @@ static InterpreterStatus run(VM* vm){
         [OP_LE]             = &&DO_OP_LE,
 
         [OP_JMP]            = &&DO_OP_JMP,
+        [OP_JMP_IF_FALSE]   = &&DO_OP_JMP_IF_FALSE,
+        [OP_JMP_IF_TRUE]    = &&DO_OP_JMP_IF_TRUE,
         [OP_CALL]           = &&DO_OP_CALL,
         [OP_RETURN]         = &&DO_OP_RETURN,
 
@@ -354,6 +356,7 @@ static InterpreterStatus run(VM* vm){
 
         [OP_CLASS]          = &&DO_OP_CLASS,
         [OP_METHOD]         = &&DO_OP_METHOD,
+        [OP_FIELD]          = &&DO_OP_FIELD,
 
         [OP_IMPORT]         = &&DO_OP_IMPORT,
 
@@ -369,9 +372,6 @@ static InterpreterStatus run(VM* vm){
         [OP_CALL]           = &&DO_OP_CALL,
 
         [OP_IMPORT]         = &&DO_OP_IMPORT,
-
-        [OP_CLASS]          = &&DO_OP_CLASS,
-        [OP_METHOD]         = &&DO_OP_METHOD,
 
         [OP_BUILD_LIST]     = &&DO_OP_BUILD_LIST,
         [OP_INIT_LIST]      = &&DO_OP_INIT_LIST,
@@ -578,8 +578,12 @@ static InterpreterStatus run(VM* vm){
             }else{
                 Value methodVal;
                 if(tableGet(vm, &instance->klass->methods, OBJECT_VAL(key), &methodVal)){
-                    ObjectBoundMethod* bound = newBoundMethod(vm, instanceVal, AS_OBJECT(methodVal));
-                    R(GET_ARG_A(instruction)) = OBJECT_VAL(bound);
+                    if(IS_CLOSURE(methodVal) || (IS_OBJECT(methodVal) && AS_OBJECT(methodVal)->type == OBJECT_CFUNC)){
+                        ObjectBoundMethod* bound = newBoundMethod(vm, instanceVal, AS_OBJECT(methodVal));
+                        R(GET_ARG_A(instruction)) = OBJECT_VAL(bound);
+                    }else{
+                        R(GET_ARG_A(instruction)) = methodVal;
+                    }
                 }else{
                     runtimeError(vm, "Undefined field '%s'.", key->chars);
                     return VM_RUNTIME_ERROR;
@@ -874,6 +878,24 @@ static InterpreterStatus run(VM* vm){
         frame->ip += sBx;
     } DISPATCH();
 
+    DO_OP_JMP_IF_FALSE:
+    {
+        int reg = GET_ARG_A(instruction);
+        int sBx = GET_ARG_sBx(instruction);
+        if(!isTruthy(R(reg))){
+            frame->ip += sBx;
+        }
+    } DISPATCH();
+
+    DO_OP_JMP_IF_TRUE:
+    {
+        int reg = GET_ARG_A(instruction);
+        int sBx = GET_ARG_sBx(instruction);
+        if(isTruthy(R(reg))){
+            frame->ip += sBx;
+        }
+    } DISPATCH();
+
     DO_OP_CALL:
     {
         int a = GET_ARG_A(instruction);
@@ -1007,11 +1029,31 @@ static InterpreterStatus run(VM* vm){
         int c = GET_ARG_C(instruction);
 
         ObjectClass* klass = AS_CLASS(R(a));
+        Value nameVal = R(b);
+        if(!IS_STRING(nameVal)){
+            runtimeError(vm, "Method name must be a string.");
+            return VM_RUNTIME_ERROR;
+        }
         ObjectString* name = AS_STRING(K(b));
         Value method = R(c);
 
         AS_CLOSURE(method)->func->fieldOwner = klass;
         tableSet(vm, &klass->methods, OBJECT_VAL(name), method);
+    } DISPATCH();
+
+    DO_OP_FIELD:
+    {
+        int a = GET_ARG_A(instruction);
+        int b = GET_ARG_B(instruction);
+        int c = GET_ARG_C(instruction);
+
+        ObjectClass* klass = AS_CLASS(R(a));
+        Value nameVal = R(b);
+        if(!IS_STRING(nameVal)){
+            runtimeError(vm, "Field name must be a string.");
+            return VM_RUNTIME_ERROR;
+        }
+        tableSet(vm, &klass->fields, nameVal, R(c));
     } DISPATCH();
 
     DO_OP_BUILD_LIST:
@@ -1162,7 +1204,7 @@ static InterpreterStatus run(VM* vm){
         }
 
         int end;
-        if(IS_NIL(endVal)){
+        if(IS_NULL(endVal)){
             end = (step > 0) ? length : -1;
         }else{
             if(!IS_NUM(endVal)){

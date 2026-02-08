@@ -6,6 +6,7 @@
 #include "common.h"
 
 #define LOCAL_MAX (UINT16_MAX + 1)
+#define REG_MAX 256
 #define LOOP_MAX 16
 #define CASE_MAX 32
 
@@ -44,6 +45,7 @@ typedef struct Compiler{
     int scopeDepth;
     Loop loops[LOOP_MAX];
     int loopCnt;
+    int freeReg;
     FuncType type;
     ObjectFunc* func;
 }Compiler;
@@ -52,48 +54,46 @@ typedef struct Compiler{
 ObjectFunc* compile(VM* vm, const char* code, const char* srcName);
 void markCompilerRoots(VM* vm);
 static ObjectFunc* stopCompiler(Compiler* compiler);
-static void emitByte(Compiler* compiler, uint8_t byte);
-static void emitPair(Compiler* compiler, uint8_t byte1, uint8_t byte2);
-static int emitJump(Compiler* compiler, uint8_t instruction);
+static int emitJmp(Compiler* compiler);
 static void patchJump(Compiler* compiler, int offset);
 static void emitLoop(Compiler* compiler, int loopStart);
+static void emitClosure(Compiler* compiler, int destReg, int constIndex, Compiler* funcCompiler);
 static void consume(Compiler* compiler, TokenType type, const char* errMsg);
 static void errorAt(Compiler* compiler, Token* token, const char* message);
 
-static void handleNum(Compiler* compiler, bool canAssign);
-static void emitConstant(Compiler* compiler, Value value);
-static void handleVar(Compiler* compiler, bool canAssign);
+static void handleNum(Compiler* compiler, ExprDesc* expr, bool canAssign);
+static int makeConstant(Compiler* compiler, Value value);
+static void handleVar(Compiler* compiler, ExprDesc* expr, bool canAssign);
 
-static void handleGrouping(Compiler* compiler, bool canAssign);
+static void handleGrouping(Compiler* compiler, ExprDesc* expr, bool canAssign);
 
-static void handleUnary(Compiler* compiler, bool canAssign);
+static void handleUnary(Compiler* compiler, ExprDesc* expr, bool canAssign);
 static void handleBinary(Compiler* compiler, bool canAssign);
 
 static void handleLiteral(Compiler* compiler, bool canAssign);
 
-static void handleString(Compiler* compiler, bool canAssign);
+static void handleString(Compiler* compiler, ExprDesc* expr, bool canAssign);
 
-static void handleAnd(Compiler* compiler, bool canAssign);
-static void handleOr(Compiler* compiler, bool canAssign);
+static void handleAnd(Compiler* compiler, ExprDesc* expr, bool canAssign);
+static void handleOr(Compiler* compiler, ExprDesc* expr, bool canAssign);
 
-static uint8_t argList(Compiler* compiler);
-static void handleCall(Compiler* compiler, bool canAssign);
+static int argList(Compiler* compiler, ExprDesc* func);
+static void handleCall(Compiler* compiler, ExprDesc* expr, bool canAssign);
 
-static void handleImport(Compiler* compiler, bool canAssign);
-static void handleDot(Compiler* compiler, bool canAssign);
+static void handleImport(Compiler* compiler, ExprDesc* expr, bool canAssign);
+static void handleDot(Compiler* compiler, ExprDesc* expr, bool canAssign);
 
-static void handleList(Compiler* compiler, bool canAssign);
-static void handleIndex(Compiler* compiler, bool canAssign);
+static void handleList(Compiler* compiler, ExprDesc* expr, bool canAssign);
+static void handleIndex(Compiler* compiler, ExprDesc* expr, bool canAssign);
+static void handleMap(Compiler* compiler, ExprDesc* expr, bool canAssign);
 
-static void handleMap(Compiler* compiler, bool canAssign);
+static void handleThis(Compiler* compiler, ExprDesc* expr, bool canAssign);
 
-static void handleThis(Compiler* compiler, bool canAssign);
-
-static void handlePipe(Compiler* compiler, bool canAssign);
+static void handlePipe(Compiler* compiler, ExprDesc* expr, bool canAssign);
 
 static void advance(Compiler* compiler);
 
-static void expression(Compiler* compiler);
+static void expression(Compiler* compiler, ExprDesc* expr);
 
 static void decl(Compiler* compiler);
 static void varDecl(Compiler* compiler);

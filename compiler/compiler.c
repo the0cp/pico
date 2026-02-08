@@ -10,6 +10,36 @@
 #endif
 
 typedef enum{
+    EXPR_VOID,
+    EXPR_NULL,
+    EXPR_TRUE,
+    EXPR_FALSE,
+    EXPR_K,
+    EXPR_NUM,
+    EXPR_LOCAL,
+    EXPR_UPVAL,
+    EXPR_GLOBAL,
+    EXPR_INDEX,
+    EXPR_JMP,
+    EXPR_TBD,
+    EXPR_TMP,
+    EXPR_CALL,
+}ExprType;
+
+typedef struct{
+    ExprType type;
+    union{
+        struct{
+            int index;
+            int aux;
+        }loc;
+        double num;
+    }data;
+    int tJmp;
+    int fJmp;
+}ExprDesc;
+
+typedef enum{
     PREC_NONE,
     PREC_ASSIGNMENT,  // =
     PREC_TERNARY,    // ?:
@@ -25,30 +55,39 @@ typedef enum{
     PREC_PRIMARY     // identifiers, literals, grouping
 }Precedence;
 
-typedef void (*ParseFunc)(Compiler* compiler, bool canAssign);
+typedef void (*ParseFunc)(Compiler* compiler, ExprDesc* expr, bool canAssign);
 typedef struct{
     ParseFunc prefix;  // Function to handle prefix parsing
     ParseFunc infix;   // Function to handle infix parsing
     Precedence precedence;  // Precedence of the operator
 }ParseRule;
 
-static void handleLiteral(Compiler* compiler, bool canAssign);
-static void handleGrouping(Compiler* compiler, bool canAssign);
-static void handleUnary(Compiler* compiler, bool canAssign);
-static void handleBinary(Compiler* compiler, bool canAssign);
-static void handleTernary(Compiler* compiler, bool canAssign);
-static void handleNum(Compiler* compiler, bool canAssign);
-static void handleString(Compiler* compiler, bool canAssign);
-static void handleAnd(Compiler* compiler, bool canAssign);
-static void handleOr(Compiler* compiler, bool canAssign);
-static void handleCall(Compiler* compiler, bool canAssign);
-static void handleImport(Compiler* compiler, bool canAssign);
-static void handleDot(Compiler* compiler, bool canAssign);
-static void handleList(Compiler* compiler, bool canAssign);
-static void handleMap(Compiler* compiler, bool canAssign);
-static void handleIndex(Compiler* compiler, bool canAssign);
-static void handleThis(Compiler* compiler, bool canAssign);
-static void handlePipe(Compiler* compiler, bool canAssign);
+static void initExpr(ExprDesc* expr, ExprType type, int index);
+static int emitInstruction(Compiler* compiler, Instruction instruction);
+
+static void expr2Reg(Compiler* compiler, ExprDesc* expr, int reg);
+static void expr2NextReg(Compiler* compiler, ExprDesc* expr);
+static void unplugExpr(Compiler* compiler, ExprDesc* expr);
+static void expr2RK(Compiler* compiler, ExprDesc* expr);
+static void freeExpr(Compiler* compiler, ExprDesc* expr);
+
+static void handleLiteral(Compiler* compiler, ExprDesc* expr, bool canAssign);
+static void handleGrouping(Compiler* compiler, ExprDesc* expr, bool canAssign);
+static void handleUnary(Compiler* compiler, ExprDesc* expr, bool canAssign);
+static void handleBinary(Compiler* compiler, ExprDesc* expr, bool canAssign);
+static void handleTernary(Compiler* compiler, ExprDesc* expr, bool canAssign);
+static void handleNum(Compiler* compiler, ExprDesc* expr, bool canAssign);
+static void handleString(Compiler* compiler, ExprDesc* expr, bool canAssign);
+static void handleAnd(Compiler* compiler, ExprDesc* expr, bool canAssign);
+static void handleOr(Compiler* compiler, ExprDesc* expr, bool canAssign);
+static void handleCall(Compiler* compiler, ExprDesc* expr, bool canAssign);
+static void handleImport(Compiler* compiler, ExprDesc* expr, bool canAssign);
+static void handleDot(Compiler* compiler, ExprDesc* expr, bool canAssign);
+static void handleList(Compiler* compiler, ExprDesc* expr, bool canAssign);
+static void handleMap(Compiler* compiler, ExprDesc* expr, bool canAssign);
+static void handleIndex(Compiler* compiler, ExprDesc* expr, bool canAssign);
+static void handleThis(Compiler* compiler, ExprDesc* expr, bool canAssign);
+static void handlePipe(Compiler* compiler, ExprDesc* expr, bool canAssign);
 
 static void addLocal(Compiler* compiler, Token name);
 static int resolveLocal(Compiler* compiler, Token* name);
@@ -111,7 +150,7 @@ ParseRule rules[] = {
 };
 
 static inline ParseRule* getRule(TokenType type){return &rules[type];}
-static void parsePrecedence(Compiler* compiler, Precedence precedence);
+static void parsePrecedence(Compiler* compiler, ExprDesc* expr, Precedence precedence);
 static int parseVar(Compiler* compiler, const char* err);
 
 static void advance(Compiler* compiler){
@@ -125,6 +164,199 @@ static void advance(Compiler* compiler){
     }
 }
 
+static void initExpr(ExprDesc* expr, ExprType type, int index){
+    expr->type = type;
+    expr->data.loc.index = index;
+    expr->data.loc.aux = 0;
+    expr->tJmp = -1;
+    expr->fJmp = -1;
+}
+
+static int emitInstruction(Compiler* compiler, Instruction instruction){
+    writeChunk(
+        compiler->vm, 
+        &compiler->func->chunk, 
+        instruction, 
+        compiler->parser.pre.line
+    );
+    return (int)(compiler->func->chunk.count - 1);
+}
+
+static int emitABC(Compiler* compiler, uint8_t op, uint8_t a, uint8_t b, uint8_t c){
+    Instruction instruction = CREATE_ABC(op, a, b, c);
+    return emitInstruction(compiler, instruction);
+}
+
+static int emitABx(Compiler* compiler, uint8_t op, uint8_t a, uint16_t bx){
+    Instruction instruction = CREATE_ABx(op, a, bx);
+    return emitInstruction(compiler, instruction);
+}
+
+static int emitAsBx(Compiler* compiler, uint8_t op, uint8_t a, int16_t sbx){
+    uint16_t bx = (uint16_t)(sbx + (MAX_BX >> 1));
+    Instruction instruction = CREATE_ABx(op, a, bx);
+    return emitInstruction(compiler, instruction);
+}
+
+static int getFreeReg(Compiler* compiler){
+    return compiler->freeReg;
+}
+
+static void reserveReg(Compiler* compiler, int cnt){
+    compiler->freeReg += cnt;
+    if(compiler->freeReg > REG_MAX){
+        errorAt(compiler, &compiler->parser.pre, "Register overflow.");
+    }
+}
+
+static void freeRegs(Compiler* compiler, int cnt){
+    compiler->freeReg -= cnt;
+    if(compiler->freeReg < 0){
+        compiler->freeReg = 0;
+    }
+}
+
+static void unplugExpr(Compiler* compiler, ExprDesc* expr){
+    switch(expr->type){
+        case EXPR_VOID:
+            break;
+        case EXPR_UPVAL:
+            expr->data.loc.index = emitABC(
+                compiler, 
+                OP_GET_UPVAL, 
+                0, 
+                expr->data.loc.index, 
+                0
+            );
+            expr->type = EXPR_TBD;
+            break;
+        case EXPR_GLOBAL:
+            expr->data.loc.index = emitABx(
+                compiler, 
+                OP_GET_GLOBAL, 
+                0, 
+                expr->data.loc.index
+            );
+            expr->type = EXPR_TBD;
+            break;
+        case EXPR_INDEX:
+        /*
+            expr->data.loc.index = emitABC(
+                compiler, 
+                OP_GET_INDEX, 
+                0, 
+                expr->data.loc.index, 
+                expr->data.loc.aux
+            );
+            expr->type = EXPR_TBD;
+        */
+            break;
+        case EXPR_CALL:
+            expr->type = EXPR_TBD;
+            break;
+        default:
+            break;
+    }
+}
+
+static void expr2Reg(Compiler* compiler, ExprDesc* expr,int reg){
+    unplugExpr(compiler, expr);
+    switch(expr->type){
+        case EXPR_VOID:
+            errorAt(compiler, &compiler->parser.pre, "Expression has no value.");
+            break;
+        case EXPR_NULL:
+            emitABC(compiler, OP_LOADNULL, reg, 0, 0);
+            break;
+        case EXPR_TRUE:
+            emitABC(compiler, OP_LOADBOOL, reg, 1, 0);
+            freeRegs(compiler, 1);
+            break;
+        case EXPR_FALSE:
+            emitABC(compiler, OP_LOADBOOL, reg, 0, 0);
+            freeRegs(compiler, 1);
+            break;
+        case EXPR_K:
+            emitABx(compiler, OP_LOADK, reg, expr->data.loc.index);
+            break;
+        case EXPR_NUM:
+            // optimize later
+            emitABx(compiler, OP_LOADK, reg, expr->data.loc.index);
+            break;
+        case EXPR_TBD:{
+            Instruction instruction = compiler->func->chunk.code[expr->data.loc.index];
+            instruction = 
+                (instruction & ~((Instruction)MASK_A << POS_A)) 
+                | ((Instruction)(reg & MASK_A) << POS_A);
+            compiler->func->chunk.code[expr->data.loc.index] = instruction;
+            break;
+        }
+        case EXPR_TMP:{
+            if(reg != expr->data.loc.index){
+                emitABC(compiler, OP_MOVE, reg, expr->data.loc.index, 0);
+            }
+            break;
+        }
+        default:
+            // Should not reach here
+            break;
+    }
+}
+
+static void expr2NextReg(Compiler* compiler, ExprDesc* expr){
+    unplugExpr(compiler, expr);
+    freeExpr(compiler, expr);
+    reserveReg(compiler, 1);
+    expr2Reg(compiler, expr, compiler->freeReg - 1);
+}
+
+static void storeVar(Compiler* compiler, ExprDesc* var, ExprDesc* val){
+    switch(var->type){
+        case EXPR_LOCAL:
+            expr2Reg(compiler, val, var->data.loc.index);
+            break;
+        case EXPR_UPVAL:{
+            expr2NextReg(compiler, val);
+            emitABC(compiler, OP_SET_UPVAL, val->data.loc.index, var->data.loc.index, 0);
+            break;
+        }
+        case EXPR_GLOBAL:{
+            expr2NextReg(compiler, val);
+            emitABx(compiler, OP_SET_GLOBAL, val->data.loc.index, var->data.loc.index);
+            break;
+        }
+        case EXPR_INDEX:
+            // TODO: implement later
+            break;
+        default:
+            errorAt(compiler, &compiler->parser.pre, "Invalid assignment target.");
+            break;
+    }
+
+    freeExpr(compiler, val);
+}
+
+static void emitBinaryOp(Compiler* compiler, OpCode op, ExprDesc* left, ExprDesc* right){
+    expr2NextReg(compiler, left);
+    expr2NextReg(compiler, right);
+    freeExpr(compiler, right);
+    freeExpr(compiler, left);
+
+    int instructionIndex = emitABC(compiler, op, 0, left->data.loc.index, right->data.loc.index);
+    left->type = EXPR_TBD;
+    left->data.loc.index = instructionIndex;
+}
+
+static void freeExpr(Compiler* compiler, ExprDesc* expr){
+    if(expr->type == EXPR_TBD){
+        if(expr->data.loc.index >= compiler->locals[compiler->localCnt - 1].depth){
+            if(expr->data.loc.index < compiler->freeReg){
+                freeRegs(compiler, 1);
+            }
+        }
+    }
+}
+
 static void initCompiler(Compiler* compiler, VM* vm, Compiler* enclosing, FuncType type, ObjectString* srcName){
     compiler->enclosing = enclosing;
     compiler->vm = vm;
@@ -134,7 +366,11 @@ static void initCompiler(Compiler* compiler, VM* vm, Compiler* enclosing, FuncTy
     compiler->func->type = type;
 
     if(type != TYPE_SCRIPT){
-        compiler->func->name = copyString(vm, compiler->parser.pre.head, compiler->parser.pre.len);
+        compiler->func->name = copyString(
+            vm, 
+            compiler->parser.pre.head, 
+            compiler->parser.pre.len
+        );
     }
 
     compiler->upvalueCnt = 0;
@@ -143,9 +379,13 @@ static void initCompiler(Compiler* compiler, VM* vm, Compiler* enclosing, FuncTy
     compiler->loopCnt = 0;
     compiler->parser.hadError = false;
     compiler->parser.panic = false;
+    compiler->freeReg = 0;
 
     Local *local = &compiler->locals[compiler->localCnt++];
     local->depth = 0;
+    
+    compiler->freeReg++;
+
     if(type != TYPE_SCRIPT){
         local->name.head = compiler->parser.pre.head;
         local->name.len = compiler->parser.pre.len;
@@ -203,8 +443,8 @@ void markCompilerRoots(VM* vm){
     }
 }
 
-static void expression(Compiler* compiler){
-    parsePrecedence(compiler, PREC_ASSIGNMENT);
+static void expression(Compiler* compiler, ExprDesc* expr){
+    parsePrecedence(compiler, expr, PREC_ASSIGNMENT);
 }
 
 static void decl(Compiler* compiler){
@@ -229,18 +469,43 @@ static void decl(Compiler* compiler){
 static void varDecl(Compiler* compiler){
     int global = parseVar(compiler, "Expect variable name.");
 
-    if(match(compiler, TOKEN_ASSIGN)){
-        expression(compiler);
+    if(compiler->scopeDepth > 0){
+        if(compiler->freeReg < compiler->localCnt){
+            compiler->freeReg = compiler->localCnt;
+        }
+
+        int reg = compiler->localCnt - 1;
+        if(match(compiler, TOKEN_ASSIGN)){
+            ExprDesc initExpr;
+            expression(compiler, &initExpr);
+            expr2Reg(compiler, &initExpr, reg);
+        }else{
+            emitABC(compiler, OP_LOADNULL, reg, 0, 0);
+        }
+        defineVar(compiler, global);
     }else{
-        emitByte(compiler, OP_NULL);
+        if(match(compiler, TOKEN_ASSIGN)){
+            ExprDesc initExpr;
+            expression(compiler, &initExpr);
+            storeVar(
+                compiler,
+                &(ExprDesc){
+                    .type = EXPR_GLOBAL,
+                    .data.loc.index = global
+                },
+                &initExpr
+            );
+        }else{
+            int tmp = getFreeReg(compiler);
+            emitABC(compiler, OP_LOADNULL, tmp, 0, 0);
+            emitABx(compiler, OP_SET_GLOBAL, tmp, global);
+        }
+        consume(compiler, TOKEN_SEMICOLON, "Expect ';' after variable declaration.");
+        defineVar(compiler, global);
     }
-
-    consume(compiler, TOKEN_SEMICOLON, "Expect ';' after declaration.");
-
-    defineVar(compiler, global);
 }
 
-static void compileFunc(Compiler* compiler, FuncType type){
+static void compileFunc(Compiler* compiler, FuncType type, int destReg, Token* funcName){
     Compiler* funcCompiler = (Compiler*)reallocate(compiler->vm, NULL, 0, sizeof(Compiler));    
     if(funcCompiler == NULL){
         errorAt(compiler, &compiler->parser.pre, "Not enough memory to compile function.");
@@ -255,9 +520,17 @@ static void compileFunc(Compiler* compiler, FuncType type){
 
     initCompiler(funcCompiler, compiler->vm, compiler, type, compiler->func->srcName);
 
+    if(funcName != NULL){
+        funcCompiler->func->name = copyString(
+            compiler->vm, 
+            funcName->head, 
+            funcName->len
+        );
+    }
 
     beginScope(funcCompiler);
     consume(funcCompiler, TOKEN_LEFT_PAREN, "Expect '(' after function name.");
+
     if(!checkType(funcCompiler, TOKEN_RIGHT_PAREN)){
         do{
             funcCompiler->func->arity++;
@@ -268,56 +541,44 @@ static void compileFunc(Compiler* compiler, FuncType type){
             defineVar(funcCompiler, constant);
         }while(match(funcCompiler, TOKEN_COMMA));
     }
+
     consume(funcCompiler, TOKEN_RIGHT_PAREN, "Expect ')' after parameters.");
     consume(funcCompiler, TOKEN_LEFT_BRACE, "Expect '{' before function body.");
     block(funcCompiler);
 
     ObjectFunc* func = stopCompiler(funcCompiler);
     
-    push(compiler->vm, OBJECT_VAL(func));
-    int constIndex = addConstant(compiler->vm, &compiler->func->chunk, OBJECT_VAL(func));
-    pop(compiler->vm);
+    int constIndex = makeConstant(compiler, OBJECT_VAL(func));
 
-    if(constIndex < 0){
-        errorAt(compiler, &compiler->parser.pre, "Failed to add function constant.");
-        compiler->parser = funcCompiler->parser;
-        compiler->vm->compiler = compiler;
-        reallocate(compiler->vm, funcCompiler, sizeof(Compiler), 0);
-        return;
-    }
-
-    if(constIndex <= 0xff){
-        emitPair(compiler, OP_CLOSURE, (uint8_t)constIndex);
-    }else if(constIndex <= 0xffff){
-        emitByte(compiler, OP_LCLOSURE);
-        emitPair(compiler, (uint8_t)((constIndex >> 8) & 0xff), (uint8_t)(constIndex & 0xff));
-    }else{
-        errorAt(compiler, &compiler->parser.pre, "Too many constants (index exceeds 16-bit limit).");
-    }
-    
-    for(int i = 0; i < func->upvalueCnt; i++){
-        emitByte(compiler, funcCompiler->upvalues[i].isLocal ? 1 : 0); // 1-byte flag
-        emitPair(compiler, (uint8_t)((funcCompiler->upvalues[i].index >> 8) & 0xff), // 2-byte index
-                           (uint8_t)(funcCompiler->upvalues[i].index & 0xff));
-    }
+    emitClosure(compiler, destReg, constIndex, funcCompiler);
 
     compiler->parser = funcCompiler->parser;
     compiler->vm->compiler = compiler;
     reallocate(compiler->vm, funcCompiler, sizeof(Compiler), 0);
 }
 
-static void funcExpr(Compiler* compiler, bool canAssign){
-    compileFunc(compiler, TYPE_FUNC);
+static void funcExpr(Compiler* compiler, ExprDesc* expr, bool canAssign){
+    expr2NextReg(compiler, expr);
+    compileFunc(compiler, TYPE_FUNC, expr->data.loc.index, NULL);
 }
 
 static void funcDecl(Compiler* compiler){
     int global = parseVar(compiler, "Expect function name.");
-    compileFunc(compiler, TYPE_FUNC);
-    
-    defineVar(compiler, global);
+    Token funcName = compiler->parser.pre;
+
+    if(compiler->scopeDepth > 0){
+        int reg = compiler->localCnt - 1;
+        compileFunc(compiler, TYPE_FUNC, reg, &funcName);
+        defineVar(compiler, global);
+    }else{
+        int tmpReg = getFreeReg(compiler);
+        compileFunc(compiler, TYPE_FUNC, tmpReg, &funcName);
+        emitABx(compiler, OP_SET_GLOBAL, tmpReg, global);
+        defineVar(compiler, global);
+    }
 }
 
-static void compileMethod(Compiler* compiler, Token recvName, FuncType type){
+static void compileMethod(Compiler* compiler, Token recvName, Token methodName, FuncType type, int destReg){
     Compiler* methodCompiler = (Compiler*)reallocate(compiler->vm, NULL, 0, sizeof(Compiler));    
     if(methodCompiler == NULL){
         errorAt(compiler, &compiler->parser.pre, "Not enough memory to compile method.");
@@ -332,12 +593,19 @@ static void compileMethod(Compiler* compiler, Token recvName, FuncType type){
 
     initCompiler(methodCompiler, compiler->vm, compiler, type, compiler->func->srcName);
 
+    methodCompiler->func->name = copyString(
+        compiler->vm, 
+        methodName.head, 
+        methodName.len
+    );
+
     Local *local = &methodCompiler->locals[0]; 
     local->name = recvName; 
     local->depth = 0;
 
     beginScope(methodCompiler);
     consume(methodCompiler, TOKEN_LEFT_PAREN, "Expect '(' after method name.");
+
     if(!checkType(methodCompiler, TOKEN_RIGHT_PAREN)){
         do{
             methodCompiler->func->arity++;
@@ -355,32 +623,8 @@ static void compileMethod(Compiler* compiler, Token recvName, FuncType type){
 
     ObjectFunc* func = stopCompiler(methodCompiler);
 
-    push(compiler->vm, OBJECT_VAL(func));
-    int constIndex = addConstant(compiler->vm, &compiler->func->chunk, OBJECT_VAL(func));
-    pop(compiler->vm);
-
-    if(constIndex < 0){
-        errorAt(compiler, &compiler->parser.pre, "Failed to add method constant.");
-        compiler->parser = methodCompiler->parser;
-        compiler->vm->compiler = compiler;
-        reallocate(compiler->vm, methodCompiler, sizeof(Compiler), 0);
-        return;
-    }
-
-    if(constIndex <= 0xff){
-        emitPair(compiler, OP_CLOSURE, (uint8_t)constIndex);
-    }else if(constIndex <= 0xffff){
-        emitByte(compiler, OP_LCLOSURE);
-        emitPair(compiler, (uint8_t)((constIndex >> 8) & 0xff), (uint8_t)(constIndex & 0xff));
-    }else{
-        errorAt(compiler, &compiler->parser.pre, "Too many constants (index exceeds 16-bit limit).");
-    }
-
-    for(int i = 0; i < func->upvalueCnt; i++){
-        emitByte(compiler, methodCompiler->upvalues[i].isLocal ? 1 : 0); // 1-byte flag
-        emitPair(compiler, (uint8_t)((methodCompiler->upvalues[i].index >> 8) & 0xff), // 2-byte index
-                           (uint8_t)(methodCompiler->upvalues[i].index & 0xff));
-    }
+    int funcConstIndex = makeConstant(compiler, OBJECT_VAL(func));
+    emitClosure(compiler, destReg, funcConstIndex, methodCompiler);
 
     compiler->parser = methodCompiler->parser;
     compiler->vm->compiler = compiler;
@@ -389,150 +633,91 @@ static void compileMethod(Compiler* compiler, Token recvName, FuncType type){
 
 static void classDecl(Compiler* compiler){
     consume(compiler, TOKEN_IDENTIFIER, "Expect class name.");
-    Token className = compiler->parser.pre;
 
-    Value nameValue = OBJECT_VAL(copyString(compiler->vm, className.head, className.len));
-    push(compiler->vm, nameValue);
-    uint16_t nameConst = addConstant(compiler->vm, &compiler->func->chunk, nameValue);
-    pop(compiler->vm);
-    if(nameConst < 0){
-        errorAt(compiler, &compiler->parser.pre, "Failed to add class name constant.");
-        return;
-    }
-    if(nameConst <= 0xff){
-        emitPair(compiler, OP_CLASS, (uint8_t)nameConst);
-    }else if(nameConst <= 0xffff){
-        emitByte(compiler, OP_LCLASS);
-        emitPair(compiler, (uint8_t)((nameConst >> 8) & 0xff), (uint8_t)(nameConst & 0xff));
-    }else{
-        errorAt(compiler, &compiler->parser.pre, "Too many constants.");
-        return;
-    }
+    int nameConst = identifierConst(compiler);
 
-    defineVar(compiler, nameConst);
+    int classReg;
 
     if(compiler->scopeDepth > 0){
-        int index = compiler->localCnt - 1;
-        if(index < 0){
-            errorAt(compiler, &compiler->parser.pre, "No local variable to store class instance.");
-            return;
-        }
-        if(index <= 0xff){
-            emitPair(compiler, OP_GET_LOCAL, (uint8_t)index);
-        }else if(index <= 0xffff){
-            emitByte(compiler, OP_GET_LLOCAL);
-            emitPair(compiler, (uint8_t)((index >> 8) & 0xff), (uint8_t)(index & 0xff));
-        }else{
-            errorAt(compiler, &compiler->parser.pre, "Too many local variables.");
-            return;
-        }
+        declLocal(compiler);
+        classReg = compiler->localCnt - 1;
+        emitABx(compiler, OP_CLASS, classReg, nameConst);
     }else{
-        if(nameConst <= 0xff){
-            emitPair(compiler, OP_GET_GLOBAL, (uint8_t)nameConst);
-        }else if(nameConst <= 0xffff){
-            emitByte(compiler, OP_GET_LGLOBAL);
-            emitPair(compiler, (uint8_t)((nameConst >> 8) & 0xff), (uint8_t)(nameConst & 0xff));
-        }else{
-            errorAt(compiler, &compiler->parser.pre, "Too many constants.");
-            return;
-        }
+        classReg = getFreeReg(compiler);
+        emitABx(compiler, OP_CLASS, classReg, nameConst);
+        emitABx(compiler, OP_SET_GLOBAL, classReg, nameConst);
+        defineVar(compiler, nameConst);
     }
+
     consume(compiler, TOKEN_LEFT_BRACE, "Expect '{' before class body");
+
     while(!checkType(compiler, TOKEN_RIGHT_BRACE) && !checkType(compiler, TOKEN_EOF)){
         consume(compiler, TOKEN_IDENTIFIER, "Expect field name.");
-        int fieldNameIndex = identifierConst(compiler);
-        if(match(compiler, TOKEN_ASSIGN)){
-            expression(compiler);
-        }else{
-            emitByte(compiler, OP_NULL);
-        }
         
-        consume(compiler, TOKEN_SEMICOLON, "Expect ';' after field declaration.");
-        if(fieldNameIndex < 0){
-            errorAt(compiler, &compiler->parser.pre, "Failed to add field name constant.");
-            return;
-        }
-        if(fieldNameIndex <= 0xff){
-            emitPair(compiler, OP_DEFINE_FIELD, (uint8_t)fieldNameIndex);
-        }else if(fieldNameIndex <= 0xffff){
-            emitByte(compiler, OP_DEFINE_LFIELD);
-            emitPair(compiler, (uint8_t)((fieldNameIndex >> 8) & 0xff), (uint8_t)(fieldNameIndex & 0xff));
+        int fieldNameIndex = identifierConst(compiler); 
+        if(match(compiler, TOKEN_ASSIGN)){
+            ExprDesc initExpr;
+            expression(compiler, &initExpr);
+            expr2Reg(compiler, &initExpr, classReg);
+            freeExpr(compiler, &initExpr);
         }else{
-            errorAt(compiler, &compiler->parser.pre, "Too many constants (field name).");
-            return;
+            emitABC(compiler, OP_LOADNULL, classReg, 0, 0);
         }
+
+        reserveReg(compiler, 1); // reserve register for field value
+        int keyReg = getFreeReg(compiler);
+        emitABx(compiler, OP_LOADK, keyReg, fieldNameIndex);
+        
+        emitABC(compiler, OP_FIELD, classReg, keyReg, classReg);
+        consume(compiler, TOKEN_SEMICOLON, "Expect ';' after field declaration.");
+        freeRegs(compiler, 2);
     }
     consume(compiler, TOKEN_RIGHT_BRACE, "Expect '}' after class body.");
-    emitByte(compiler, OP_POP);
+    if(compiler->scopeDepth == 0){
+        freeRegs(compiler, 1); // free class register if it's global
+    }
 }
 
 static void methodDecl(Compiler* compiler){
     consume(compiler, TOKEN_LEFT_PAREN, "Expect '(' after method.");
     consume(compiler, TOKEN_IDENTIFIER, "Expect receiver name.");
-
     Token recvName = compiler->parser.pre;
 
     consume(compiler, TOKEN_IDENTIFIER, "Expect receiver type.");
     Token className = compiler->parser.pre;
     consume(compiler, TOKEN_RIGHT_PAREN, "Expect ')' after receiver.");
 
-    uint8_t getOp, getLOp;
-    int classIndex;
-    if((classIndex = resolveLocal(compiler, &className)) != -1){
-        getOp = OP_GET_LOCAL;
-        getLOp = OP_GET_LLOCAL;
+    int classReg = getFreeReg(compiler);
+
+    int classIndex = resolveLocal(compiler, &className);
+    if(classIndex != -1){
+        emitABC(compiler, OP_MOVE, classReg, classIndex, 0);
     }else if((classIndex = resolveUpvalue(compiler, &className)) != -1){
-        getOp = OP_GET_UPVALUE;
-        getLOp = OP_GET_LUPVALUE;
+        emitABC(compiler, OP_GET_UPVAL, classReg, classIndex, 0);
     }else{
         Value nameValue = OBJECT_VAL(copyString(compiler->vm, className.head, className.len));
-        push(compiler->vm, nameValue);
-        classIndex = addConstant(compiler->vm, &compiler->func->chunk, nameValue);
-        pop(compiler->vm);
-        getOp = OP_GET_GLOBAL;
-        getLOp = OP_GET_LGLOBAL;
-    }
-
-    if(classIndex < 0){
-        errorAt(compiler, &compiler->parser.pre, "Undefined class name.");
-        return;
-    }
-    if(classIndex <= 0xff){
-        emitPair(compiler, getOp, (uint8_t)classIndex);
-    }else if(classIndex <= 0xffff){
-        emitByte(compiler, getLOp);
-        emitPair(compiler, (uint8_t)((classIndex >> 8) & 0xff), (uint8_t)(classIndex & 0xff));
-    }else{
-        errorAt(compiler, &compiler->parser.pre, "Too many constants.");
-        return;
+        classIndex = makeConstant(compiler, nameValue);
+        emitABx(compiler, OP_GET_GLOBAL, classReg, classIndex);
     }
 
     consume(compiler, TOKEN_IDENTIFIER, "Expect method name.");
 
     Token methodName = compiler->parser.pre;
-    Value methodNameValue = OBJECT_VAL(copyString(compiler->vm, methodName.head, methodName.len));
-    push(compiler->vm, methodNameValue);
-    uint16_t methodNameConst = addConstant(compiler->vm, &compiler->func->chunk, methodNameValue);
-    pop(compiler->vm);
+    int methodNameConst = identifierConst(compiler);
+    int nameReg = getFreeReg(compiler);
+    emitABx(compiler, OP_LOADK, nameReg, methodNameConst);
 
     FuncType type = TYPE_METHOD;
     if(methodName.len == 4 && memcmp(methodName.head, "init", 4) == 0){
         type = TYPE_INITIALIZER;
     }
-    compileMethod(compiler, recvName, type);
-    if(methodNameConst < 0){
-        errorAt(compiler, &compiler->parser.pre, "Failed to add method name constant.");
-        return;
-    }
-    if(methodNameConst <= 0xff){
-        emitPair(compiler, OP_METHOD, (uint8_t)methodNameConst);
-    }else if(methodNameConst <= 0xffff){
-        emitByte(compiler, OP_LMETHOD);
-        emitPair(compiler, (uint8_t)((methodNameConst >> 8) & 0xff), (uint8_t)(methodNameConst & 0xff));
-    }else{
-        errorAt(compiler, &compiler->parser.pre, "Too many constants.");
-        return;
-    }
+
+    reserveReg(compiler, 2); // reserve registers for class and method name
+    int methodReg = getFreeReg(compiler);
+
+    compileMethod(compiler, recvName, methodName, type, methodReg);
+    emitABC(compiler, OP_METHOD, classReg, nameReg, methodReg);
+    freeRegs(compiler, 3);
 }
 
 static void importDecl(Compiler* compiler){
@@ -612,7 +797,7 @@ static void endScope(Compiler* compiler){
     compiler->scopeDepth--;
     while(compiler->localCnt > 0 && 
         compiler->locals[compiler->localCnt-1].depth > compiler->scopeDepth){
-            emitByte(compiler, OP_CLOSE_UPVALUE);
+            emitByte(compiler, OP_CLOSE_UPVAL);
             compiler->localCnt--;
         }
 }
@@ -648,7 +833,6 @@ static void stmt(Compiler* compiler){
 static void expressionStmt(Compiler* compiler){
     expression(compiler);
     consume(compiler, TOKEN_SEMICOLON, "Expect ';' after expression.");
-    emitByte(compiler, OP_POP);  // drop result
 }
 
 static bool checkType(Compiler* compiler, TokenType type){
@@ -687,9 +871,12 @@ static void sync(Compiler* compiler){
 }
 
 static void printStmt(Compiler* compiler){
-    expression(compiler);
+    ExprDesc expr;
+    expression(compiler, &expr);
+    expr2NextReg(compiler, &expr);
+    emitABC(compiler, OP_PRINT, expr.data.loc.index, 0, 0);
     consume(compiler, TOKEN_SEMICOLON, "Expect ';' after a expression");
-    emitByte(compiler, OP_PRINT);
+    freeExpr(compiler, &expr);
 }
 
 static void ifStmt(Compiler* compiler){
@@ -707,20 +894,23 @@ static void ifStmt(Compiler* compiler){
                                     +------------------------------------------------+
     */
     consume(compiler, TOKEN_LEFT_PAREN, "Expect '(' after 'if'.");
-    expression(compiler);
+    ExprDesc condition;
+    expression(compiler, &condition);
     consume(compiler, TOKEN_RIGHT_PAREN, "Expect ')' after condition.");
 
-    int thenJump = emitJump(compiler, OP_JUMP_IF_FALSE);
-    emitByte(compiler, OP_POP);
+    expr2NextReg(compiler, &condition);
+    int condReg = condition.data.loc.index;
+    int elseJmp = emitJmpIfFalse(compiler, condReg);
+    freeExpr(compiler, &condition);
     stmt(compiler);
-
-    int elseJump = emitJump(compiler, OP_JUMP);
-    patchJump(compiler, thenJump);
-
-    emitByte(compiler, OP_POP);
-    if(match(compiler, TOKEN_ELSE)) stmt(compiler);
-
-    patchJump(compiler, elseJump);
+    if(match(compiler, TOKEN_ELSE)){
+        int endJmp = emitJmp(compiler);
+        patchJump(compiler, elseJmp);
+        stmt(compiler);
+        patchJump(compiler, endJmp);
+    }else{
+        patchJump(compiler, elseJmp);
+    }
 }
 
 static void whileStmt(Compiler* compiler){
@@ -751,18 +941,23 @@ static void whileStmt(Compiler* compiler){
     loop->breakCnt = 0;
 
     consume(compiler, TOKEN_LEFT_PAREN, "Expect '(' after 'while'.");
-    expression(compiler);
+    ExprDesc condition;
+    expression(compiler, &condition);
     consume(compiler, TOKEN_RIGHT_PAREN, "Expect ')' after condition.");
+    expr2NextReg(compiler, &condition);
 
-    int exitJump = emitJump(compiler, OP_JUMP_IF_FALSE);
-    emitByte(compiler, OP_POP);
+    int exitJmp = emitJmpIfFalse(compiler, condition.data.loc.index);
+    freeExpr(compiler, &condition);
     stmt(compiler);
 
-    emitLoop(compiler, loopStart);
+    int loopJmpIndex = emitJmp(compiler);
+    patchJump(compiler, loopJmpIndex);
+    
+    Instruction* instruction = compiler->func->chunk.code;
+    int offset = loopStart - loopJmpIndex - 1;
+    instruction[loopJmpIndex] = CREATE_AsBx(OP_JMP, 0, offset);
 
-    patchJump(compiler, exitJump);
-    emitByte(compiler, OP_POP);
-
+    patchJump(compiler, exitJmp);
     for(int i = 0; i < loop->breakCnt; i++){
         patchJump(compiler, loop->breakJump[i]);
     }
@@ -802,109 +997,18 @@ static void forStmt(Compiler* compiler){
     beginScope(compiler);
     consume(compiler, TOKEN_LEFT_PAREN, "Expect '(' after 'for'.");
 
-    if(match(compiler, TOKEN_VAR)){
-        int varConst = parseVar(compiler, "Expect variable name.");
-        if(match(compiler, TOKEN_COLON)){
-            emitByte(compiler, OP_NULL);
-            defineVar(compiler, varConst);
-
-            emitGetGlobal(compiler, "iter"); // [x, iter_func]
-            expression(compiler);
-
-            emitPair(compiler, OP_CALL, 1);  // [x, iterator]
-
-            Token iterToken;
-            iterToken.head = "$iter";
-            iterToken.len = 5;
-            iterToken.type = TOKEN_IDENTIFIER;
-            iterToken.line = 0;
-            addLocal(compiler, iterToken);
-            compiler->locals[compiler->localCnt - 1].depth = compiler->scopeDepth;
-
-            int loopStart = compiler->func->chunk.count;
-            emitGetGlobal(compiler, "next");
-
-            emitPair(compiler, OP_GET_LOCAL, (uint8_t)(compiler->localCnt - 1)); 
-            // [x, iterator, next_func, iterator]
-            emitPair(compiler, OP_CALL, 1);  
-            // [x, iterator, next_val]
-            emitPair(compiler, OP_SET_LOCAL, (uint8_t)(compiler->localCnt - 2)); 
-
-            emitByte(compiler, OP_DUP);  
-            // [..., next_val, next_val]
-            emitByte(compiler, OP_NULL); 
-            // [..., next_val, next_val, null]
-            emitByte(compiler, OP_EQUAL); 
-            // [..., next_val, is_null]
-            
-            emitByte(compiler, OP_NOT);   
-            // [..., next_val, is_valid]
-            int exitJump = emitJump(compiler, OP_JUMP_IF_FALSE);
-            
-            emitByte(compiler, OP_POP);
-            emitByte(compiler, OP_POP);
-
-            consume(compiler, TOKEN_RIGHT_PAREN, "Expect ')' after foreach.");
-
-            Loop* loop = &compiler->loops[compiler->loopCnt++];
-            loop->start = loopStart;
-            loop->scopeDepth = compiler->scopeDepth;
-            loop->breakCnt = 0;
-
-            stmt(compiler);
-
-            emitLoop(compiler, loopStart);
-
-            patchJump(compiler, exitJump);
-            emitByte(compiler, OP_POP);
-            emitByte(compiler, OP_POP);
-
-            for(int i = 0; i < loop->breakCnt; i++){
-                patchJump(compiler, loop->breakJump[i]);
-            }
-            compiler->loopCnt--;
-            endScope(compiler);
-            return;
-        }
-
-        if(match(compiler, TOKEN_ASSIGN)){
-            expression(compiler);
-        }else{
-            emitByte(compiler, OP_NULL);
-        }
-        consume(compiler, TOKEN_SEMICOLON, "Expect ';' after variable declaration.");
-        defineVar(compiler, varConst);
+    if(match(compiler, TOKEN_SEMICOLON)){
+        // No initializer
+    }else if(match(compiler, TOKEN_VAR)){
+        varDecl(compiler);
     }else{
-        if(match(compiler, TOKEN_SEMICOLON)){
-            // pass
-        }else{
-            expressionStmt(compiler);
-        }
+        ExprDesc initExpr;
+        expression(compiler, &initExpr);
+        freeExpr(compiler, &initExpr);
+        consume(compiler, TOKEN_SEMICOLON, "Expect ';' after loop initializer.");
     }
 
     int loopStart = compiler->func->chunk.count;
-
-    int exitJump = -1;
-    if(!match(compiler, TOKEN_SEMICOLON)){
-        expression(compiler);
-        consume(compiler, TOKEN_SEMICOLON, "Expect ';' after loop condition.");
-        exitJump = emitJump(compiler, OP_JUMP_IF_FALSE);
-        emitByte(compiler, OP_POP);
-    }
-
-    if(!match(compiler, TOKEN_SEMICOLON)){
-        int bodyJump = emitJump(compiler, OP_JUMP);
-        int incrementStart = compiler->func->chunk.count;
-
-        expression(compiler);
-        emitByte(compiler, OP_POP);
-        consume(compiler, TOKEN_RIGHT_PAREN, "Expect ')' after for clauses.");
-
-        emitLoop(compiler, loopStart);
-        loopStart = incrementStart;
-        patchJump(compiler, bodyJump);
-    }
-
     if(compiler->loopCnt == LOOP_MAX){
         errorAt(compiler, &compiler->parser.pre, "Too many nested loops.");
         return;
@@ -915,12 +1019,39 @@ static void forStmt(Compiler* compiler){
     loop->scopeDepth = compiler->scopeDepth;
     loop->breakCnt = 0;
 
-    stmt(compiler);
-    emitLoop(compiler, loopStart);
+    int exitJmp = -1;
+    if(!match(compiler, TOKEN_SEMICOLON)){
+        ExprDesc condition;
+        expression(compiler, &condition);
+        consume(compiler, TOKEN_SEMICOLON, "Expect ';' after loop condition.");
 
-    if(exitJump != -1){
-        patchJump(compiler, exitJump);
-        emitByte(compiler, OP_POP);
+        expr2NextReg(compiler, &condition);
+        exitJmp = emitJmpIfFalse(compiler, condition.data.loc.index);
+        freeExpr(compiler, &condition);
+    }
+
+    int bodyJmp = emitJmp(compiler); //
+    int incStart = compiler->func->chunk.count;
+    loop->start = incStart;
+
+    if(!match(compiler, TOKEN_RIGHT_PAREN)){
+        ExprDesc incExpr;
+        expression(compiler, &incExpr);
+        freeExpr(compiler, &incExpr);
+        consume(compiler, TOKEN_RIGHT_PAREN, "Expect ')' after loop increment.");
+    }
+
+    int loopJmpIndex = emitJmp(compiler);
+    int loopOffset = loopStart - loopJmpIndex - 1;
+    compiler->func->chunk.code[loopJmpIndex] = CREATE_AsBx(OP_JMP, 0, loopOffset);
+    patchJump(compiler, bodyJmp);
+    stmt(compiler);
+
+    int incJmp = emitJmp(compiler);
+    int incOffset = incStart - incJmp - 1;
+    compiler->func->chunk.code[incJmp] = CREATE_AsBx(OP_JMP, 0, incOffset);
+    if(exitJmp != -1){
+        patchJump(compiler, exitJmp);
     }
 
     for(int i = 0; i < loop->breakCnt; i++){
@@ -931,6 +1062,17 @@ static void forStmt(Compiler* compiler){
     endScope(compiler);
 }
 
+static void closeUpvalues(Compiler* compiler, int scopeDepth){
+    int i = compiler->localCnt - 1;
+    while(i >= 0 && compiler->locals[i].depth > scopeDepth){
+        i--;
+    }
+
+    if(i + 1 < compiler->localCnt){
+        emitABC(compiler, OP_CLOSE_UPVAL, i + 1, 0, 0);
+    }
+}
+
 static void breakStmt(Compiler* compiler){
     if(compiler->loopCnt == 0){
         errorAt(compiler, &compiler->parser.pre, "Cannot use 'break' outside of a loop.");
@@ -938,18 +1080,13 @@ static void breakStmt(Compiler* compiler){
     }
     consume(compiler, TOKEN_SEMICOLON, "Expect ';' after 'break'.");
 
-    while(compiler->localCnt > 0 && 
-          compiler->locals[compiler->localCnt-1].depth > compiler->loops[compiler->loopCnt - 1].scopeDepth){
-            emitByte(compiler, OP_POP);
-            compiler->localCnt--;
-    }
-
-    Loop *curLoop = &compiler->loops[compiler->loopCnt - 1];
-    if(curLoop->breakCnt == LOOP_MAX){
-        errorAt(compiler, &compiler->parser.pre, "Too many 'break' statements in one loop.");
+    Loop *loop = &compiler->loops[compiler->loopCnt - 1];
+    closeUpvalues(compiler, loop->scopeDepth);
+    if(loop->breakCnt == LOOP_MAX){
+        errorAt(compiler, &compiler->parser.pre, "Too many breaks in one loop.");
         return;
     }
-    curLoop->breakJump[curLoop->breakCnt++] = emitJump(compiler, OP_JUMP);
+    loop->breakJump[loop->breakCnt++] = emitJmp(compiler);
 }
 
 static void continueStmt(Compiler* compiler){
@@ -959,106 +1096,90 @@ static void continueStmt(Compiler* compiler){
     }
     consume(compiler, TOKEN_SEMICOLON, "Expect ';' after 'continue'.");
 
-    while(compiler->localCnt > 0 && 
-          compiler->locals[compiler->localCnt-1].depth > compiler->loops[compiler->loopCnt - 1].scopeDepth){
-            emitByte(compiler, OP_POP);
-            compiler->localCnt--;
-    }
-
-    Loop *curLoop = &compiler->loops[compiler->loopCnt - 1];
-    emitLoop(compiler, curLoop->start);
+    Loop *loop = &compiler->loops[compiler->loopCnt - 1];
+    closeUpvalues(compiler, loop->scopeDepth);
+    emitLoop(compiler, loop->start);
 }
 
 static void switchStmt(Compiler* compiler){
     consume(compiler, TOKEN_LEFT_PAREN, "Expect '(' after 'switch'.");
-    expression(compiler);
+    ExprDesc condExpr;
+    expression(compiler, &condExpr);
     consume(compiler, TOKEN_RIGHT_PAREN, "Expect ')' after switch condition.");
-    consume(compiler, TOKEN_LEFT_BRACE, "Expect '{' before switch cases.");
+    
+    expr2NextReg(compiler, &condExpr);
+    int condReg = condExpr.data.loc.index;
 
-    int endJumps[CASE_MAX];
-    int endJumpCnt = 0;
-    
-    int fallthroughJump = -1;
-    
-    int caseCnt = 0;
+    consume(compiler, TOKEN_LEFT_BRACE, "Expect '{' before switch body.");
+
+    int endJmps[CASE_MAX];
+    int endJmpCnt = 0;
+
+    int nextCaseJmp = -1;
     bool hasDefault = false;
 
     while(!checkType(compiler, TOKEN_RIGHT_BRACE) && !checkType(compiler, TOKEN_EOF)){
-        if(fallthroughJump != -1){
-            patchJump(compiler, fallthroughJump);
-            fallthroughJump = -1; 
-        }
-
-        if(caseCnt++ >= CASE_MAX){
-            errorAt(compiler, &compiler->parser.pre, "Too many cases in one switch.");
-            while(!checkType(compiler, TOKEN_RIGHT_BRACE) && !checkType(compiler, TOKEN_EOF)) advance(compiler);
-            break;
+        if(nextCaseJmp != -1){
+            patchJump(compiler, nextCaseJmp);
+            nextCaseJmp = -1;
         }
 
         if(match(compiler, TOKEN_DEFAULT)){
             if(hasDefault){
-                errorAt(compiler, &compiler->parser.pre, "Multiple default cases in one switch.");
+                errorAt(compiler, &compiler->parser.pre, "Multiple default labels in one switch.");
+                return;
             }
             hasDefault = true;
-
             consume(compiler, TOKEN_FAT_ARROW, "Expect '=>' after 'default'.");
-            emitByte(compiler, OP_POP);
             stmt(compiler);
         }else{
-            int bodyJumps[CASE_MAX];
-            int bodyJumpCount = 0;
+            int bodyJmps[CASE_MAX];
+            int bodyJmpCnt = 0;
             do{
-                emitByte(compiler, OP_DUP);
-                expression(compiler);
-                emitByte(compiler, OP_EQUAL);
-                
-                int failedMatchJump = emitJump(compiler, OP_JUMP_IF_FALSE);
+                ExprDesc caseExpr;
+                expression(compiler, &caseExpr);
 
-                emitByte(compiler, OP_POP); // pop true
-                bodyJumps[bodyJumpCount++] = emitJump(compiler, OP_JUMP);
-                
-                patchJump(compiler, failedMatchJump);
-                emitByte(compiler, OP_POP); // pop false
+                expr2NextReg(compiler, &caseExpr);
+                emitABC(compiler, OP_EQ, 1, condReg, caseExpr.data.loc.index);
+                freeExpr(compiler, &caseExpr);
 
+                bodyJmps[bodyJmpCnt++] = emitJmp(compiler);
+
+                if(bodyJmpCnt == CASE_MAX){
+                    errorAt(compiler, &compiler->parser.pre, "Too many cases in one switch.");
+                    return;
+                }
             }while(match(compiler, TOKEN_COMMA));
-            
-            fallthroughJump = emitJump(compiler, OP_JUMP);
-            
-            for(int i = 0; i < bodyJumpCount; i++){
-                patchJump(compiler, bodyJumps[i]);
+
+            nextCaseJmp = emitJmp(compiler);
+            consume(compiler, TOKEN_FAT_ARROW, "Expect '=>' after case expressions.");
+            for(int i = 0; i < bodyJmpCnt; i++){
+                patchJump(compiler, bodyJmps[i]);
             }
 
-            consume(compiler, TOKEN_FAT_ARROW, "Expect '=>' after case value(s).");
-            
-            emitByte(compiler, OP_POP);
             stmt(compiler);
-            
-            endJumps[endJumpCnt++] = emitJump(compiler, OP_JUMP);
+
+            endJmps[endJmpCnt++] = emitJmp(compiler);
         }
     }
-    
-    if(fallthroughJump != -1){
-        patchJump(compiler, fallthroughJump);
+
+    if(nextCaseJmp != -1){
+        patchJump(compiler, nextCaseJmp);
+    } // no default, no case matched
+
+    for(int i = 0; i < endJmpCnt; i++){
+        patchJump(compiler, endJmps[i]);
     }
 
-    for(int i = 0; i < endJumpCnt; i++){
-        patchJump(compiler, endJumps[i]);
-    }
-
-    if(!hasDefault){
-        emitByte(compiler, OP_POP);
-    }else if(endJumpCnt == 0 && !hasDefault){ 
-        emitByte(compiler, OP_POP);
-    }
-
-    consume(compiler, TOKEN_RIGHT_BRACE, "Expect '}' after switch cases.");
+    consume(compiler, TOKEN_RIGHT_BRACE, "Expect '}' after switch body.");
+    freeExpr(compiler, &condExpr);
 }
 
 static void systemStmt(Compiler* compiler){
     Token cmdToken = compiler->parser.pre;
 
     Value cmdVal = OBJECT_VAL(copyString(compiler->vm, cmdToken.head, cmdToken.len));
-    emitConstant(compiler, cmdVal);
+    makeConstant(compiler, cmdVal);
 
     emitByte(compiler, OP_SYSTEM);
     emitByte(compiler, OP_POP);  // pop status code
@@ -1082,31 +1203,19 @@ static void deferStmt(Compiler* compiler){
     beginScope(funcCompiler);
     stmt(funcCompiler);
 
-    emitByte(funcCompiler, OP_DEFER_RETURN);
-    ObjectFunc* func = funcCompiler->func;
+    ObjectFunc* func = stopCompiler(funcCompiler);
+    int constIndex = makeConstant(compiler->vm, &compiler->func->chunk, OBJECT_VAL(func));
 
-    push(compiler->vm, OBJECT_VAL(func));
-    int constIndex = addConstant(compiler->vm, &compiler->func->chunk, OBJECT_VAL(func));
-    pop(compiler->vm);
+    int deferReg = getFreeReg(compiler);
+    emitClosure(compiler, deferReg, constIndex, funcCompiler);
 
-    if(constIndex <= 0xff){
-        emitPair(compiler, OP_CLOSURE, (uint8_t)constIndex);
-    }else{
-        emitByte(compiler, OP_LCLOSURE);
-        emitPair(compiler, (uint8_t)((constIndex >> 8) & 0xff), (uint8_t)(constIndex & 0xff));
-    }
-
-    for(int i = 0; i < func->upvalueCnt; i++){
-        emitByte(compiler, funcCompiler->upvalues[i].isLocal ? 1 : 0);
-        emitPair(compiler, (uint8_t)((funcCompiler->upvalues[i].index >> 8) & 0xff), 
-                           (uint8_t)(funcCompiler->upvalues[i].index & 0xff));
-    }
+    emitABC(compiler, OP_DEFER, deferReg, 0, 0);
 
     compiler->parser = funcCompiler->parser;
     compiler->vm->compiler = compiler;
     reallocate(compiler->vm, funcCompiler, sizeof(Compiler), 0);
 
-    emitByte(compiler, OP_DEFER);
+    freeRegs(compiler, 1);  // free defer function register
 }
 
 static void returnStmt(Compiler* compiler){
@@ -1116,22 +1225,27 @@ static void returnStmt(Compiler* compiler){
 
     if(match(compiler, TOKEN_SEMICOLON)){
         if(compiler->type == TYPE_INITIALIZER){
-            emitPair(compiler, OP_GET_LOCAL, 0); // return 'this'
+            emitABC(compiler, OP_RETURN, 0, 2, 0);
         }else{
-            emitByte(compiler, OP_NULL);
+            int reg = getFreeReg(compiler);
+            emitABC(compiler, OP_LOADNULL, reg, 0, 0);
+            emitABC(compiler, OP_RETURN, reg, 2, 0);
         }
-        emitPair(compiler, OP_NULL, OP_RETURN);
     }else{
         if(compiler->type == TYPE_INITIALIZER){
-            errorAt(compiler, &compiler->parser.pre, "Can't return a value from an initializer.");
+            errorAt(compiler, &compiler->parser.pre, "Cannot return a value from an initializer.");
         }
-        expression(compiler);
-        consume(compiler, TOKEN_SEMICOLON, "Expected ';' after return value.");
-        emitByte(compiler, OP_RETURN);
+
+        ExprDesc retExpr;
+        expression(compiler, &retExpr);
+        expr2NextReg(compiler, &retExpr);
+
+        emitABC(compiler, OP_RETURN, retExpr.data.loc.index, 2, 0);
+        freeExpr(compiler, &retExpr);
     }
 }
 
-static void parsePrecedence(Compiler* compiler, Precedence precedence){
+static void parsePrecedence(Compiler* compiler, ExprDesc* expr, Precedence precedence){
     advance(compiler);
     ParseFunc preRule = getRule(compiler->parser.pre.type)->prefix;
     if(preRule == NULL){
@@ -1154,12 +1268,7 @@ static void parsePrecedence(Compiler* compiler, Precedence precedence){
 static int identifierConst(Compiler* compiler){
     Token* name = &compiler->parser.pre;
     Value strVal = OBJECT_VAL(copyString(compiler->vm, name->head, name->len));
-
-    push(compiler->vm, strVal);
-    int index = addConstant(compiler->vm, &compiler->func->chunk, strVal);
-    pop(compiler->vm);
-
-    return index;
+    return makeConstant(compiler, strVal);
 }
 
 static void addLocal(Compiler* compiler, Token name){
@@ -1176,7 +1285,9 @@ static void declLocal(Compiler* compiler){
     if(compiler->scopeDepth == 0){
         return;
     }
+
     Token* name = &compiler->parser.pre;
+
     for(int i = compiler->localCnt-1; i >= 0; i--){
         Local* local = &compiler->locals[i];
         if(local->depth != -1 && local->depth < compiler->scopeDepth){
@@ -1186,7 +1297,12 @@ static void declLocal(Compiler* compiler){
             errorAt(compiler, name, "Variable with this name already existed.");
         }
     }
+
     addLocal(compiler, *name);
+
+    if(compiler->freeReg < compiler->localCnt){
+        compiler->freeReg = compiler->localCnt;
+    }   // local variable is stored in register with same index as local variable count
 }
 
 static int parseVar(Compiler* compiler, const char* err){
@@ -1200,17 +1316,8 @@ static int parseVar(Compiler* compiler, const char* err){
 
 static void defineVar(Compiler* compiler, int global){
     if(compiler->scopeDepth > 0){
-        compiler->locals[compiler->localCnt-1].depth = compiler->scopeDepth;
+        compiler->locals[compiler->localCnt - 1].depth = compiler->scopeDepth;
         return;
-    }
-    if(global <= 0xff){
-        emitByte(compiler, OP_DEFINE_GLOBAL);
-        emitByte(compiler, (uint8_t)global);
-    }else if(global <= 0xffff){
-        emitByte(compiler, OP_DEFINE_LGLOBAL);
-        emitPair(compiler, (uint8_t)((global >> 8) & 0xff), (uint8_t)(global & 0xff));
-    }else{
-        errorAt(compiler, &compiler->parser.pre, "Too many variables declared");
     }
 }
 
@@ -1264,401 +1371,376 @@ static int resolveUpvalue(Compiler* compiler, Token* name){
     return -1;
 }
 
-static void emitByte(Compiler* compiler, uint8_t byte){
-    writeChunk(compiler->vm, &compiler->func->chunk, byte, compiler->parser.pre.line);
+static int emitJmp(Compiler* compiler){
+    int instructionIndex = emitAsBx(compiler, OP_JMP, 0, 0);
+    return instructionIndex;
 }
 
-static void emitPair(Compiler* compiler, uint8_t byte1, uint8_t byte2){
-    emitByte(compiler, byte1);
-    emitByte(compiler, byte2);
-}
-
-static int emitJump(Compiler* compiler, uint8_t instruction){
-    emitByte(compiler, instruction);
-    emitPair(compiler, 0xff, 0xff);
-    return compiler->func->chunk.count - 2;
+static int emitJmpIfFalse(Compiler* compiler, int reg){
+    int instructionIndex = emitAsBx(compiler, OP_JMP_IF_FALSE, reg, 0);
+    return instructionIndex;
 }
 
 static void emitLoop(Compiler* compiler, int loopStart){
-    emitByte(compiler, OP_LOOP);
-    int offset = compiler->func->chunk.count - loopStart + 2;
-    if(offset > UINT16_MAX){
-        errorAt(compiler, &compiler->parser.pre, "Loop too large.");
+    int offset = loopStart - compiler->func->chunk.count - 1;
+    if(offset < -OFFSET_sBx){
+        errorAt(compiler, &compiler->parser.pre, "Loop body too large.");
     }
-    emitPair(compiler, (uint8_t)((offset >> 8) & 0xff), (uint8_t)(offset & 0xff));
+    emitAsBx(compiler, OP_JMP, 0, offset);
 }
 
-static void patchJump(Compiler* compiler, int offset){
-    int jump = compiler->func->chunk.count - (offset + 2);
-    if(jump > UINT16_MAX){
-        errorAt(compiler, &compiler->parser.pre, "Jump too long.");
+static void emitClosure(Compiler* compiler, int destReg, int constIndex, Compiler* funcCompiler){
+    emitABx(compiler, OP_CLOSURE, destReg, constIndex);
+    for(int i = 0; i < funcCompiler->upvalueCnt; i++){
+        int isLocal = funcCompiler->upvalues[i].isLocal ? 1 : 0;
+        int index = funcCompiler->upvalues[i].index;
+        emitABC(compiler, OP_LOADNULL, 0, isLocal, index);
     }
-    compiler->func->chunk.code[offset] = (jump >> 8) & 0xff;
-    compiler->func->chunk.code[offset+1] = jump & 0xff;
+}
+
+static void patchJump(Compiler* compiler, int jmpIndex){
+    int jmpTarget = compiler->func->chunk.count;
+    int offset = jmpTarget - jmpIndex - 1;
+    if(offset > MAX_BX >> 1){
+        errorAt(compiler, &compiler->parser.pre, "Too much code to jump over.");
+    }
+    Instruction* instruction = compiler->func->chunk.code;
+    Instruction prevInstruction = instruction[jmpIndex];
+    instruction[jmpIndex] = CREATE_AsBx(GET_OPCODE(prevInstruction), GET_ARG_A(prevInstruction), offset);
 }
 
 static ObjectFunc* stopCompiler(Compiler* compiler){
     if(compiler->type == TYPE_INITIALIZER){
-        emitPair(compiler, OP_GET_LOCAL, 0);
+        emitABC(compiler, OP_RETURN, 0, 2, 0);
     }else{
-        emitByte(compiler, OP_NULL);
+        int reg = getFreeReg(compiler);
+        emitABC(compiler, OP_LOADNULL, reg, 0, 0);
+        emitABC(compiler, OP_RETURN, reg, 2, 0);
     }
-    emitByte(compiler, OP_RETURN);
 
     ObjectFunc* func = compiler->func;
 
     #ifdef DEBUG_PRINT_CODE
     if(!compiler->parser.hadError){
-        printf("== Compiled code ==\n");
-        dasmChunk(&compiler->func->chunk, "code");
+        printf("== Compiled code: %s ==\n", func->name != NULL ? func->name->chars : "<script>");
+        dasmChunk(&compiler->func->chunk, func->name != NULL ? func->name->chars : "<script>");
     }
     #endif
 
     return func;
 }
 
-static void handleNum(Compiler* compiler, bool canAssign){
-    if(canAssign && match(compiler, TOKEN_ASSIGN)){
-        errorAt(compiler, &compiler->parser.pre, "Invalid assignment target.");
-        return;
-    }
+static void handleNum(Compiler* compiler, ExprDesc* expr, bool canAssign){
     double value = strtod(compiler->parser.pre.head, NULL);
-    emitConstant(compiler, NUM_VAL(value));
+    // TODO: Optimize
+    int constIndex = makeConstant(compiler, NUM_VAL(value));
+    initExpr(expr, EXPR_K, constIndex);
 }
 
-static void emitConstant(Compiler* compiler, Value value){
-    push(compiler->vm, value);
-    int constantIndex = addConstant(compiler->vm, &compiler->func->chunk, value);
-    pop(compiler->vm);
-
-    if(constantIndex < 0){
-        fprintf(stderr, "Failed to add constant\n");
-        return;
-    }else if(constantIndex <= 0xff){
-        emitPair(compiler, OP_CONSTANT, (uint8_t)constantIndex);
-        return;
-    }else if(constantIndex <= 0xffff){
-        emitByte(compiler, OP_LCONSTANT);
-        emitPair(compiler, (uint8_t)((constantIndex >> 8) & 0xff), (uint8_t)(constantIndex & 0xff));
-        return;
-    }else{
-        fprintf(stderr, "Constant index out of range: %d\n", constantIndex);
-        return;
+static int makeConstant(Compiler* compiler, Value value){
+    int constIndex = addConstant(compiler->vm, &compiler->func->chunk, value);
+    if(constIndex < 0){
+        errorAt(compiler, &compiler->parser.pre, "Failed to add constant.");
+        return 0;
+    }else if(constIndex > MAX_ARG_BX){
+        errorAt(compiler, &compiler->parser.pre, "Too many constants in one chunk.");
+        return 0;
     }
+    return constIndex;
 }
 
-static void handleVar(Compiler* compiler, bool canAssign){
+static void handleVar(Compiler* compiler, ExprDesc* expr, bool canAssign){
     Token* name = &compiler->parser.pre;
 
-    uint8_t getOp, setOp, getLOp, setLOp;
-    int index;
-
-    if((index = resolveLocal(compiler, name)) != -1){
-        getOp = OP_GET_LOCAL;
-        setOp = OP_SET_LOCAL;
-        getLOp = OP_GET_LLOCAL;
-        setLOp = OP_SET_LLOCAL;
+    int index = resolveLocal(compiler, name);
+    if(index != -1){
+        initExpr(expr, EXPR_LOCAL, index);
     }else if((index = resolveUpvalue(compiler, name)) != -1){
-        getOp = OP_GET_UPVALUE;
-        setOp = OP_SET_UPVALUE;
-        getLOp = OP_GET_LUPVALUE; 
-        setLOp = OP_SET_LUPVALUE;
+        initExpr(expr, EXPR_UPVAL, index);
     }else{
         index = identifierConst(compiler);
-        getOp = OP_GET_GLOBAL;
-        setOp = OP_SET_GLOBAL;
-        getLOp = OP_GET_LGLOBAL;
-        setLOp = OP_SET_LGLOBAL;
+        initExpr(expr, EXPR_GLOBAL, index);
     }
 
-    uint8_t finalOp, finalLOp;
     if(canAssign && match(compiler, TOKEN_ASSIGN)){
-        expression(compiler);
-        finalOp = setOp;
-        finalLOp = setLOp;
-    }else if(canAssign && match(compiler, TOKEN_PLUS_EQUAL)){
-        if(index <= 0xff){
-            emitPair(compiler, getOp, (uint8_t)index);
+        ExprDesc valueExpr;
+        expression(compiler, &valueExpr);
+        storeVar(compiler, expr, &valueExpr);
+        if(expr->type == EXPR_LOCAL){
+            initExpr(expr, EXPR_TMP, expr->data.loc.index);
         }else{
-            emitByte(compiler, getLOp);
-            emitPair(compiler, (uint8_t)((index >> 8) & 0xff), (uint8_t)(index & 0xff));
+            // after assignment, the variable is now a temporary holding the value
+            *expr = valueExpr;
         }
-
-        expression(compiler);
-        emitByte(compiler, OP_ADD);
-        finalOp = setOp;
-        finalLOp = setLOp;
-    }else if(canAssign && match(compiler, TOKEN_MINUS_EQUAL)){
-        if(index <= 0xff){
-            emitPair(compiler, getOp, (uint8_t)index);
-        }else{
-            emitByte(compiler, getLOp);
-            emitPair(compiler, (uint8_t)((index >> 8) & 0xff), (uint8_t)(index & 0xff));
-        }
-
-        expression(compiler);
-        emitByte(compiler, OP_SUBTRACT);
-        finalOp = setOp;
-        finalLOp = setLOp;
-    }else if(canAssign && match(compiler, TOKEN_PLUS_PLUS)){
-        if(index <= 0xff){
-            emitPair(compiler, getOp, (uint8_t)index);
-        }else{
-            emitByte(compiler, getLOp);
-            emitPair(compiler, (uint8_t)((index >> 8) & 0xff), (uint8_t)(index & 0xff));
-        }
-
-        emitByte(compiler, OP_DUP);
-        emitConstant(compiler, NUM_VAL(1));
-        emitByte(compiler, OP_ADD);
-
-        if(index <= 0xff){
-            emitPair(compiler, setOp, (uint8_t)index);
-        }else{
-            emitByte(compiler, setLOp);
-            emitPair(compiler, (uint8_t)((index >> 8) & 0xff), (uint8_t)(index & 0xff));
-        }
-
-        emitByte(compiler, OP_POP);
-        return;
-    }else if(canAssign && match(compiler, TOKEN_MINUS_MINUS)){
-        if(index <= 0xff){
-            emitPair(compiler, getOp, (uint8_t)index);
-        }else{
-            emitByte(compiler, getLOp);
-            emitPair(compiler, (uint8_t)((index >> 8) & 0xff), (uint8_t)(index & 0xff));
-        }
-
-        emitByte(compiler, OP_DUP);
-        emitConstant(compiler, NUM_VAL(1));
-        emitByte(compiler, OP_SUBTRACT);
-
-        if(index <= 0xff){
-            emitPair(compiler, setOp, (uint8_t)index);
-        }else{
-            emitByte(compiler, setLOp);
-            emitPair(compiler, (uint8_t)((index >> 8) & 0xff), (uint8_t)(index & 0xff));
-        }
-
-        emitByte(compiler, OP_POP);
-        return;
-    }else{
-        finalOp = getOp;
-        finalLOp = getLOp;
     }
-
-    if(index <= 0xff){
-        emitPair(compiler, finalOp, (uint8_t)index);
-    }else if(index <= 0xffff){
-        emitByte(compiler, finalLOp);
-        emitPair(compiler, (uint8_t)((index >> 8) & 0xff), (uint8_t)(index & 0xff));
-    }else{
-        errorAt(compiler, &compiler->parser.pre, "Too many variables!");
-    }
+    // TODO: Handle compound assignment
 }
 
-static void handleGrouping(Compiler* compiler, bool canAssign){
+static void handleGrouping(Compiler* compiler, ExprDesc* expr, bool canAssign){
     expression(compiler);
     consume(compiler, TOKEN_RIGHT_PAREN, "Expected ')' after expression");
 }
 
-static void handleUnary(Compiler* compiler, bool canAssign){
+static void handleUnary(Compiler* compiler, ExprDesc* expr, bool canAssign){
     TokenType type = compiler->parser.pre.type;
 
-    if(type == TOKEN_PLUS_PLUS || type == TOKEN_MINUS_MINUS){
-        consume(compiler, TOKEN_IDENTIFIER, "Expect variable name after prefix operator.");
-        
-        Token* name = &compiler->parser.pre;
-        uint8_t getOp, setOp, getLOp, setLOp;
-        
-        int index = resolveLocal(compiler, name);
-        if(index != -1){
-            getOp = OP_GET_LOCAL; setOp = OP_SET_LOCAL;
-            getLOp = OP_GET_LLOCAL; setLOp = OP_SET_LLOCAL;
-        }else if((index = resolveUpvalue(compiler, name)) != -1){
-            getOp = OP_GET_UPVALUE; setOp = OP_SET_UPVALUE;
-            getLOp = OP_GET_LUPVALUE; setLOp = OP_SET_LUPVALUE;
-        }else{
-            index = identifierConst(compiler);
-            getOp = OP_GET_GLOBAL; setOp = OP_SET_GLOBAL;
-            getLOp = OP_GET_LGLOBAL; setLOp = OP_SET_LGLOBAL;
-        }
+    parsePrecedence(compiler, expr, PREC_UNARY);
+    expr2NextReg(compiler, expr);
+    freeExpr(compiler, expr);
+    reserveReg(compiler, 1);
 
-        if(index <= 0xff){
-            emitPair(compiler, getOp, (uint8_t)index);
-        }else{
-            emitByte(compiler, getLOp);
-            emitPair(compiler, (uint8_t)((index >> 8) & 0xff), (uint8_t)(index & 0xff));
-        }
-
-        emitConstant(compiler, NUM_VAL(1));
-        emitByte(compiler, (type == TOKEN_PLUS_PLUS) ? OP_ADD : OP_SUBTRACT);
-
-        if(index <= 0xff){
-            emitPair(compiler, setOp, (uint8_t)index);
-        }else{
-            emitByte(compiler, setLOp);
-            emitPair(compiler, (uint8_t)((index >> 8) & 0xff), (uint8_t)(index & 0xff));
-        }
-        return;
-    }
-
-    parsePrecedence(compiler, PREC_UNARY);
+    int targetReg = getFreeReg(compiler) - 1;
 
     switch(type){
-        case TOKEN_MINUS: emitByte(compiler, OP_NEGATE); break;
-        case TOKEN_NOT: emitByte(compiler, OP_NOT); break;
-        default: return;
+        case TOKEN_MINUS:
+            emitABC(compiler, OP_NEG, targetReg, expr->data.loc.index, 0);
+            break;
+        case TOKEN_NOT:
+            emitABC(compiler, OP_NOT, targetReg, expr->data.loc.index, 0);
+            break;
+        default: return;  // Should not reach here
     }
+    initExpr(expr, EXPR_TMP, targetReg);
 }
 
-static void handleBinary(Compiler* compiler, bool canAssign){
+static void handleBinary(Compiler* compiler, ExprDesc* expr, bool canAssign){
     TokenType type = compiler->parser.pre.type;
     ParseRule* rule = getRule(type);
-    parsePrecedence(compiler, (Precedence)(rule->precedence + 1));  // parse the right-hand side, parse only if precedence is higher
+
+    ExprDesc right;
+    parsePrecedence(compiler, &right, (Precedence)(rule->precedence + 1));  // parse the right-hand side, parse only if precedence is higher
+     // parse the right-hand side, parse only if precedence is higher
     switch(type){
-        case TOKEN_PLUS:            emitByte(compiler, OP_ADD); break;
-        case TOKEN_MINUS:           emitByte(compiler, OP_SUBTRACT); break;
-        case TOKEN_STAR:            emitByte(compiler, OP_MULTIPLY); break;
-        case TOKEN_SLASH:           emitByte(compiler, OP_DIVIDE); break;
-        case TOKEN_PERCENT:         emitByte(compiler, OP_MODULO); break;
-        case TOKEN_EQUAL:           emitByte(compiler, OP_EQUAL); break;
-        case TOKEN_NOT_EQUAL:       emitByte(compiler, OP_NOT_EQUAL); break;
-        case TOKEN_GREATER:         emitByte(compiler, OP_GREATER); break;
-        case TOKEN_LESS:            emitByte(compiler, OP_LESS); break;
-        case TOKEN_GREATER_EQUAL:   emitByte(compiler, OP_GREATER_EQUAL); break;
-        case TOKEN_LESS_EQUAL:      emitByte(compiler, OP_LESS_EQUAL); break;
+        case TOKEN_PLUS:            emitBinaryOp(compiler, OP_ADD, expr, &right); break;
+        case TOKEN_MINUS:           emitBinaryOp(compiler, OP_SUB, expr, &right); break;
+        case TOKEN_STAR:            emitBinaryOp(compiler, OP_MUL, expr, &right); break;
+        case TOKEN_SLASH:           emitBinaryOp(compiler, OP_DIV, expr, &right); break;
+        case TOKEN_PERCENT:         emitBinaryOp(compiler, OP_MOD, expr, &right); break;
+        case TOKEN_EQUAL:
+        case TOKEN_NOT_EQUAL:
+        case TOKEN_GREATER:
+        case TOKEN_LESS:
+        case TOKEN_GREATER_EQUAL:
+        case TOKEN_LESS_EQUAL:{
+            OpCode op;
+            int expectTrue = 1;
+            switch(type){
+                case TOKEN_EQUAL:           op = OP_EQ; break;
+                case TOKEN_NOT_EQUAL:       op = OP_EQ; expectTrue = 0; break;
+                case TOKEN_LESS:            op = OP_LT; break;
+                case TOKEN_LESS_EQUAL:      op = OP_LE; break;
+                case TOKEN_GREATER:         op = OP_LT; expectTrue = 0; break;
+                case TOKEN_GREATER_EQUAL:   op = OP_LE; expectTrue = 0; break;
+                default:                    op = OP_EQ; break;  // Should not reach here
+            }
+            
+            expr2NextReg(compiler, expr);
+            expr2NextReg(compiler, &right);
+            freeExpr(compiler, &right);
+            freeExpr(compiler, expr);
+
+            emitABC(compiler, op, expectTrue, expr->data.loc.index, right.data.loc.index);
+            reserveReg(compiler, 1);
+            int targetReg = getFreeReg(compiler) - 1;
+            emitABC(compiler, OP_LOADBOOL, targetReg, 1, 1);
+            // load true into targetReg, and jump over the next instruction
+            emitABC(compiler, OP_LOADBOOL, targetReg, 0, 0);
+            // load false into targetReg
+            initExpr(expr, EXPR_TMP, targetReg);
+            break;
+        }
         default: return;
     }
 }
 
-static void handleTernary(Compiler* compiler, bool canAssign){
-    int elseJump = emitJump(compiler, OP_JUMP_IF_FALSE);
-    emitByte(compiler, OP_POP);
-    expression(compiler);
+static void handleTernary(Compiler* compiler, ExprDesc* expr, bool canAssign){
+    expr2NextReg(compiler, expr);
+    int condReg = expr->data.loc.index;
 
-    int endJump = emitJump(compiler, OP_JUMP);
+    int elseJmp = emitJmpIfFalse(compiler, condReg);
+    freeExpr(compiler, expr);
+    reserveReg(compiler, 1);
+    int thenReg = getFreeReg(compiler) - 1;
 
-    patchJump(compiler, elseJump);
-    emitByte(compiler, OP_POP);
+    ExprDesc thenExpr;
+    expression(compiler, &thenExpr);
 
-    consume(compiler, TOKEN_COLON, "Expect ':' after the else branch of ternary operator.");
-    expression(compiler);
-    patchJump(compiler, endJump);
+    expr2Reg(compiler, &thenExpr, thenReg);
+    freeExpr(compiler, &thenExpr);
+
+    int endJmp = emitJmp(compiler);
+    patchJump(compiler, elseJmp);
+
+    consume(compiler, TOKEN_COLON, "Expect ':' in ternary expression.");
+
+    ExprDesc elseExpr;
+    expression(compiler, &elseExpr);
+
+    expr2Reg(compiler, &elseExpr, thenReg);
+    freeExpr(compiler, &elseExpr);
+
+    patchJump(compiler, endJmp);
+    initExpr(expr, EXPR_TMP, thenReg);
 }
 
-static void handleLiteral(Compiler* compiler, bool canAssign){
+static void handleLiteral(Compiler* compiler, ExprDesc* expr,  bool canAssign){
     TokenType type = compiler->parser.pre.type;
     switch(type){
-        case TOKEN_NULL: emitByte(compiler, OP_NULL); break;
-        case TOKEN_TRUE: emitByte(compiler, OP_TRUE); break;
-        case TOKEN_FALSE: emitByte(compiler, OP_FALSE); break;
+        case TOKEN_NULL: initExpr(expr, EXPR_NULL, 0); break;
+        case TOKEN_TRUE: initExpr(expr, EXPR_TRUE, 0); break;
+        case TOKEN_FALSE: initExpr(expr, EXPR_FALSE, 0); break;
         default: return;  // Should not reach here
     }
 }
 
-static void handleString(Compiler* compiler, bool canAssign){
+static void handleString(Compiler* compiler, ExprDesc* expr, bool canAssign){
+    ExprDesc tmpExpr;
     int partCnt = 0;
+    int resReg = getFreeReg(compiler);
 
     while(compiler->parser.cur.type != TOKEN_STRING_END && compiler->parser.cur.type != TOKEN_EOF){
-            if(compiler->parser.cur.type == TOKEN_INTERPOLATION_CONTENT){
-                Token* token = &compiler->parser.cur;
+        if(compiler->parser.cur.type == TOKEN_INTERPOLATION_CONTENT){
+            Token* token = &compiler->parser.cur;
 
-                char* unescaped_chars = malloc(token->len + 1);
-                if(unescaped_chars == NULL){
-                    errorAt(compiler, token, "Memory Error while processing string.");
-                    advance(compiler);
-                    continue;
-                }
-
-                int unescaped_len = 0;
-                for(int i = 0; i < token->len; i++){
-                    if(token->head[i] == '\\' && i + 1 < token->len){
-                        i++;
-                        switch(token->head[i]){
-                            case 'a': unescaped_chars[unescaped_len++] = '\a'; break;
-                            case 'b': unescaped_chars[unescaped_len++] = '\b'; break;
-                            case 'f': unescaped_chars[unescaped_len++] = '\f'; break;
-                            case 'r': unescaped_chars[unescaped_len++] = '\r'; break;
-                            case 'n': unescaped_chars[unescaped_len++] = '\n'; break;
-                            case 'v': unescaped_chars[unescaped_len++] = '\v'; break;
-                            case 't': unescaped_chars[unescaped_len++] = '\t'; break;
-                            case '\\': unescaped_chars[unescaped_len++] = '\\'; break;
-                            case '"': unescaped_chars[unescaped_len++] = '"'; break;
-                            case '$': unescaped_chars[unescaped_len++] = '$'; break;
-                            case '0': unescaped_chars[unescaped_len++] = '\0'; break;
-                            default: {
-                                char err_msg[30];
-                                snprintf(err_msg, sizeof(err_msg), "Invalid escape character '\\%c'.", token->head[i]);
-                                errorAt(compiler, token, err_msg);
-                                unescaped_chars[unescaped_len++] = token->head[i]; 
-                                break;
-                            }
-                        }
-                    }else{
-                        unescaped_chars[unescaped_len++] = token->head[i];
-                    }
-                }
-
-                ObjectString* str = copyString(compiler->vm, unescaped_chars, unescaped_len);
-                free(unescaped_chars);
-                emitConstant(compiler, OBJECT_VAL(str));
+            char* unescaped_chars = malloc(token->len + 1);
+            if(unescaped_chars == NULL){
+                errorAt(compiler, token, "Memory Error while processing string.");
                 advance(compiler);
-            }else{
-                consume(compiler, TOKEN_INTERPOLATION_START, "Expect string or interpolation.");
-                expression(compiler);
-                emitByte(compiler, OP_TO_STRING);
-                consume(compiler, TOKEN_INTERPOLATION_END, "Expect '}' after expression.");
+                continue;
             }
-            partCnt++;
+
+            int unescaped_len = 0;
+            for(int i = 0; i < token->len; i++){
+                if(token->head[i] == '\\' && i + 1 < token->len){
+                    i++;
+                    switch(token->head[i]){
+                        case 'a': unescaped_chars[unescaped_len++] = '\a'; break;
+                        case 'b': unescaped_chars[unescaped_len++] = '\b'; break;
+                        case 'f': unescaped_chars[unescaped_len++] = '\f'; break;
+                        case 'r': unescaped_chars[unescaped_len++] = '\r'; break;
+                        case 'n': unescaped_chars[unescaped_len++] = '\n'; break;
+                        case 'v': unescaped_chars[unescaped_len++] = '\v'; break;
+                        case 't': unescaped_chars[unescaped_len++] = '\t'; break;
+                        case '\\': unescaped_chars[unescaped_len++] = '\\'; break;
+                        case '"': unescaped_chars[unescaped_len++] = '"'; break;
+                        case '$': unescaped_chars[unescaped_len++] = '$'; break;
+                        case '0': unescaped_chars[unescaped_len++] = '\0'; break;
+                        default: {
+                            char err_msg[30];
+                            snprintf(err_msg, sizeof(err_msg), "Invalid escape character '\\%c'.", token->head[i]);
+                            errorAt(compiler, token, err_msg);
+                            unescaped_chars[unescaped_len++] = token->head[i]; 
+                            break;
+                        }
+                    }
+                }else{
+                    unescaped_chars[unescaped_len++] = token->head[i];
+                }
+            }
+
+            ObjectString* str = copyString(compiler->vm, unescaped_chars, unescaped_len);
+            free(unescaped_chars);
+            int idx = makeConstant(compiler, OBJECT_VAL(str));
+            initExpr(&tmpExpr, EXPR_K, idx);
+            if(partCnt == 0){
+                expr2Reg(compiler, &tmpExpr, resReg);
+                reserveReg(compiler, 1);
+            }else{
+                expr2NextReg(compiler, &tmpExpr);
+                emitABC(compiler, OP_ADD, resReg, resReg, tmpExpr.data.loc.index);
+                freeRegs(compiler, 1);
+            }
+        }else{
+            consume(compiler, TOKEN_INTERPOLATION_START, "Expect string or interpolation.");
+            expression(compiler, &tmpExpr);
+            expr2NextReg(compiler, &tmpExpr);
+            emitABC(
+                compiler, 
+                OP_TO_STRING, 
+                tmpExpr.data.loc.index, 
+                tmpExpr.data.loc.index, 
+                0
+            );
+
+            if(partCnt == 0){
+                if(tmpExpr.data.loc.index != resReg){
+                    emitABC(compiler, OP_MOVE, resReg, tmpExpr.data.loc.index, 0);
+                }
+                freeExpr(compiler, &tmpExpr);
+                reserveReg(compiler, 1);
+            }else{
+                emitABC(compiler, OP_ADD, resReg, resReg, tmpExpr.data.loc.index);
+                freeExpr(compiler, &tmpExpr);
+            }
+            consume(compiler, TOKEN_INTERPOLATION_END, "Expect '}' after interpolation expression.");
+        }
+        partCnt++;
     }
 
     consume(compiler, TOKEN_STRING_END, "Unterminated string.");
 
     if(partCnt == 0){
-        emitConstant(compiler, OBJECT_VAL(copyString(compiler->vm, "", 0)));
+        int idx = makeConstant(compiler, OBJECT_VAL(copyString(compiler->vm, "", 0)));
+        initExpr(expr, EXPR_K, idx);
     }else{
-        for(int i = 1; i < partCnt; i++){
-            emitByte(compiler, OP_ADD);
-        }
+        initExpr(expr, EXPR_TMP, resReg);
     }
 }
 
-static void handleAnd(Compiler* compiler, bool canAssign){
-    int endJump = emitJump(compiler, OP_JUMP_IF_FALSE);
-    emitByte(compiler, OP_POP);
-    parsePrecedence(compiler, PREC_AND);
-    patchJump(compiler, endJump);
+static void handleAnd(Compiler* compiler, ExprDesc* expr, bool canAssign){
+    expr2NextReg(compiler, expr);
+    int endJmp = emitJmpIfFalse(compiler, expr->data.loc.index);
+    ExprDesc right;
+    parsePrecedence(compiler, &right, PREC_AND);
+    expr2Reg(compiler, &right, expr->data.loc.index);
+    freeExpr(compiler, &right);
+    patchJump(compiler, endJmp);
 }
 
-static void handleOr(Compiler* compiler, bool canAssign){
-    int elseJump = emitJump(compiler, OP_JUMP_IF_FALSE);
-    int endJump = emitJump(compiler, OP_JUMP);
-    patchJump(compiler, elseJump);
-    emitByte(compiler, OP_POP);
-    parsePrecedence(compiler, PREC_OR);
-    patchJump(compiler, endJump);
+static void handleOr(Compiler* compiler, ExprDesc* expr, bool canAssign){
+    expr2NextReg(compiler, expr);
+    int endJmp = emitAsBx(compiler, OP_JMP_IF_TRUE, expr->data.loc.index, 0);
+    ExprDesc right;
+    parsePrecedence(compiler, &right, PREC_OR);
+    expr2Reg(compiler, &right, expr->data.loc.index);
+    freeExpr(compiler, &right);
+    patchJump(compiler, endJmp);
 }
 
-static uint8_t argList(Compiler* compiler){
-    uint8_t argCnt = 0;
-    if(!checkType(compiler, TOKEN_RIGHT_PAREN)){
+static int argList(Compiler* compiler, ExprDesc* func){
+    int argCnt = 0;
+    expr2NextReg(compiler, func);
+    int funcReg = func->data.loc.index;
+    if(funcReg < compiler->freeReg - 1){
+        reserveReg(compiler, 1);
+        int newReg = compiler->freeReg - 1;
+        emitABC(compiler, OP_MOVE, newReg, funcReg, 0);
+        funcReg = newReg;
+        func->data.loc.index = funcReg;
+    }
+
+    if(!match(compiler, TOKEN_RIGHT_PAREN)){
         do{
-            expression(compiler);
-            if(argCnt == 255){
+            ExprDesc arg;
+            expression(compiler, &arg);
+            expr2NextReg(compiler, &arg);
+            argCnt++;
+            if(argCnt >= 255){
                 errorAt(compiler, &compiler->parser.pre, "Cannot have more than 255 arguments.");
             }
-            argCnt++;
         }while(match(compiler, TOKEN_COMMA));
+
+        consume(compiler, TOKEN_RIGHT_PAREN, "Expect ')' after arguments.");
     }
-    consume(compiler, TOKEN_RIGHT_PAREN, "Expect ')' after arguments.");
     return argCnt;
 }
 
-static void handleCall(Compiler* compiler, bool canAssign){
-    uint8_t argCount = argList(compiler);
-    emitByte(compiler, OP_CALL);
-    emitByte(compiler, argCount);
+static void handleCall(Compiler* compiler, ExprDesc* expr, bool canAssign){
+    int argCount = argList(compiler, expr);
+    emitABC(compiler, OP_CALL, expr->data.loc.index, argCount + 1, 2);
+    // +1 for the function itself
+    freeRegs(compiler, argCount);
+    initExpr(expr, EXPR_TMP, expr->data.loc.index);
 }
 
 static void handlePipe(Compiler* compiler, bool canAssign){
@@ -1765,7 +1847,7 @@ static void handleDot(Compiler* compiler, bool canAssign){
             emitPair(compiler, (uint8_t)((index >> 8) & 0xff), (uint8_t)(index & 0xff)); 
         }
 
-        emitConstant(compiler, NUM_VAL(1));
+        makeConstant(compiler, NUM_VAL(1));
         emitByte(compiler, OP_ADD);
 
         if(index < 0xff){
@@ -1774,7 +1856,7 @@ static void handleDot(Compiler* compiler, bool canAssign){
             emitByte(compiler, setOp); 
             emitPair(compiler, (uint8_t)((index >> 8) & 0xff), (uint8_t)(index & 0xff));
         }
-        emitConstant(compiler, NUM_VAL(1)); // [new_val, 1]
+        makeConstant(compiler, NUM_VAL(1)); // [new_val, 1]
         emitByte(compiler, OP_SUBTRACT);
     }else if(canAssign && match(compiler, TOKEN_MINUS_MINUS)){
         emitByte(compiler, OP_DUP);
@@ -1786,7 +1868,7 @@ static void handleDot(Compiler* compiler, bool canAssign){
             emitPair(compiler, (uint8_t)((index >> 8) & 0xff), (uint8_t)(index & 0xff)); 
         }
 
-        emitConstant(compiler, NUM_VAL(1));
+        makeConstant(compiler, NUM_VAL(1));
         emitByte(compiler, OP_SUBTRACT);
 
         if(index < 0xff){
@@ -1795,7 +1877,7 @@ static void handleDot(Compiler* compiler, bool canAssign){
             emitByte(compiler, setOp); 
             emitPair(compiler, (uint8_t)((index >> 8) & 0xff), (uint8_t)(index & 0xff));
         }
-        emitConstant(compiler, NUM_VAL(1)); // [new_val, 1]
+        makeConstant(compiler, NUM_VAL(1)); // [new_val, 1]
         emitByte(compiler, OP_ADD);
     }else{
         if(index < 0xff){
@@ -1893,18 +1975,18 @@ static void handleIndex(Compiler* compiler, bool canAssign){
     }else if(canAssign && match(compiler, TOKEN_PLUS_PLUS)){
         emitByte(compiler, OP_DUP_2);       // [list, index, list, index]
         emitByte(compiler, OP_INDEX_GET);   // [list, index, val]
-        emitConstant(compiler, NUM_VAL(1)); 
+        makeConstant(compiler, NUM_VAL(1)); 
         emitByte(compiler, OP_ADD);         // [list, index, val, new_val] 
         emitByte(compiler, OP_INDEX_SET);   // [new_val]
-        emitConstant(compiler, NUM_VAL(1)); // [new_val, 1]
+        makeConstant(compiler, NUM_VAL(1)); // [new_val, 1]
         emitByte(compiler, OP_SUBTRACT);    // [old_val]
     }else if(canAssign && match(compiler, TOKEN_MINUS_MINUS)){
         emitByte(compiler, OP_DUP_2);       // [list, index, list, index]
         emitByte(compiler, OP_INDEX_GET);   // [list, index, val]
-        emitConstant(compiler, NUM_VAL(1)); 
+        makeConstant(compiler, NUM_VAL(1)); 
         emitByte(compiler, OP_SUBTRACT);    // [list, index, new_val]
         emitByte(compiler, OP_INDEX_SET);   // [new_val]
-        emitConstant(compiler, NUM_VAL(1)); 
+        makeConstant(compiler, NUM_VAL(1)); 
         emitByte(compiler, OP_ADD);         // [old_val]
     }else{
         emitByte(compiler, OP_INDEX_GET);
