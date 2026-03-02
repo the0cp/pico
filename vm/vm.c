@@ -564,7 +564,14 @@ static InterpreterStatus run(VM* vm){
     DO_OP_GET_PROPERTY:
     {
         Value instanceVal = R(GET_ARG_B(instruction));
-        ObjectString* key = AS_STRING(K(GET_ARG_C(instruction)));
+        Value keyVal = R(GET_ARG_C(instruction));
+        if(!IS_STRING(keyVal)){
+            runtimeError(vm, "Property name must be a string.");
+            return VM_RUNTIME_ERROR;
+        }
+
+        ObjectString* key = AS_STRING(keyVal);
+
         Value result = NULL_VAL;
 
         if(IS_INSTANCE(instanceVal)){
@@ -615,9 +622,14 @@ static InterpreterStatus run(VM* vm){
 
     DO_OP_SET_PROPERTY:
     {
-        Value instanceVal = R(GET_ARG_B(instruction));
-        ObjectString* key = AS_STRING(K(GET_ARG_C(instruction)));
-        Value newVal = R(GET_ARG_A(instruction));
+        Value instanceVal = R(GET_ARG_A(instruction));
+        Value keyVal = R(GET_ARG_B(instruction));
+        if(!IS_STRING(keyVal)){
+            runtimeError(vm, "Property name must be a string.");
+            return VM_RUNTIME_ERROR;
+        }
+        ObjectString* key = AS_STRING(keyVal);
+        Value newVal = R(GET_ARG_C(instruction));
 
         if(IS_INSTANCE(instanceVal)){
             ObjectInstance* instance = AS_INSTANCE(instanceVal);

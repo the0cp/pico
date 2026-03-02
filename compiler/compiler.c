@@ -1778,115 +1778,116 @@ static void handleImport(Compiler* compiler, bool canAssign){
     consume(compiler, TOKEN_STRING_END, "Expected '\"' after import path.");
 }
 
-static void handleDot(Compiler* compiler, bool canAssign){
+static void handleDot(Compiler* compiler, ExprDesc* expr, bool canAssign){
     consume(compiler, TOKEN_IDENTIFIER, "Expect property name after '.'.");
 
     Token* name = &compiler->parser.pre;
+    int nameConst = makeConstant(compiler, OBJECT_VAL(copyString(compiler->vm, name->head, name->len)));
     Value strVal = OBJECT_VAL(copyString(compiler->vm, name->head, name->len));
 
-    push(compiler->vm, strVal);
-    int index = addConstant(compiler->vm, &compiler->func->chunk, strVal);
-    pop(compiler->vm);
+    expr2NextReg(compiler, expr);
+    int objReg = expr->data.loc.index;
 
-    uint8_t finalOp, finalLOp;
-
-    uint8_t getOp = (index < 0xff) ? OP_GET_PROPERTY : OP_GET_LPROPERTY;
-    uint8_t setOp = (index < 0xff) ? OP_SET_PROPERTY : OP_SET_LPROPERTY;
+    int keyReg = getFreeReg(compiler);
+    reserveReg(compiler, 1);
+    emitABx(compiler, OP_LOADK, keyReg, nameConst);
 
     if(canAssign && match(compiler, TOKEN_ASSIGN)){
-        expression(compiler);
-        if(index < 0xff){
-            emitPair(compiler, setOp, (uint8_t)index);
-        }else{ 
-            emitByte(compiler, setOp); 
-            emitPair(compiler, (uint8_t)((index >> 8) & 0xff), (uint8_t)(index & 0xff));
-        }
+        // for obj.prop = val
+        ExprDesc valExpr;
+        expression(compiler, &valExpr);
+        expr2NextReg(compiler, &valExpr);
+        emitABC(compiler, OP_SET_PROPERTY, objReg, keyReg, valExpr.data.loc.index);
+        emitABC(compiler, OP_MOVE, keyReg, valExpr.data.loc.index, 0);
+        /*
+        optimize for chained property access, 
+        move the value directly to keyReg and reuse it.
+        */
+        freeExpr(compiler, &valExpr);
+        initExpr(expr, EXPR_TMP, keyReg);
     }else if(canAssign && match(compiler, TOKEN_PLUS_EQUAL)){
-        emitByte(compiler, OP_DUP);
-        if(index < 0xff){
-            emitPair(compiler, getOp, (uint8_t)index);
-        }else{ 
-            emitByte(compiler, getOp); 
-            emitPair(compiler, (uint8_t)((index >> 8) & 0xff), (uint8_t)(index & 0xff)); 
-        }
+        // for obj.prop += val
+        int valReg = getFreeReg(compiler);
+        reserveReg(compiler, 1);
+        emitABC(compiler, OP_GET_PROPERTY, valReg, objReg, keyReg);
 
-        expression(compiler);
-        emitByte(compiler, OP_ADD);
-        
-        if(index < 0xff){
-            emitPair(compiler, setOp, (uint8_t)index);
-        }else{ 
-            emitByte(compiler, setOp); 
-            emitPair(compiler, (uint8_t)((index >> 8) & 0xff), (uint8_t)(index & 0xff));
-        }
+        ExprDesc rExpr;
+        expression(compiler, &rExpr);
+        expr2NextReg(compiler, &rExpr);
+
+        emitABC(compiler, OP_ADD, valReg, valReg, rExpr.data.loc.index);
+        emitABC(compiler, OP_SET_PROPERTY, objReg, keyReg, valReg);
+
+        freeExpr(compiler, &rExpr);
+        emitABC(compiler, OP_MOVE, keyReg, valReg, 0);
+        freeRegs(compiler, 1);  // free valReg
+        initExpr(expr, EXPR_TMP, keyReg);
     }else if(canAssign && match(compiler, TOKEN_MINUS_EQUAL)){
-        emitByte(compiler, OP_DUP);
-        if(index < 0xff){
-            emitPair(compiler, getOp, (uint8_t)index);
-        }else{ 
-            emitByte(compiler, getOp); 
-            emitPair(compiler, (uint8_t)((index >> 8) & 0xff), (uint8_t)(index & 0xff)); 
-        }
+        // for obj.prop -= val
+        int valReg = getFreeReg(compiler);
+        reserveReg(compiler, 1);
+        emitABC(compiler, OP_GET_PROPERTY, valReg, objReg, keyReg);
 
-        expression(compiler);
-        emitByte(compiler, OP_SUBTRACT);
-        
-        if(index < 0xff){
-            emitPair(compiler, setOp, (uint8_t)index);
-        }else{ 
-            emitByte(compiler, setOp); 
-            emitPair(compiler, (uint8_t)((index >> 8) & 0xff), (uint8_t)(index & 0xff));
-        }
+        ExprDesc rExpr;
+        expression(compiler, &rExpr);
+        expr2NextReg(compiler, &rExpr);
+
+        emitABC(compiler, OP_SUB, valReg, valReg, rExpr.data.loc.index);
+        emitABC(compiler, OP_SET_PROPERTY, objReg, keyReg, valReg);
+
+        freeExpr(compiler, &rExpr);
+        emitABC(compiler, OP_MOVE, keyReg, valReg, 0);
+        freeRegs(compiler, 1);  // free valReg
+        initExpr(expr, EXPR_TMP, keyReg);
     }else if(canAssign && match(compiler, TOKEN_PLUS_PLUS)){
-        emitByte(compiler, OP_DUP);
-        
-        if(index < 0xff){
-            emitPair(compiler, getOp, (uint8_t)index);
-        }else{ 
-            emitByte(compiler, getOp); 
-            emitPair(compiler, (uint8_t)((index >> 8) & 0xff), (uint8_t)(index & 0xff)); 
-        }
+        // for obj.prop++
+        int oldValReg = getFreeReg(compiler);
+        reserveReg(compiler, 1);
+        emitABC(compiler, OP_GET_PROPERTY, oldValReg, objReg, keyReg);
 
-        makeConstant(compiler, NUM_VAL(1));
-        emitByte(compiler, OP_ADD);
+        int newValReg = getFreeReg(compiler);
+        reserveReg(compiler, 1);
 
-        if(index < 0xff){
-            emitPair(compiler, setOp, (uint8_t)index);
-        }else{ 
-            emitByte(compiler, setOp); 
-            emitPair(compiler, (uint8_t)((index >> 8) & 0xff), (uint8_t)(index & 0xff));
-        }
-        makeConstant(compiler, NUM_VAL(1)); // [new_val, 1]
-        emitByte(compiler, OP_SUBTRACT);
+        int oneReg = getFreeReg(compiler);
+        reserveReg(compiler, 1);
+
+        int oneConst = makeConstant(compiler, NUM_VAL(1));
+        emitABx(compiler, OP_LOADK, oneReg, oneConst);
+
+        emitABC(compiler, OP_ADD, newValReg, oldValReg, oneReg);
+        emitABC(compiler, OP_SET_PROPERTY, objReg, keyReg, newValReg);
+
+        freeRegs(compiler, 2);  // free oldValReg and oneReg
+        emitABC(compiler, OP_MOVE, keyReg, newValReg, 0);
+        freeRegs(compiler, 1);  // free newValReg
+        initExpr(expr, EXPR_TMP, keyReg);
     }else if(canAssign && match(compiler, TOKEN_MINUS_MINUS)){
-        emitByte(compiler, OP_DUP);
-        
-        if(index < 0xff){
-            emitPair(compiler, getOp, (uint8_t)index);
-        }else{ 
-            emitByte(compiler, getOp); 
-            emitPair(compiler, (uint8_t)((index >> 8) & 0xff), (uint8_t)(index & 0xff)); 
-        }
+        // for obj.prop--
+        int oldValReg = getFreeReg(compiler);
+        reserveReg(compiler, 1);
+        emitABC(compiler, OP_GET_PROPERTY, oldValReg, objReg, keyReg);
 
-        makeConstant(compiler, NUM_VAL(1));
-        emitByte(compiler, OP_SUBTRACT);
+        int newValReg = getFreeReg(compiler);
+        reserveReg(compiler, 1);
 
-        if(index < 0xff){
-            emitPair(compiler, setOp, (uint8_t)index);
-        }else{ 
-            emitByte(compiler, setOp); 
-            emitPair(compiler, (uint8_t)((index >> 8) & 0xff), (uint8_t)(index & 0xff));
-        }
-        makeConstant(compiler, NUM_VAL(1)); // [new_val, 1]
-        emitByte(compiler, OP_ADD);
+        int oneReg = getFreeReg(compiler);
+        reserveReg(compiler, 1);
+
+        int oneConst = makeConstant(compiler, NUM_VAL(1));
+        emitABx(compiler, OP_LOADK, oneReg, oneConst);
+
+        emitABC(compiler, OP_SUB, newValReg, oldValReg, oneReg);
+        emitABC(compiler, OP_SET_PROPERTY, objReg, keyReg, newValReg);
+
+        freeRegs(compiler, 2);  // free oldValReg and oneReg
+        emitABC(compiler, OP_MOVE, keyReg, newValReg, 0);
+        freeRegs(compiler, 1);  // free newValReg
+        initExpr(expr, EXPR_TMP, keyReg);
     }else{
-        if(index < 0xff){
-            emitPair(compiler, getOp, (uint8_t)index);
-        }else{
-            emitByte(compiler, getOp);
-            emitByte(compiler, (uint8_t)((index >> 8) & 0xff));
-            emitByte(compiler, (uint8_t)(index & 0xff));
-        }
+        // for accessing property
+        emitABC(compiler, OP_GET_PROPERTY, keyReg, objReg, keyReg);
+        // reuse keyReg to store the property value
+        initExpr(expr, EXPR_TMP, keyReg);
     }
 }
 
