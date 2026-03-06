@@ -22,7 +22,7 @@ typedef enum{
     EXPR_INDEX,
     EXPR_JMP,
     EXPR_TBD,
-    EXPR_TMP,
+    EXPR_REG,
     EXPR_CALL,
 }ExprType;
 
@@ -291,7 +291,7 @@ static void expr2Reg(Compiler* compiler, ExprDesc* expr,int reg){
             compiler->func->chunk.code[expr->data.loc.index] = instruction;
             break;
         }
-        case EXPR_TMP:{
+        case EXPR_REG:{
             if(reg != expr->data.loc.index){
                 emitABC(compiler, OP_MOVE, reg, expr->data.loc.index, 0);
             }
@@ -1467,7 +1467,7 @@ static void handleVar(Compiler* compiler, ExprDesc* expr, bool canAssign){
         expression(compiler, &valueExpr);
         storeVar(compiler, expr, &valueExpr);
         if(expr->type == EXPR_LOCAL){
-            initExpr(expr, EXPR_TMP, expr->data.loc.index);
+            initExpr(expr, EXPR_REG, expr->data.loc.index);
         }else{
             // after assignment, the variable is now a temporary holding the value
             *expr = valueExpr;
@@ -1500,7 +1500,7 @@ static void handleUnary(Compiler* compiler, ExprDesc* expr, bool canAssign){
             break;
         default: return;  // Should not reach here
     }
-    initExpr(expr, EXPR_TMP, targetReg);
+    initExpr(expr, EXPR_REG, targetReg);
 }
 
 static void handleBinary(Compiler* compiler, ExprDesc* expr, bool canAssign){
@@ -1546,7 +1546,7 @@ static void handleBinary(Compiler* compiler, ExprDesc* expr, bool canAssign){
             // load true into targetReg, and jump over the next instruction
             emitABC(compiler, OP_LOADBOOL, targetReg, 0, 0);
             // load false into targetReg
-            initExpr(expr, EXPR_TMP, targetReg);
+            initExpr(expr, EXPR_REG, targetReg);
             break;
         }
         default: return;
@@ -1580,7 +1580,7 @@ static void handleTernary(Compiler* compiler, ExprDesc* expr, bool canAssign){
     freeExpr(compiler, &elseExpr);
 
     patchJump(compiler, endJmp);
-    initExpr(expr, EXPR_TMP, thenReg);
+    initExpr(expr, EXPR_REG, thenReg);
 }
 
 static void handleLiteral(Compiler* compiler, ExprDesc* expr,  bool canAssign){
@@ -1683,7 +1683,7 @@ static void handleString(Compiler* compiler, ExprDesc* expr, bool canAssign){
         int idx = makeConstant(compiler, OBJECT_VAL(copyString(compiler->vm, "", 0)));
         initExpr(expr, EXPR_K, idx);
     }else{
-        initExpr(expr, EXPR_TMP, resReg);
+        initExpr(expr, EXPR_REG, resReg);
     }
 }
 
@@ -1723,7 +1723,11 @@ static int argList(Compiler* compiler, ExprDesc* func){
         do{
             ExprDesc arg;
             expression(compiler, &arg);
-            expr2NextReg(compiler, &arg);
+            int targetReg = funcReg + argCnt + 1;  
+            // function is at funcReg, arguments start from funcReg + 1
+            expr2Reg(compiler, &arg, targetReg);
+            freeExpr(compiler, &arg);
+            reserveReg(compiler, 1);
             argCnt++;
             if(argCnt >= 255){
                 errorAt(compiler, &compiler->parser.pre, "Cannot have more than 255 arguments.");
@@ -1740,7 +1744,7 @@ static void handleCall(Compiler* compiler, ExprDesc* expr, bool canAssign){
     emitABC(compiler, OP_CALL, expr->data.loc.index, argCount + 1, 2);
     // +1 for the function itself
     freeRegs(compiler, argCount);
-    initExpr(expr, EXPR_TMP, expr->data.loc.index);
+    initExpr(expr, EXPR_REG, expr->data.loc.index);
 }
 
 static void handlePipe(Compiler* compiler, bool canAssign){
@@ -1804,7 +1808,7 @@ static void handleDot(Compiler* compiler, ExprDesc* expr, bool canAssign){
         move the value directly to keyReg and reuse it.
         */
         freeExpr(compiler, &valExpr);
-        initExpr(expr, EXPR_TMP, keyReg);
+        initExpr(expr, EXPR_REG, keyReg);
     }else if(canAssign && match(compiler, TOKEN_PLUS_EQUAL)){
         // for obj.prop += val
         int valReg = getFreeReg(compiler);
@@ -1821,7 +1825,7 @@ static void handleDot(Compiler* compiler, ExprDesc* expr, bool canAssign){
         freeExpr(compiler, &rExpr);
         emitABC(compiler, OP_MOVE, keyReg, valReg, 0);
         freeRegs(compiler, 1);  // free valReg
-        initExpr(expr, EXPR_TMP, keyReg);
+        initExpr(expr, EXPR_REG, keyReg);
     }else if(canAssign && match(compiler, TOKEN_MINUS_EQUAL)){
         // for obj.prop -= val
         int valReg = getFreeReg(compiler);
@@ -1838,7 +1842,7 @@ static void handleDot(Compiler* compiler, ExprDesc* expr, bool canAssign){
         freeExpr(compiler, &rExpr);
         emitABC(compiler, OP_MOVE, keyReg, valReg, 0);
         freeRegs(compiler, 1);  // free valReg
-        initExpr(expr, EXPR_TMP, keyReg);
+        initExpr(expr, EXPR_REG, keyReg);
     }else if(canAssign && match(compiler, TOKEN_PLUS_PLUS)){
         // for obj.prop++
         int oldValReg = getFreeReg(compiler);
@@ -1860,7 +1864,7 @@ static void handleDot(Compiler* compiler, ExprDesc* expr, bool canAssign){
         freeRegs(compiler, 2);  // free oldValReg and oneReg
         emitABC(compiler, OP_MOVE, keyReg, newValReg, 0);
         freeRegs(compiler, 1);  // free newValReg
-        initExpr(expr, EXPR_TMP, keyReg);
+        initExpr(expr, EXPR_REG, keyReg);
     }else if(canAssign && match(compiler, TOKEN_MINUS_MINUS)){
         // for obj.prop--
         int oldValReg = getFreeReg(compiler);
@@ -1882,41 +1886,71 @@ static void handleDot(Compiler* compiler, ExprDesc* expr, bool canAssign){
         freeRegs(compiler, 2);  // free oldValReg and oneReg
         emitABC(compiler, OP_MOVE, keyReg, newValReg, 0);
         freeRegs(compiler, 1);  // free newValReg
-        initExpr(expr, EXPR_TMP, keyReg);
+        initExpr(expr, EXPR_REG, keyReg);
     }else{
         // for accessing property
         emitABC(compiler, OP_GET_PROPERTY, keyReg, objReg, keyReg);
         // reuse keyReg to store the property value
-        initExpr(expr, EXPR_TMP, keyReg);
+        initExpr(expr, EXPR_REG, keyReg);
     }
 }
 
-static void handleList(Compiler* compiler, bool canAssign){
-    uint8_t itemCnt = 0;
+static void handleList(Compiler* compiler, ExprDesc* expr, bool canAssign){
+    int listReg = getFreeReg(compiler);
+    reserveReg(compiler, 1);
+
     if(!checkType(compiler, TOKEN_RIGHT_BRACKET)){
-        expression(compiler);
+        ExprDesc firstElem;
+        expression(compiler, &firstElem);
+
         if(checkType(compiler, TOKEN_SEMICOLON)){
-            consume(compiler, TOKEN_SEMICOLON, "Expect ';' in list bulk initialization.");
-            expression(compiler);
-            emitByte(compiler, OP_FILL_LIST);
-            consume(compiler, TOKEN_RIGHT_BRACKET, "Expect ']' after list bulk initialization.");
+            consume(compiler, TOKEN_SEMICOLON, "Expect ';' for bulk initialization.");
+
+            expr2NextReg(compiler, &firstElem);
+            int itemReg = firstElem.data.loc.index;
+
+            ExprDesc countExpr;
+            expression(compiler, &countExpr);
+            expr2NextReg(compiler, &countExpr);
+            int countReg = countExpr.data.loc.index;
+
+            emitABC(compiler, OP_FILL_LIST, listReg, itemReg, countReg);
+            freeExpr(compiler, &firstElem);
+            freeExpr(compiler, &countExpr);
+
+            consume(compiler, TOKEN_RIGHT_BRACKET, "Expect ']' after list.");
+            initExpr(expr, EXPR_REG, listReg);
             return;
         }
 
-        itemCnt++;
+        int startReg = getFreeReg(compiler);
+        expr2Reg(compiler, &firstElem, startReg);
+        reserveReg(compiler, 1);
+        freeExpr(compiler, &firstElem);
+
+        int elemCnt = 1;
         while(match(compiler, TOKEN_COMMA)){
-            expression(compiler);
-            if(itemCnt == 255){
-                errorAt(compiler, &compiler->parser.pre, "Cannot have more than 255 items in list.");
+            if(elemCnt >= 255){
+                errorAt(compiler, &compiler->parser.pre, "Cannot have more than 255 elements in a list.");
             }
-            itemCnt++;
+            ExprDesc elemExpr;
+            expression(compiler, &elemExpr);
+            expr2Reg(compiler, &elemExpr, startReg + elemCnt);
+            reserveReg(compiler, 1);
+            freeExpr(compiler, &elemExpr);
+            elemCnt++;
         }
+
+        consume(compiler, TOKEN_RIGHT_BRACKET, "Expect ']' after list.");
+        emitABC(compiler, OP_BUILD_LIST, listReg, elemCnt, 0);
+        emitABC(compiler, OP_INIT_LIST, listReg, startReg, elemCnt);
+        freeRegs(compiler, elemCnt);  // free registers used for elements
+    }else{
+        consume(compiler, TOKEN_RIGHT_BRACKET, "Expect ']' after list.");
+        emitABC(compiler, OP_BUILD_LIST, listReg, 0, 0);
     }
 
-    consume(compiler, TOKEN_RIGHT_BRACKET, "Expect ']' after list items.");
-    emitByte(compiler, OP_BUILD_LIST);
-    emitByte(compiler, (uint8_t)itemCnt);
-
+    initExpr(expr, EXPR_REG, listReg);
 }
 
 static void handleIndex(Compiler* compiler, ExprDesc* expr, bool canAssign){
@@ -1970,7 +2004,7 @@ static void handleIndex(Compiler* compiler, ExprDesc* expr, bool canAssign){
         consume(compiler, TOKEN_RIGHT_BRACKET, "Expect ']' after slice.");
         emitABC(compiler, OP_SLICE, baseReg, objReg, baseReg);
         freeRegs(compiler, 2);  // free endReg and stepReg
-        initExpr(expr, EXPR_TMP, baseReg);  // save slice result in baseReg
+        initExpr(expr, EXPR_REG, baseReg);  // save slice result in baseReg
         return;
     }
 
@@ -2060,24 +2094,37 @@ static void handleIndex(Compiler* compiler, ExprDesc* expr, bool canAssign){
     }else{
         emitABC(compiler, OP_GET_INDEX, keyReg, objReg, keyReg);
     }
-    initExpr(expr, EXPR_TMP, keyReg);
+    initExpr(expr, EXPR_REG, keyReg);
 }
 
-static void handleMap(Compiler* compiler, bool canAssign){
-    uint8_t itemCnt = 0;
+static void handleMap(Compiler* compiler, ExprDesc* expr, bool canAssign){
+    int mapReg = getFreeReg(compiler);
+    reserveReg(compiler, 1);
+    emitABC(compiler, OP_BUILD_MAP, mapReg, 0, 0);
+
     if(!checkType(compiler, TOKEN_RIGHT_BRACE)){
         do{
-            if(itemCnt >= 255){
-                errorAt(compiler, &compiler->parser.pre, "Cannot have more than 256 items when init with a map entry.");
-            }
-            expression(compiler);
+            ExprDesc keyExpr;
+            expression(compiler, &keyExpr);
+            expr2NextReg(compiler, &keyExpr);
+            int keyReg = keyExpr.data.loc.index;
+
             consume(compiler, TOKEN_COLON, "Expect ':' after map key.");
-            expression(compiler);
-            itemCnt++;
+
+            ExprDesc valueExpr;
+            expression(compiler, &valueExpr);
+            expr2NextReg(compiler, &valueExpr);
+            int valReg = valueExpr.data.loc.index;
+
+            emitABC(compiler, OP_SET_INDEX, mapReg, keyReg, valReg);
+            // reuse OP_SET_INDEX for setting map entries
+
+            freeExpr(compiler, &keyExpr);
+            freeExpr(compiler, &valueExpr);
         }while(match(compiler, TOKEN_COMMA));
     }
-    consume(compiler, TOKEN_RIGHT_BRACE, "Expect '}' after map entries");
-    emitPair(compiler, OP_BUILD_MAP, itemCnt);
+    consume(compiler, TOKEN_RIGHT_BRACE, "Expect '}' after map.");
+    initExpr(expr, EXPR_REG, mapReg);
 }
 
 static void handleThis(Compiler* compiler, bool canAssign){
