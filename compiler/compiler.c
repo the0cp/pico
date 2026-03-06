@@ -1919,79 +1919,148 @@ static void handleList(Compiler* compiler, bool canAssign){
 
 }
 
-static void handleIndex(Compiler* compiler, bool canAssign){
+static void handleIndex(Compiler* compiler, ExprDesc* expr, bool canAssign){
+    expr2NextReg(compiler, expr);
+    int objReg = expr->data.loc.index;
+    int baseReg = getFreeReg(compiler);
+    ExprDesc startExpr;
     bool isSlice = false;
 
     if(match(compiler, TOKEN_COLON)){
         isSlice = true;
-        emitByte(compiler, OP_NULL);
+        reserveReg(compiler, 3);  // reserve registers for start, end, step
+        emitABC(compiler, OP_LOADNULL, baseReg, 0, 0);
     }else{
-        expression(compiler);
+        expression(compiler, &startExpr);
         if(match(compiler, TOKEN_COLON)){
             isSlice = true;
+            reserveReg(compiler, 3);  // reserve registers for start, end, step
+            expr2Reg(compiler, &startExpr, baseReg);
+            freeExpr(compiler, &startExpr);
         }
     }
 
     if(isSlice){
+        int endReg = baseReg + 1;
+        int stepReg = baseReg + 2;
+
         if(checkType(compiler, TOKEN_COLON) || checkType(compiler, TOKEN_RIGHT_BRACKET)){
             // if match [::step] or [start:], end is omitted
-            emitByte(compiler, OP_NULL);    // end as null
+            emitABC(compiler, OP_LOADNULL, endReg, 0, 0);
         }else{
-            expression(compiler);
+            ExprDesc endExpr;
+            expression(compiler, &endExpr);
+            expr2Reg(compiler, &endExpr, endReg);
+            freeExpr(compiler, &endExpr);
         }
 
         if(match(compiler, TOKEN_COLON)){
             if(checkType(compiler, TOKEN_RIGHT_BRACKET)){ // default step
-                emitByte(compiler, OP_NULL);
+                emitABC(compiler, OP_LOADNULL, stepReg, 0, 0);
             }else{
-                expression(compiler);
+                ExprDesc stepExpr;
+                expression(compiler, &stepExpr);
+                expr2Reg(compiler, &stepExpr, stepReg);
+                freeExpr(compiler, &stepExpr);
             }
         }else{  // no step
-            emitByte(compiler, OP_NULL);
+            emitABC(compiler, OP_LOADNULL, stepReg, 0, 0);
         }
 
         consume(compiler, TOKEN_RIGHT_BRACKET, "Expect ']' after slice.");
-        emitByte(compiler, OP_SLICE);
+        emitABC(compiler, OP_SLICE, baseReg, objReg, baseReg);
+        freeRegs(compiler, 2);  // free endReg and stepReg
+        initExpr(expr, EXPR_TMP, baseReg);  // save slice result in baseReg
         return;
     }
 
     consume(compiler, TOKEN_RIGHT_BRACKET, "Expect ']' after index.");
 
+    expr2NextReg(compiler, &startExpr);
+    int keyReg = startExpr.data.loc.index;
+
     if(canAssign && match(compiler, TOKEN_ASSIGN)){
-        expression(compiler);
-        emitByte(compiler, OP_INDEX_SET);
+        ExprDesc valExpr;
+        expression(compiler, &valExpr);
+        expr2NextReg(compiler, &valExpr);
+
+        emitABC(compiler, OP_SET_INDEX, objReg, keyReg, valExpr.data.loc.index);
+        emitABC(compiler, OP_MOVE, keyReg, valExpr.data.loc.index, 0);
+        freeExpr(compiler, &valExpr);
     }else if(canAssign && match(compiler, TOKEN_PLUS_EQUAL)){
-        emitByte(compiler, OP_DUP_2);       // [list, index, list, index]
-        emitByte(compiler, OP_INDEX_GET);   // [list, index, val]
-        expression(compiler);               // [list, index, val, rhs]
-        emitByte(compiler, OP_ADD);         // [list, index, new_val]
-        emitByte(compiler, OP_INDEX_SET);   // [new_val]
-    }
-    else if(canAssign && match(compiler, TOKEN_MINUS_EQUAL)){
-        emitByte(compiler, OP_DUP_2);
-        emitByte(compiler, OP_INDEX_GET);
-        expression(compiler);
-        emitByte(compiler, OP_SUBTRACT);
-        emitByte(compiler, OP_INDEX_SET);
+        int valReg = getFreeReg(compiler);
+        reserveReg(compiler, 1);
+        emitABC(compiler, OP_GET_INDEX, valReg, objReg, keyReg);
+
+        ExprDesc rExpr;
+        expression(compiler, &rExpr);
+        expr2NextReg(compiler, &rExpr);
+
+        emitABC(compiler, OP_ADD, valReg, valReg, rExpr.data.loc.index);
+        emitABC(compiler, OP_SET_INDEX, objReg, keyReg, valReg);
+
+        freeExpr(compiler, &rExpr);
+        emitABC(compiler, OP_MOVE, keyReg, valReg, 0);
+        freeRegs(compiler, 1);  // free valReg
+    }else if(canAssign && match(compiler, TOKEN_MINUS_EQUAL)){
+        int valReg = getFreeReg(compiler);
+        reserveReg(compiler, 1);
+        emitABC(compiler, OP_GET_INDEX, valReg, objReg, keyReg);
+
+        ExprDesc rExpr;
+        expression(compiler, &rExpr);
+        expr2NextReg(compiler, &rExpr);
+
+        emitABC(compiler, OP_SUB, valReg, valReg, rExpr.data.loc.index);
+        emitABC(compiler, OP_SET_INDEX, objReg, keyReg, valReg);
+
+        freeExpr(compiler, &rExpr);
+        emitABC(compiler, OP_MOVE, keyReg, valReg, 0);
+        freeRegs(compiler, 1);  // free valReg
     }else if(canAssign && match(compiler, TOKEN_PLUS_PLUS)){
-        emitByte(compiler, OP_DUP_2);       // [list, index, list, index]
-        emitByte(compiler, OP_INDEX_GET);   // [list, index, val]
-        makeConstant(compiler, NUM_VAL(1)); 
-        emitByte(compiler, OP_ADD);         // [list, index, val, new_val] 
-        emitByte(compiler, OP_INDEX_SET);   // [new_val]
-        makeConstant(compiler, NUM_VAL(1)); // [new_val, 1]
-        emitByte(compiler, OP_SUBTRACT);    // [old_val]
+        int oldValReg = getFreeReg(compiler);
+        reserveReg(compiler, 1);
+        emitABC(compiler, OP_GET_INDEX, oldValReg, objReg, keyReg);
+
+        int newValReg = getFreeReg(compiler);
+        reserveReg(compiler, 1);
+
+        int oneReg = getFreeReg(compiler);
+        reserveReg(compiler, 1);
+
+        int oneConst = makeConstant(compiler, NUM_VAL(1));
+        emitABx(compiler, OP_LOADK, oneReg, oneConst);
+
+        emitABC(compiler, OP_ADD, newValReg, oldValReg, oneReg);
+        emitABC(compiler, OP_SET_INDEX, objReg, keyReg, newValReg);
+
+        freeRegs(compiler, 2);  // free oldValReg and oneReg
+        emitABC(compiler, OP_MOVE, keyReg, newValReg, 0);
+        freeRegs(compiler, 1);  // free newValReg
     }else if(canAssign && match(compiler, TOKEN_MINUS_MINUS)){
-        emitByte(compiler, OP_DUP_2);       // [list, index, list, index]
-        emitByte(compiler, OP_INDEX_GET);   // [list, index, val]
-        makeConstant(compiler, NUM_VAL(1)); 
-        emitByte(compiler, OP_SUBTRACT);    // [list, index, new_val]
-        emitByte(compiler, OP_INDEX_SET);   // [new_val]
-        makeConstant(compiler, NUM_VAL(1)); 
-        emitByte(compiler, OP_ADD);         // [old_val]
+        int oldValReg = getFreeReg(compiler);
+        reserveReg(compiler, 1);
+        emitABC(compiler, OP_GET_INDEX, oldValReg, objReg, keyReg);
+
+        int newValReg = getFreeReg(compiler);
+        reserveReg(compiler, 1);
+
+        int oneReg = getFreeReg(compiler);
+        reserveReg(compiler, 1);
+
+        int oneConst = makeConstant(compiler, NUM_VAL(1));
+        emitABx(compiler, OP_LOADK, oneReg, oneConst);
+
+        emitABC(compiler, OP_SUB, newValReg, oldValReg, oneReg);
+        emitABC(compiler, OP_SET_INDEX, objReg, keyReg, newValReg);
+
+        freeRegs(compiler, 2);  // free oldValReg and oneReg
+        emitABC(compiler, OP_MOVE, keyReg, newValReg, 0);
+        freeRegs(compiler, 1);  // free newValReg
     }else{
-        emitByte(compiler, OP_INDEX_GET);
+        emitABC(compiler, OP_GET_INDEX, keyReg, objReg, keyReg);
     }
+    initExpr(expr, EXPR_TMP, keyReg);
 }
 
 static void handleMap(Compiler* compiler, bool canAssign){
