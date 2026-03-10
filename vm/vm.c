@@ -358,8 +358,6 @@ static InterpreterStatus run(VM* vm){
         [OP_METHOD]         = &&DO_OP_METHOD,
         [OP_FIELD]          = &&DO_OP_FIELD,
 
-        [OP_IMPORT]         = &&DO_OP_IMPORT,
-
         [OP_PRINT]          = &&DO_OP_PRINT,
         
         [OP_DEFER]          = &&DO_OP_DEFER,
@@ -927,20 +925,18 @@ static InterpreterStatus run(VM* vm){
 
     DO_OP_IMPORT:
     {
-        uint8_t index = READ_BYTE();
-        ObjectString* path = AS_STRING(frame->closure->func->chunk.constants.values[index]);
-        push(vm, OBJECT_VAL(path));
+        int a = GET_ARG_A(instruction);
+        int bx = GET_ARG_Bx(instruction);
+        ObjectString* path = AS_STRING(K(bx));
 
         Value modVal;
         if(tableGet(vm, &vm->modules, OBJECT_VAL(path), &modVal)){
-            pop(vm);
-            push(vm, modVal);
+            R(a) = modVal;
             DISPATCH(); // next dispatch
         }
 
         char* source = readScript(path->chars);
         if(source == NULL){
-            pop(vm);
             runtimeError(vm, "Could not read import file '%s'.", path->chars);
             return VM_RUNTIME_ERROR;
         }
@@ -948,18 +944,14 @@ static InterpreterStatus run(VM* vm){
         ObjectFunc* func = compile(vm, source, path->chars);
         free(source);
         if(func == NULL){
-            pop(vm);
             return VM_COMPILE_ERROR; 
         }
 
         func->type = TYPE_MODULE;
 
-        push(vm, OBJECT_VAL(func));
 
         ObjectClosure* closure = newClosure(vm, func);
-        pop(vm);    // pop ObjectFunc
         if(closure == NULL){
-            pop(vm);
             runtimeError(vm, "Out of memory creating closure");
             return VM_RUNTIME_ERROR;
         }
@@ -967,20 +959,17 @@ static InterpreterStatus run(VM* vm){
 
         ObjectModule* module = newModule(vm, path);
         if(module == NULL){
-            pop(vm);  // closure
-            pop(vm);  // path
             runtimeError(vm, "Out of memory creating module");
             return VM_RUNTIME_ERROR;
         }
-        push(vm, OBJECT_VAL(module));
         tableSet(vm, &vm->modules, OBJECT_VAL(path), OBJECT_VAL(module));
+
+        R(a) = OBJECT_VAL(module);
 
         pushGlobal(vm, &module->members);
 
-        Value moduleValue = pop(vm);
-        pop(vm);
-        pop(vm);
-        push(vm, moduleValue);
+        vm->stackTop[0] = OBJECT_VAL(closure);
+        vm->stackTop++;
         
         if(!call(vm, closure, 0)){
             popGlobal(vm);
@@ -1349,6 +1338,10 @@ static InterpreterStatus run(VM* vm){
         closeUpvalues(vm, &R(0));
 
         Value result = (b > 1) ? R(a) : NULL_VAL;
+
+        if(frame->closure->func->type == TYPE_MODULE){
+            popGlobal(vm);
+        }
 
         vm->frameCount--;
 

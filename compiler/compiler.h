@@ -13,6 +13,7 @@
 typedef struct{
     Token name;
     int depth;
+    int reg;
 }Local;
 
 typedef struct{

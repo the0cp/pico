@@ -476,11 +476,7 @@ static void varDecl(Compiler* compiler){
     int global = parseVar(compiler, "Expect variable name.");
 
     if(compiler->scopeDepth > 0){
-        if(compiler->freeReg < compiler->localCnt){
-            compiler->freeReg = compiler->localCnt;
-        }
-
-        int reg = compiler->localCnt - 1;
+        int reg = compiler->locals[compiler->localCnt - 1].reg;
         if(match(compiler, TOKEN_ASSIGN)){
             ExprDesc initExpr;
             expression(compiler, &initExpr);
@@ -730,23 +726,8 @@ static void importDecl(Compiler* compiler){
     consume(compiler, TOKEN_STRING_START, "Expect module name string.");
     Token pathToken = compiler->parser.cur;
     Value valStr = OBJECT_VAL(copyString(compiler->vm, pathToken.head, pathToken.len));
-    push(compiler->vm, valStr);
-    int index = addConstant(compiler->vm, &compiler->func->chunk, valStr);
-    pop(compiler->vm);
-
-    if(index < 0){
-        errorAt(compiler, &compiler->parser.pre, "Failed to add module path constant.");
-        return;
-    }
-    if(index <= 0xff){
-        emitPair(compiler, OP_IMPORT, (uint8_t)index);
-    }else if(index <= 0xffff){
-        emitByte(compiler, OP_LIMPORT);
-        emitPair(compiler, (uint8_t)((index >> 8) & 0xff), (uint8_t)(index & 0xff));
-    }else{
-        errorAt(compiler, &compiler->parser.pre, "Too many constants.");
-        return;
-    }
+    
+    int pathConst = makeConstant(compiler, valStr);
 
     advance(compiler);
     consume(compiler, TOKEN_STRING_END, "Expect '\"' after module name string.");
@@ -769,20 +750,23 @@ static void importDecl(Compiler* compiler){
         }
     }
 
-    int aliasIndex = 0;
+    int moduleReg = getFreeReg(compiler);
+    reserveReg(compiler, 1);
+    emitABx(compiler, OP_IMPORT, moduleReg, pathConst);
+
     if(compiler->scopeDepth > 0){
         addLocal(compiler, aliasName);
         compiler->locals[compiler->localCnt - 1].depth = compiler->scopeDepth;
     }else{
         Value aliasValue = OBJECT_VAL(copyString(compiler->vm, aliasName.head, aliasName.len));
-        push(compiler->vm, aliasValue);
-        aliasIndex = addConstant(compiler->vm, &compiler->func->chunk, aliasValue);
-        pop(compiler->vm);
+        int aliasIndex = makeConstant(compiler, aliasValue);
         if(aliasIndex < 0){
             errorAt(compiler, &compiler->parser.pre, "Failed to add module alias constant.");
             return;
         }
+        emitABx(compiler, OP_SET_GLOBAL, moduleReg, aliasIndex);
         defineVar(compiler, aliasIndex);
+        freeRegs(compiler, 1);
     }
 
     consume(compiler, TOKEN_SEMICOLON, "Expect ';' after import statement.");
@@ -803,9 +787,16 @@ static void endScope(Compiler* compiler){
     compiler->scopeDepth--;
     while(compiler->localCnt > 0 && 
         compiler->locals[compiler->localCnt-1].depth > compiler->scopeDepth){
-            emitByte(compiler, OP_CLOSE_UPVAL);
+            int closedReg = compiler->locals[compiler->localCnt - 1].reg;
+            emitABC(compiler, OP_CLOSE_UPVAL, closedReg, 0, 0);
             compiler->localCnt--;
-        }
+    }
+
+    if(compiler->localCnt > 0){
+        compiler->freeReg = compiler->locals[compiler->localCnt - 1].reg + 1;
+    }else{
+        compiler->freeReg = 1;
+    }
 }
 
 static void stmt(Compiler* compiler){
@@ -1210,9 +1201,10 @@ static void deferStmt(Compiler* compiler){
     stmt(funcCompiler);
 
     ObjectFunc* func = stopCompiler(funcCompiler);
-    int constIndex = makeConstant(compiler->vm, &compiler->func->chunk, OBJECT_VAL(func));
+    int constIndex = makeConstant(compiler->vm, OBJECT_VAL(func));
 
     int deferReg = getFreeReg(compiler);
+    reserveReg(compiler, 1); // reserve register for defer function
     emitClosure(compiler, deferReg, constIndex, funcCompiler);
 
     emitABC(compiler, OP_DEFER, deferReg, 0, 0);
@@ -1259,11 +1251,11 @@ static void parsePrecedence(Compiler* compiler, ExprDesc* expr, Precedence prece
         return;
     }
     bool canAssign = precedence <= PREC_ASSIGNMENT;
-    preRule(compiler, canAssign);
+    preRule(compiler, expr, canAssign);
     while(precedence <= getRule(compiler->parser.cur.type)->precedence){
         advance(compiler);
         ParseFunc inRule = getRule(compiler->parser.pre.type)->infix;
-        inRule(compiler, canAssign);
+        inRule(compiler, expr, canAssign);
     }
 
     if(canAssign && match(compiler, TOKEN_ASSIGN)){
@@ -1285,6 +1277,9 @@ static void addLocal(Compiler* compiler, Token name){
     Local* local = &compiler->locals[compiler->localCnt++];
     local->name = name;
     local->depth = -1;  // sentinel, decl-ed but not def-ed
+
+    local->reg = getFreeReg(compiler);
+    reserveReg(compiler, 1);
 }
 
 static void declLocal(Compiler* compiler){
@@ -1336,7 +1331,7 @@ static int resolveLocal(Compiler* compiler, Token* name){
                 if(local->depth == -1){
                     errorAt(compiler, name, "Cannot read local variable");
                 }
-                return i;
+                return local->reg;
         }
     }
     return -1;
@@ -1485,7 +1480,7 @@ static void handleVar(Compiler* compiler, ExprDesc* expr, bool canAssign){
 }
 
 static void handleGrouping(Compiler* compiler, ExprDesc* expr, bool canAssign){
-    expression(compiler);
+    expression(compiler, expr);
     consume(compiler, TOKEN_RIGHT_PAREN, "Expected ')' after expression");
 }
 
@@ -1762,7 +1757,7 @@ static void handlePipe(Compiler* compiler, bool canAssign){
     emitByte(compiler, 1);  // 1 arg
 }
 
-static void handleImport(Compiler* compiler, bool canAssign){
+static void handleImport(Compiler* compiler, ExprDesc* expr, bool canAssign){
     consume(compiler, TOKEN_STRING_START, "Expect a string after 'import'.");
 
     if(compiler->parser.cur.type == TOKEN_STRING_END){
@@ -1771,19 +1766,13 @@ static void handleImport(Compiler* compiler, bool canAssign){
         Token *token = &compiler->parser.cur;
         Value valStr = OBJECT_VAL(copyString(compiler->vm, token->head, token->len));
         
-        push(compiler->vm, valStr);
-        int index = addConstant(compiler->vm, &compiler->func->chunk, valStr);
-        pop(compiler->vm);
+        int index = makeConstant(compiler, valStr);
 
-        if(index < 256){
-            emitPair(compiler, OP_IMPORT, (uint8_t)index);
-        }else if(index < 0xffff){
-            emitByte(compiler, OP_LIMPORT);
-            emitByte(compiler, (uint8_t)((index >> 8) & 0xff));
-            emitByte(compiler, (uint8_t)(index & 0xff));
-        }else{
-            errorAt(compiler, &compiler->parser.pre, "Too many constants.");
-        }
+        int destReg = getFreeReg(compiler);
+        reserveReg(compiler, 1);
+
+        emitABx(compiler, OP_IMPORT, destReg, index);
+        initExpr(expr, EXPR_REG, destReg);
         advance(compiler);
     }
 
