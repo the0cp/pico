@@ -204,6 +204,11 @@ static int getFreeReg(Compiler* compiler){
 
 static void reserveReg(Compiler* compiler, int cnt){
     compiler->freeReg += cnt;
+
+    if(compiler->freeReg > compiler->maxRegSlots){
+        compiler->maxRegSlots = compiler->freeReg;
+    }
+
     if(compiler->freeReg > REG_MAX){
         errorAt(compiler, &compiler->parser.pre, "Register overflow.");
     }
@@ -385,6 +390,7 @@ static void initCompiler(Compiler* compiler, VM* vm, Compiler* enclosing, FuncTy
     local->depth = 0;
     
     compiler->freeReg++;
+    compiler->maxRegSlots = compiler->freeReg;
 
     if(type != TYPE_SCRIPT){
         local->name.head = compiler->parser.pre.head;
@@ -1419,6 +1425,8 @@ static ObjectFunc* stopCompiler(Compiler* compiler){
     }
 
     ObjectFunc* func = compiler->func;
+
+    func->maxRegSlots = compiler->maxRegSlots;
 
     #ifdef DEBUG_PRINT_CODE
     if(!compiler->parser.hadError){

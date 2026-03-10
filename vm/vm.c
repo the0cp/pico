@@ -1357,9 +1357,9 @@ static InterpreterStatus run(VM* vm){
             return VM_OK;
         }
 
-        vm->stackTop = frame->base;
-
         frame = &vm->frames[vm->frameCount - 1];
+
+        vm->stackTop = frame->base + frame->closure->func->maxRegSlots;
 
         Instruction callerInstance = frame->ip[-1];
         int callerA = GET_ARG_A(callerInstance);
@@ -1391,6 +1391,8 @@ static bool call(VM* vm, ObjectClosure* closure, int argCnt){
     frame->base = vm->stackTop - argCnt - 1;   // -1 to skip func self
     frame->deferCnt = 0;
 
+    vm->stackTop = frame->base + closure->func->maxRegSlots;
+
     return true;
 }
 
@@ -1418,8 +1420,7 @@ static bool callValue(VM* vm, Value callee, int argCnt){
                 if(method->type == OBJECT_CFUNC){
                     CFunc cfunc = AS_CFUNC(OBJECT_VAL(method));
                     Value result = cfunc(vm, argCnt, vm->stackTop - argCnt);
-                    vm->stackTop -= argCnt + 1;
-                    push(vm, result);
+                    vm->stackTop[-argCnt - 1] = result;
                     return true;
                 }else{
                     return call(vm, AS_CLOSURE(OBJECT_VAL(method)), argCnt);
@@ -1434,8 +1435,7 @@ static bool callValue(VM* vm, Value callee, int argCnt){
                     // stack is reseted by runtimeError
                     return false;
                 }
-                vm->stackTop -= argCnt + 1;
-                push(vm, result);
+                vm->stackTop[-argCnt - 1] = result;
                 return true;
             }
             default:

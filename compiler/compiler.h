@@ -46,6 +46,7 @@ typedef struct Compiler{
     Loop loops[LOOP_MAX];
     int loopCnt;
     int freeReg;
+    int maxRegSlots;
     FuncType type;
     ObjectFunc* func;
 }Compiler;

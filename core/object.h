@@ -116,6 +116,7 @@ typedef struct ObjectFunc{
     ObjectString* srcName;
     FuncType type;
     struct ObjectClass* fieldOwner;
+    int maxRegSlots;
 }ObjectFunc;
 
 ObjectFunc* newFunction(VM* vm);
