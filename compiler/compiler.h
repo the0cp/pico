@@ -70,9 +70,9 @@ static void handleVar(Compiler* compiler, ExprDesc* expr, bool canAssign);
 static void handleGrouping(Compiler* compiler, ExprDesc* expr, bool canAssign);
 
 static void handleUnary(Compiler* compiler, ExprDesc* expr, bool canAssign);
-static void handleBinary(Compiler* compiler, bool canAssign);
+static void handleBinary(Compiler* compiler, ExprDesc* expr, bool canAssign);
 
-static void handleLiteral(Compiler* compiler, bool canAssign);
+static void handleLiteral(Compiler* compiler, ExprDesc* expr, bool canAssign);
 
 static void handleString(Compiler* compiler, ExprDesc* expr, bool canAssign);
 
@@ -101,7 +101,7 @@ static void decl(Compiler* compiler);
 static void varDecl(Compiler* compiler);
 static void defineVar(Compiler* compiler, int global);
 static void funcDecl(Compiler* compiler);
-static void funcExpr(Compiler* compiler, bool canAssign);
+static void funcExpr(Compiler* compiler, ExprDesc* expr, bool canAssign);
 static void classDecl(Compiler* compiler);
 static void methodDecl(Compiler* compiler);
 static void importDecl(Compiler* compiler);

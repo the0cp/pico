@@ -828,7 +828,9 @@ static void stmt(Compiler* compiler){
 }
 
 static void expressionStmt(Compiler* compiler){
-    expression(compiler);
+    ExprDesc expr;
+    expression(compiler, &expr);
+    freeExpr(compiler, &expr);
     consume(compiler, TOKEN_SEMICOLON, "Expect ';' after expression.");
 }
 
@@ -959,20 +961,6 @@ static void whileStmt(Compiler* compiler){
         patchJump(compiler, loop->breakJump[i]);
     }
     compiler->loopCnt--;
-}
-
-static void emitGetGlobal(Compiler* compiler, const char* name){
-    Value strVal = OBJECT_VAL(copyString(compiler->vm, name, strlen(name)));
-    push(compiler->vm, strVal);
-    int index = addConstant(compiler->vm, &compiler->func->chunk, strVal);
-    pop(compiler->vm);
-
-    if(index <= 0xff){
-        emitPair(compiler, OP_GET_GLOBAL, (uint8_t)index);
-    }else{
-        emitByte(compiler, OP_GET_LGLOBAL);
-        emitPair(compiler, (uint8_t)((index >> 8) & 0xff), (uint8_t)(index & 0xff));
-    }
 }
 
 static void forStmt(Compiler* compiler){
@@ -1173,13 +1161,20 @@ static void switchStmt(Compiler* compiler){
 }
 
 static void systemStmt(Compiler* compiler){
-    Token cmdToken = compiler->parser.pre;
+    ExprDesc cmdExpr;
+    expression(compiler, &cmdExpr);
+    expr2NextReg(compiler, &cmdExpr);
 
-    Value cmdVal = OBJECT_VAL(copyString(compiler->vm, cmdToken.head, cmdToken.len));
-    makeConstant(compiler, cmdVal);
+    int cmdReg = cmdExpr.data.loc.index;
+    int statusReg = getFreeReg(compiler);
+    reserveReg(compiler, 1);
 
-    emitByte(compiler, OP_SYSTEM);
-    emitByte(compiler, OP_POP);  // pop status code
+    emitABC(compiler, OP_SYSTEM, statusReg, cmdReg, 0);
+
+    freeExpr(compiler, &cmdExpr);
+    freeRegs(compiler, 1);
+
+    consume(compiler, TOKEN_SEMICOLON, "Expect ';' after system command.");
 }
 
 static void deferStmt(Compiler* compiler){
@@ -1750,11 +1745,30 @@ static void handleCall(Compiler* compiler, ExprDesc* expr, bool canAssign){
     initExpr(expr, EXPR_REG, expr->data.loc.index);
 }
 
-static void handlePipe(Compiler* compiler, bool canAssign){
-    parsePrecedence(compiler, PREC_PIPE + 1);
-    emitByte(compiler, OP_SWAP);
-    emitByte(compiler, OP_CALL);
-    emitByte(compiler, 1);  // 1 arg
+static void handlePipe(Compiler* compiler, ExprDesc* expr, bool canAssign){
+    expr2NextReg(compiler, expr);
+    int argReg = expr->data.loc.index;
+
+    ExprDesc funcExpr;
+    parsePrecedence(compiler, &funcExpr, (Precedence)(PREC_PIPE + 1));
+    expr2NextReg(compiler, &funcExpr);
+
+    int funcReg = funcExpr.data.loc.index;
+
+    int targetFuncReg = getFreeReg(compiler);
+    reserveReg(compiler, 1);
+
+    int targetArgReg = targetFuncReg + 1;
+
+    emitABC(compiler, OP_MOVE, targetFuncReg, funcReg, 0);
+    emitABC(compiler, OP_MOVE, targetArgReg, argReg, 0);
+
+    emitABC(compiler, OP_CALL, targetFuncReg, 2, 2);
+
+    freeExpr(compiler, &funcExpr);
+    freeRegs(compiler, 2);
+
+    initExpr(expr, EXPR_REG, targetFuncReg);
 }
 
 static void handleImport(Compiler* compiler, ExprDesc* expr, bool canAssign){
@@ -2124,8 +2138,9 @@ static void handleMap(Compiler* compiler, ExprDesc* expr, bool canAssign){
     initExpr(expr, EXPR_REG, mapReg);
 }
 
-static void handleThis(Compiler* compiler, bool canAssign){
-    if(compiler->enclosing == NULL || compiler->type != TYPE_METHOD){
+static void handleThis(Compiler* compiler, ExprDesc* expr, bool canAssign){
+    if(compiler->enclosing == NULL || 
+        (compiler->type != TYPE_METHOD && compiler->type != TYPE_INITIALIZER)){
         errorAt(compiler, &compiler->parser.pre, "Cannot use 'this' outside of a method.");
         return;
     }
@@ -2133,7 +2148,7 @@ static void handleThis(Compiler* compiler, bool canAssign){
         errorAt(compiler, &compiler->parser.pre, "Cannot assign to 'this'.");
         return;
     }
-    emitPair(compiler, OP_GET_LOCAL, 0);
+    initExpr(expr, EXPR_REG, 0);  // 'this' is always at register 0
 }
 
 static void consume(Compiler* compiler, TokenType type, const char* errMsg){
