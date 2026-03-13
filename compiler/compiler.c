@@ -20,6 +20,7 @@ typedef enum{
     EXPR_UPVAL,
     EXPR_GLOBAL,
     EXPR_INDEX,
+    EXPR_PROP,
     EXPR_JMP,
     EXPR_TBD,
     EXPR_REG,
@@ -245,16 +246,32 @@ static void unplugExpr(Compiler* compiler, ExprDesc* expr){
             expr->type = EXPR_TBD;
             break;
         case EXPR_INDEX:
-        /*
-            expr->data.loc.index = emitABC(
+            int destReg = getFreeReg(compiler);
+            reserveReg(compiler, 1);
+
+            emitABC(
                 compiler, 
                 OP_GET_INDEX, 
-                0, 
+                destReg, 
                 expr->data.loc.index, 
                 expr->data.loc.aux
             );
-            expr->type = EXPR_TBD;
-        */
+            expr->type = EXPR_REG;
+            expr->data.loc.index = destReg;
+            break;
+        case EXPR_PROP:
+            int destReg = getFreeReg(compiler);
+            reserveReg(compiler, 1);
+
+            emitABC(
+                compiler, 
+                OP_GET_PROPERTY, 
+                destReg, 
+                expr->data.loc.index, 
+                expr->data.loc.aux
+            );
+            expr->type = EXPR_REG;
+            expr->data.loc.index = destReg;
             break;
         case EXPR_CALL:
             expr->type = EXPR_TBD;
@@ -322,16 +339,44 @@ static void storeVar(Compiler* compiler, ExprDesc* var, ExprDesc* val){
             break;
         case EXPR_UPVAL:{
             expr2NextReg(compiler, val);
-            emitABC(compiler, OP_SET_UPVAL, val->data.loc.index, var->data.loc.index, 0);
+            emitABC(
+                compiler, 
+                OP_SET_UPVAL, 
+                val->data.loc.index, 
+                var->data.loc.index, 
+                0
+            );
             break;
         }
         case EXPR_GLOBAL:{
             expr2NextReg(compiler, val);
-            emitABx(compiler, OP_SET_GLOBAL, val->data.loc.index, var->data.loc.index);
+            emitABx(
+                compiler, 
+                OP_SET_GLOBAL, 
+                val->data.loc.index, 
+                var->data.loc.index
+            );
             break;
         }
         case EXPR_INDEX:
-            // TODO: implement later
+            expr2NextReg(compiler, val);
+            emitABC(
+                compiler, 
+                OP_SET_INDEX, 
+                var->data.loc.index, 
+                var->data.loc.aux, 
+                val->data.loc.index
+            );
+            break;
+        case EXPR_PROP:
+            expr2NextReg(compiler, val);
+            emitABC(
+                compiler, 
+                OP_SET_PROPERTY, 
+                var->data.loc.index, 
+                var->data.loc.aux, 
+                val->data.loc.index
+            );
             break;
         default:
             errorAt(compiler, &compiler->parser.pre, "Invalid assignment target.");
@@ -1245,16 +1290,119 @@ static void parsePrecedence(Compiler* compiler, ExprDesc* expr, Precedence prece
         errorAt(compiler, &compiler->parser.pre, "Expect expression");
         return;
     }
+
     bool canAssign = precedence <= PREC_ASSIGNMENT;
     preRule(compiler, expr, canAssign);
+
     while(precedence <= getRule(compiler->parser.cur.type)->precedence){
         advance(compiler);
         ParseFunc inRule = getRule(compiler->parser.pre.type)->infix;
         inRule(compiler, expr, canAssign);
     }
 
-    if(canAssign && match(compiler, TOKEN_ASSIGN)){
-        errorAt(compiler, &compiler->parser.pre, "Invalid assignment.");
+    if(canAssign){
+        if(match(compiler, TOKEN_ASSIGN)){
+            ExprDesc valExpr;
+            expression(compiler, &valExpr);
+            storeVar(compiler, expr, &valExpr);
+            *expr = valExpr;
+        }
+        else if(match(compiler, TOKEN_PLUS_EQUAL)){
+            ExprDesc augendExpr;
+            unplugExpr(compiler, &augendExpr);
+
+            ExprDesc valExpr;
+            expression(compiler, &valExpr);
+            expr2NextReg(compiler, &valExpr);
+
+            emitABC(
+                compiler, 
+                OP_ADD, 
+                augendExpr.data.loc.index, 
+                augendExpr.data.loc.index, 
+                valExpr.data.loc.index
+            );
+
+            freeExpr(compiler, &valExpr);
+
+            storeVar(compiler, expr, &augendExpr);
+            *expr = augendExpr;
+        }
+        else if(match(compiler, TOKEN_MINUS_EQUAL)){
+            ExprDesc minuendExpr;
+            unplugExpr(compiler, &minuendExpr);
+
+            ExprDesc valExpr;
+            expression(compiler, &valExpr);
+            expr2NextReg(compiler, &valExpr);
+
+            emitABC(
+                compiler, 
+                OP_SUB, 
+                minuendExpr.data.loc.index, 
+                minuendExpr.data.loc.index, 
+                valExpr.data.loc.index
+            );
+
+            freeExpr(compiler, &valExpr);
+
+            storeVar(compiler, expr, &minuendExpr);
+            *expr = minuendExpr;
+        }
+        else if(match(compiler, TOKEN_PLUS_PLUS)){
+            ExprDesc incExpr;
+            unplugExpr(compiler, &incExpr);
+
+            int oneReg = getFreeReg(compiler);
+            reserveReg(compiler, 1);
+
+            emitABx(
+                compiler, 
+                OP_LOADK, 
+                oneReg, 
+                makeConstant(compiler, NUMBER_VAL(1))
+            );
+
+            emitABC(
+                compiler, 
+                OP_ADD, 
+                incExpr.data.loc.index, 
+                incExpr.data.loc.index, 
+                oneReg
+            );
+
+            freeRegs(compiler, 1);  // free oneReg
+
+            storeVar(compiler, expr, &incExpr);
+            *expr = incExpr;
+        }
+        else if(match(compiler, TOKEN_MINUS_MINUS)){
+            ExprDesc decExpr;
+            unplugExpr(compiler, &decExpr);
+
+            int oneReg = getFreeReg(compiler);
+            reserveReg(compiler, 1);
+
+            emitABx(
+                compiler, 
+                OP_LOADK, 
+                oneReg, 
+                makeConstant(compiler, NUMBER_VAL(1))
+            );
+
+            emitABC(
+                compiler, 
+                OP_SUB, 
+                decExpr.data.loc.index, 
+                decExpr.data.loc.index, 
+                oneReg
+            );
+
+            freeRegs(compiler, 1);  // free oneReg
+
+            storeVar(compiler, expr, &decExpr);
+            *expr = decExpr;
+        }
     }
 }
 
@@ -1459,19 +1607,6 @@ static void handleVar(Compiler* compiler, ExprDesc* expr, bool canAssign){
         index = identifierConst(compiler);
         initExpr(expr, EXPR_GLOBAL, index);
     }
-
-    if(canAssign && match(compiler, TOKEN_ASSIGN)){
-        ExprDesc valueExpr;
-        expression(compiler, &valueExpr);
-        storeVar(compiler, expr, &valueExpr);
-        if(expr->type == EXPR_LOCAL){
-            initExpr(expr, EXPR_REG, expr->data.loc.index);
-        }else{
-            // after assignment, the variable is now a temporary holding the value
-            *expr = valueExpr;
-        }
-    }
-    // TODO: Handle compound assignment
 }
 
 static void handleGrouping(Compiler* compiler, ExprDesc* expr, bool canAssign){
@@ -1798,7 +1933,6 @@ static void handleDot(Compiler* compiler, ExprDesc* expr, bool canAssign){
 
     Token* name = &compiler->parser.pre;
     int nameConst = makeConstant(compiler, OBJECT_VAL(copyString(compiler->vm, name->head, name->len)));
-    Value strVal = OBJECT_VAL(copyString(compiler->vm, name->head, name->len));
 
     expr2NextReg(compiler, expr);
     int objReg = expr->data.loc.index;
@@ -1807,103 +1941,9 @@ static void handleDot(Compiler* compiler, ExprDesc* expr, bool canAssign){
     reserveReg(compiler, 1);
     emitABx(compiler, OP_LOADK, keyReg, nameConst);
 
-    if(canAssign && match(compiler, TOKEN_ASSIGN)){
-        // for obj.prop = val
-        ExprDesc valExpr;
-        expression(compiler, &valExpr);
-        expr2NextReg(compiler, &valExpr);
-        emitABC(compiler, OP_SET_PROPERTY, objReg, keyReg, valExpr.data.loc.index);
-        emitABC(compiler, OP_MOVE, keyReg, valExpr.data.loc.index, 0);
-        /*
-        optimize for chained property access, 
-        move the value directly to keyReg and reuse it.
-        */
-        freeExpr(compiler, &valExpr);
-        initExpr(expr, EXPR_REG, keyReg);
-    }else if(canAssign && match(compiler, TOKEN_PLUS_EQUAL)){
-        // for obj.prop += val
-        int valReg = getFreeReg(compiler);
-        reserveReg(compiler, 1);
-        emitABC(compiler, OP_GET_PROPERTY, valReg, objReg, keyReg);
-
-        ExprDesc rExpr;
-        expression(compiler, &rExpr);
-        expr2NextReg(compiler, &rExpr);
-
-        emitABC(compiler, OP_ADD, valReg, valReg, rExpr.data.loc.index);
-        emitABC(compiler, OP_SET_PROPERTY, objReg, keyReg, valReg);
-
-        freeExpr(compiler, &rExpr);
-        emitABC(compiler, OP_MOVE, keyReg, valReg, 0);
-        freeRegs(compiler, 1);  // free valReg
-        initExpr(expr, EXPR_REG, keyReg);
-    }else if(canAssign && match(compiler, TOKEN_MINUS_EQUAL)){
-        // for obj.prop -= val
-        int valReg = getFreeReg(compiler);
-        reserveReg(compiler, 1);
-        emitABC(compiler, OP_GET_PROPERTY, valReg, objReg, keyReg);
-
-        ExprDesc rExpr;
-        expression(compiler, &rExpr);
-        expr2NextReg(compiler, &rExpr);
-
-        emitABC(compiler, OP_SUB, valReg, valReg, rExpr.data.loc.index);
-        emitABC(compiler, OP_SET_PROPERTY, objReg, keyReg, valReg);
-
-        freeExpr(compiler, &rExpr);
-        emitABC(compiler, OP_MOVE, keyReg, valReg, 0);
-        freeRegs(compiler, 1);  // free valReg
-        initExpr(expr, EXPR_REG, keyReg);
-    }else if(canAssign && match(compiler, TOKEN_PLUS_PLUS)){
-        // for obj.prop++
-        int oldValReg = getFreeReg(compiler);
-        reserveReg(compiler, 1);
-        emitABC(compiler, OP_GET_PROPERTY, oldValReg, objReg, keyReg);
-
-        int newValReg = getFreeReg(compiler);
-        reserveReg(compiler, 1);
-
-        int oneReg = getFreeReg(compiler);
-        reserveReg(compiler, 1);
-
-        int oneConst = makeConstant(compiler, NUM_VAL(1));
-        emitABx(compiler, OP_LOADK, oneReg, oneConst);
-
-        emitABC(compiler, OP_ADD, newValReg, oldValReg, oneReg);
-        emitABC(compiler, OP_SET_PROPERTY, objReg, keyReg, newValReg);
-
-        freeRegs(compiler, 2);  // free oldValReg and oneReg
-        emitABC(compiler, OP_MOVE, keyReg, newValReg, 0);
-        freeRegs(compiler, 1);  // free newValReg
-        initExpr(expr, EXPR_REG, keyReg);
-    }else if(canAssign && match(compiler, TOKEN_MINUS_MINUS)){
-        // for obj.prop--
-        int oldValReg = getFreeReg(compiler);
-        reserveReg(compiler, 1);
-        emitABC(compiler, OP_GET_PROPERTY, oldValReg, objReg, keyReg);
-
-        int newValReg = getFreeReg(compiler);
-        reserveReg(compiler, 1);
-
-        int oneReg = getFreeReg(compiler);
-        reserveReg(compiler, 1);
-
-        int oneConst = makeConstant(compiler, NUM_VAL(1));
-        emitABx(compiler, OP_LOADK, oneReg, oneConst);
-
-        emitABC(compiler, OP_SUB, newValReg, oldValReg, oneReg);
-        emitABC(compiler, OP_SET_PROPERTY, objReg, keyReg, newValReg);
-
-        freeRegs(compiler, 2);  // free oldValReg and oneReg
-        emitABC(compiler, OP_MOVE, keyReg, newValReg, 0);
-        freeRegs(compiler, 1);  // free newValReg
-        initExpr(expr, EXPR_REG, keyReg);
-    }else{
-        // for accessing property
-        emitABC(compiler, OP_GET_PROPERTY, keyReg, objReg, keyReg);
-        // reuse keyReg to store the property value
-        initExpr(expr, EXPR_REG, keyReg);
-    }
+    expr->type = EXPR_PROP;
+    expr->data.loc.index = objReg;
+    expr->data.loc.aux = keyReg;
 }
 
 static void handleList(Compiler* compiler, ExprDesc* expr, bool canAssign){
@@ -2024,88 +2064,9 @@ static void handleIndex(Compiler* compiler, ExprDesc* expr, bool canAssign){
     expr2NextReg(compiler, &startExpr);
     int keyReg = startExpr.data.loc.index;
 
-    if(canAssign && match(compiler, TOKEN_ASSIGN)){
-        ExprDesc valExpr;
-        expression(compiler, &valExpr);
-        expr2NextReg(compiler, &valExpr);
-
-        emitABC(compiler, OP_SET_INDEX, objReg, keyReg, valExpr.data.loc.index);
-        emitABC(compiler, OP_MOVE, keyReg, valExpr.data.loc.index, 0);
-        freeExpr(compiler, &valExpr);
-    }else if(canAssign && match(compiler, TOKEN_PLUS_EQUAL)){
-        int valReg = getFreeReg(compiler);
-        reserveReg(compiler, 1);
-        emitABC(compiler, OP_GET_INDEX, valReg, objReg, keyReg);
-
-        ExprDesc rExpr;
-        expression(compiler, &rExpr);
-        expr2NextReg(compiler, &rExpr);
-
-        emitABC(compiler, OP_ADD, valReg, valReg, rExpr.data.loc.index);
-        emitABC(compiler, OP_SET_INDEX, objReg, keyReg, valReg);
-
-        freeExpr(compiler, &rExpr);
-        emitABC(compiler, OP_MOVE, keyReg, valReg, 0);
-        freeRegs(compiler, 1);  // free valReg
-    }else if(canAssign && match(compiler, TOKEN_MINUS_EQUAL)){
-        int valReg = getFreeReg(compiler);
-        reserveReg(compiler, 1);
-        emitABC(compiler, OP_GET_INDEX, valReg, objReg, keyReg);
-
-        ExprDesc rExpr;
-        expression(compiler, &rExpr);
-        expr2NextReg(compiler, &rExpr);
-
-        emitABC(compiler, OP_SUB, valReg, valReg, rExpr.data.loc.index);
-        emitABC(compiler, OP_SET_INDEX, objReg, keyReg, valReg);
-
-        freeExpr(compiler, &rExpr);
-        emitABC(compiler, OP_MOVE, keyReg, valReg, 0);
-        freeRegs(compiler, 1);  // free valReg
-    }else if(canAssign && match(compiler, TOKEN_PLUS_PLUS)){
-        int oldValReg = getFreeReg(compiler);
-        reserveReg(compiler, 1);
-        emitABC(compiler, OP_GET_INDEX, oldValReg, objReg, keyReg);
-
-        int newValReg = getFreeReg(compiler);
-        reserveReg(compiler, 1);
-
-        int oneReg = getFreeReg(compiler);
-        reserveReg(compiler, 1);
-
-        int oneConst = makeConstant(compiler, NUM_VAL(1));
-        emitABx(compiler, OP_LOADK, oneReg, oneConst);
-
-        emitABC(compiler, OP_ADD, newValReg, oldValReg, oneReg);
-        emitABC(compiler, OP_SET_INDEX, objReg, keyReg, newValReg);
-
-        freeRegs(compiler, 2);  // free oldValReg and oneReg
-        emitABC(compiler, OP_MOVE, keyReg, newValReg, 0);
-        freeRegs(compiler, 1);  // free newValReg
-    }else if(canAssign && match(compiler, TOKEN_MINUS_MINUS)){
-        int oldValReg = getFreeReg(compiler);
-        reserveReg(compiler, 1);
-        emitABC(compiler, OP_GET_INDEX, oldValReg, objReg, keyReg);
-
-        int newValReg = getFreeReg(compiler);
-        reserveReg(compiler, 1);
-
-        int oneReg = getFreeReg(compiler);
-        reserveReg(compiler, 1);
-
-        int oneConst = makeConstant(compiler, NUM_VAL(1));
-        emitABx(compiler, OP_LOADK, oneReg, oneConst);
-
-        emitABC(compiler, OP_SUB, newValReg, oldValReg, oneReg);
-        emitABC(compiler, OP_SET_INDEX, objReg, keyReg, newValReg);
-
-        freeRegs(compiler, 2);  // free oldValReg and oneReg
-        emitABC(compiler, OP_MOVE, keyReg, newValReg, 0);
-        freeRegs(compiler, 1);  // free newValReg
-    }else{
-        emitABC(compiler, OP_GET_INDEX, keyReg, objReg, keyReg);
-    }
-    initExpr(expr, EXPR_REG, keyReg);
+    expr->type = EXPR_INDEX;
+    expr->data.loc.index = objReg;
+    expr->data.loc.aux = keyReg;
 }
 
 static void handleMap(Compiler* compiler, ExprDesc* expr, bool canAssign){

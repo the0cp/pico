@@ -659,12 +659,6 @@ static InterpreterStatus run(VM* vm){
         }
     } DISPATCH();
 
-    DO_OP_NULL: push(vm, NULL_VAL); DISPATCH();
-
-    DO_OP_TRUE: push(vm, BOOL_VAL(true)); DISPATCH();
-
-    DO_OP_FALSE: push(vm, BOOL_VAL(false)); DISPATCH();
-
     DO_OP_NOT: {
         Value b = R(GET_ARG_B(instruction));
         R(GET_ARG_A(instruction)) = BOOL_VAL(!isTruthy(b));
