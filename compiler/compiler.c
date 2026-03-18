@@ -10,37 +10,6 @@
 #endif
 
 typedef enum{
-    EXPR_VOID,
-    EXPR_NULL,
-    EXPR_TRUE,
-    EXPR_FALSE,
-    EXPR_K,
-    EXPR_NUM,
-    EXPR_LOCAL,
-    EXPR_UPVAL,
-    EXPR_GLOBAL,
-    EXPR_INDEX,
-    EXPR_PROP,
-    EXPR_JMP,
-    EXPR_TBD,
-    EXPR_REG,
-    EXPR_CALL,
-}ExprType;
-
-typedef struct{
-    ExprType type;
-    union{
-        struct{
-            int index;
-            int aux;
-        }loc;
-        double num;
-    }data;
-    int tJmp;
-    int fJmp;
-}ExprDesc;
-
-typedef enum{
     PREC_NONE,
     PREC_ASSIGNMENT,  // =
     PREC_TERNARY,    // ?:
@@ -94,6 +63,8 @@ static void addLocal(Compiler* compiler, Token name);
 static int resolveLocal(Compiler* compiler, Token* name);
 static int resolveUpvalue(Compiler* compiler, Token* name);
 static int identifierConst(Compiler* compiler);
+static void declLocal(Compiler* compiler);
+static int emitJmpIfFalse(Compiler* compiler, int reg);
 
 ParseRule rules[] = {
     [TOKEN_LEFT_PAREN]              = {handleGrouping,  handleCall,     PREC_CALL},
@@ -217,7 +188,8 @@ static void reserveReg(Compiler* compiler, int cnt){
 
 static void freeRegs(Compiler* compiler, int cnt){
     compiler->freeReg -= cnt;
-    if(compiler->freeReg < 0){
+    int minReg = compiler->localCnt > 0 ? compiler->locals[compiler->localCnt - 1].reg + 1 : 1;
+    if(compiler->freeReg < minReg){
         compiler->freeReg = 0;
     }
 }
@@ -246,6 +218,7 @@ static void unplugExpr(Compiler* compiler, ExprDesc* expr){
             expr->type = EXPR_TBD;
             break;
         case EXPR_INDEX:
+        {
             int destReg = getFreeReg(compiler);
             reserveReg(compiler, 1);
 
@@ -259,7 +232,9 @@ static void unplugExpr(Compiler* compiler, ExprDesc* expr){
             expr->type = EXPR_REG;
             expr->data.loc.index = destReg;
             break;
+        }
         case EXPR_PROP:
+        {
             int destReg = getFreeReg(compiler);
             reserveReg(compiler, 1);
 
@@ -273,6 +248,7 @@ static void unplugExpr(Compiler* compiler, ExprDesc* expr){
             expr->type = EXPR_REG;
             expr->data.loc.index = destReg;
             break;
+        }
         case EXPR_CALL:
             expr->type = EXPR_TBD;
             break;
@@ -292,11 +268,9 @@ static void expr2Reg(Compiler* compiler, ExprDesc* expr,int reg){
             break;
         case EXPR_TRUE:
             emitABC(compiler, OP_LOADBOOL, reg, 1, 0);
-            freeRegs(compiler, 1);
             break;
         case EXPR_FALSE:
             emitABC(compiler, OP_LOADBOOL, reg, 0, 0);
-            freeRegs(compiler, 1);
             break;
         case EXPR_K:
             emitABx(compiler, OP_LOADK, reg, expr->data.loc.index);
@@ -1241,7 +1215,7 @@ static void deferStmt(Compiler* compiler){
     stmt(funcCompiler);
 
     ObjectFunc* func = stopCompiler(funcCompiler);
-    int constIndex = makeConstant(compiler->vm, OBJECT_VAL(func));
+    int constIndex = makeConstant(compiler, OBJECT_VAL(func));
 
     int deferReg = getFreeReg(compiler);
     reserveReg(compiler, 1); // reserve register for defer function
@@ -1360,7 +1334,7 @@ static void parsePrecedence(Compiler* compiler, ExprDesc* expr, Precedence prece
                 compiler, 
                 OP_LOADK, 
                 oneReg, 
-                makeConstant(compiler, NUMBER_VAL(1))
+                makeConstant(compiler, NUM_VAL(1))
             );
 
             emitABC(
@@ -1387,7 +1361,7 @@ static void parsePrecedence(Compiler* compiler, ExprDesc* expr, Precedence prece
                 compiler, 
                 OP_LOADK, 
                 oneReg, 
-                makeConstant(compiler, NUMBER_VAL(1))
+                makeConstant(compiler, NUM_VAL(1))
             );
 
             emitABC(

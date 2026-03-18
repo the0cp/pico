@@ -11,6 +11,7 @@
 #include "compiler.h"
 #include "mem.h"
 #include "registry.h"
+#include "file.h"
 
 #ifdef DEBUG_TRACE
 #include "debug.h"
@@ -1029,7 +1030,7 @@ static InterpreterStatus run(VM* vm){
             runtimeError(vm, "Method name must be a string.");
             return VM_RUNTIME_ERROR;
         }
-        ObjectString* name = AS_STRING(K(b));
+        ObjectString* name = AS_STRING(nameVal);
         Value method = R(c);
 
         AS_CLOSURE(method)->func->fieldOwner = klass;

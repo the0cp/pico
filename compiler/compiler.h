@@ -52,6 +52,36 @@ typedef struct Compiler{
     ObjectFunc* func;
 }Compiler;
 
+typedef enum{
+    EXPR_VOID,
+    EXPR_NULL,
+    EXPR_TRUE,
+    EXPR_FALSE,
+    EXPR_K,
+    EXPR_NUM,
+    EXPR_LOCAL,
+    EXPR_UPVAL,
+    EXPR_GLOBAL,
+    EXPR_INDEX,
+    EXPR_PROP,
+    EXPR_JMP,
+    EXPR_TBD,
+    EXPR_REG,
+    EXPR_CALL,
+}ExprType;
+
+typedef struct{
+    ExprType type;
+    union{
+        struct{
+            int index;
+            int aux;
+        }loc;
+        double num;
+    }data;
+    int tJmp;
+    int fJmp;
+}ExprDesc;
 
 ObjectFunc* compile(VM* vm, const char* code, const char* srcName);
 void markCompilerRoots(VM* vm);

@@ -25,10 +25,6 @@ include_directories(
     vm
     compiler
     std
-    std/fs
-    std/sys
-    std/text
-    std/container
     vendor/xxhash
 )
 

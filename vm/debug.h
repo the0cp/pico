@@ -3,16 +3,15 @@
 
 #include "chunk.h"
 
-void dasmChunk(const Chunk* chunk, const char* name);
-int dasmInstruction(const Chunk* chunk, int offset);
-static int dasmGlobal(const char* opName, const Chunk* chunk, int offset);
-static int dasmLGlobal(const char* opName, const Chunk* chunk, int offset);
-static int dasmLocal(const char* opName, const Chunk* chunk, int offset);
-static int dasmLLocal(const char* opName, const Chunk* chunk, int offset);
-static int dasmJump(const char* name, int sign, const Chunk* chunk, int offset); 
-
-static int dasmConstant(const Chunk* chunk, int offset);
-static int dasmLConstant(const Chunk* chunk, int offset);
+void dasmChunk(Chunk* chunk, const char* name);
+int dasmInstruction(Chunk* chunk, int offset);
 int getLine(const Chunk* chunk, int offset);
+
+static void dasmABC(const char* name, Instruction instruction);
+static void dasmABx(const char* name, Instruction instruction);
+static void dasmAsBx(const char* name, Instruction instruction);
+static void dasmLoadK(const char* name, const Chunk* chunk, Instruction instruction);
+static void dasmField(const char* name, const Chunk* chunk, Instruction instruction);
+static void dasmGlobal(const char* name, Chunk* chunk, Instruction instruction);
 
 #endif  // PICO_DEBUG_H

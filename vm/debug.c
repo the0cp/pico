@@ -5,47 +5,76 @@
 #include "instruction.h"
 
 static const char* opNames[] = {
-    "MOVE",
-    "LOADK",
-    "LOADBOOL",
-    "LOADNULL",
-    "GET_GLOBAL",
-    "SET_GLOBAL",
-    "GET_UPVAL",
-    "SET_UPVAL",
-    "GET_TABLE",
-    "SET_TABLE",
-    "GET_FIELD",
-    "SET_FIELD",
-    "ADD",
-    "SUB",
-    "MUL",
-    "DIV",
-    "MOD",
-    "NOT",
-    "NEG",
-    "EQ",
-    "LT",
-    "LE",
-    "JMP",
-    "CALL",
-    "TAILCALL",
-    "RETURN",
-    "CLOSURE",
-    "CLASS",
-    "METHOD",
-    "NEW_LIST",
-    "NEW_MAP",
-    "INIT_LIST",    
-    "IMPORT",
-    "FOREACH",
-    "PRINT",
+    "OP_MOVE",        // R[A] <= R[B]
+    "OP_LOADK",       // R[A] <= K[Bx]
+    "OP_LOADBOOL",    // R[A] <= (B != 0)
+    "OP_LOADNULL",    // R[A], R[A+1], ..., R[A+B-1] <= null
+
+    "OP_GET_GLOBAL", // R[A] <= Gbl[K[Bx]]
+    "OP_SET_GLOBAL", // Gbl[K[Bx]] <= R[A]
+
+    "OP_GET_UPVAL",  // R[A] <= Upv[B]
+    "OP_SET_UPVAL",  // Upv[B] <= R[A]
+    "OP_CLOSE_UPVAL",
+
+    "OP_GET_INDEX", // R[A] <= R[B][R[C]]
+    "OP_SET_INDEX", // R[A][R[B]] <= R[C]
+
+    "OP_GET_PROPERTY", // R[A] <= R[B].K[C]
+    "OP_SET_PROPERTY", // R[A].K[B] <= R[C]
+
+    "OP_FIELD",
+
+    "OP_ADD", 
+    "OP_SUB", 
+    "OP_MUL", 
+    "OP_DIV", 
+    "OP_MOD",
+
+    "OP_NOT", 
+    "OP_NEG",
+
+    "OP_EQ", 
+    "OP_LT", 
+    "OP_LE",
+
+    "OP_JMP",
+    "OP_JMP_IF_FALSE",  // R[A] is condition
+    "OP_JMP_IF_TRUE",   // R[A] is condition
+    "OP_CALL",
+    "OP_TAILCALL",
+    "OP_DEFER",
+    "OP_SYSTEM",
+    "OP_RETURN",
+
+    "OP_CLOSURE",
+
+    "OP_CLASS",
+    "OP_METHOD",
+
+    "OP_BUILD_LIST",
+    "OP_BUILD_MAP",
+    "OP_INIT_LIST",
+    "OP_FILL_LIST",
+    "OP_SLICE",
+    "OP_TO_STRING",
+
+    "OP_IMPORT",
+
+    "OP_FOREACH",
+
+    "OP_PRINT",
 };
+
+int getLine(const Chunk* chunk, int offset){
+    if(offset < 0 || offset >= chunk->count) return -1;
+    return chunk->lines[offset];
+}
 
 void dasmChunk(Chunk* chunk, const char* name){
     printf("== %s ==\n", name);
     for(size_t offset = 0; offset < chunk->count; ){
-        offset = disassembleInstruction(chunk, offset);
+        offset = dasmInstruction(chunk, offset);
     }
 }
 
@@ -76,7 +105,7 @@ static void dasmLoadK(const char* name, const Chunk* chunk, Instruction instruct
     printValue(constant);
 }
 
-static dasmGlobal(const char* name, Chunk* chunk, Instruction instruction){
+static void dasmGlobal(const char* name, Chunk* chunk, Instruction instruction){
     int a = GET_ARG_A(instruction);
     int bx = GET_ARG_Bx(instruction);
     Value constant = chunk->constants.values[bx];
@@ -93,8 +122,8 @@ static void dasmField(const char* name, const Chunk* chunk, Instruction instruct
     printValue(constant);
 }
 
-int dasmInstruction(const Chunk* chunk, int offset){
-    print("offset: %04d ", offset);
+int dasmInstruction(Chunk* chunk, int offset){
+    printf("offset: %04d ", offset);
     int line = chunk->lines[offset];
     if(offset > 0 && line == chunk->lines[offset - 1]){
         printf("\t| ");
@@ -115,8 +144,6 @@ int dasmInstruction(const Chunk* chunk, int offset){
         case OP_LOADNULL:
         case OP_GET_UPVAL:
         case OP_SET_UPVAL:
-        case OP_GET_TABLE:
-        case OP_SET_TABLE:
 
         case OP_ADD:
         case OP_SUB:
@@ -134,8 +161,8 @@ int dasmInstruction(const Chunk* chunk, int offset){
 
         case OP_METHOD:
 
-        case OP_NEW_LIST: 
-        case OP_NEW_MAP: 
+        case OP_BUILD_LIST: 
+        case OP_BUILD_MAP: 
         case OP_INIT_LIST:
             dasmABC(opName, instruction);
             break;
@@ -163,8 +190,7 @@ int dasmInstruction(const Chunk* chunk, int offset){
             dasmGlobal(opName, chunk, instruction);
             break;
 
-        case OP_GET_FIELD:
-        case OP_SET_FIELD:
+        case OP_FIELD:
             dasmField(opName, chunk, instruction);
             break;
 
