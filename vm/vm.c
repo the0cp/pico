@@ -377,6 +377,8 @@ static InterpreterStatus run(VM* vm){
         [OP_FILL_LIST]      = &&DO_OP_FILL_LIST,
         [OP_BUILD_MAP]      = &&DO_OP_BUILD_MAP,
         [OP_SLICE]          = &&DO_OP_SLICE,
+
+        [OP_FOREACH]        = &&DO_OP_FOREACH,
     };
 
     #ifdef DEBUG_TRACE
@@ -1274,6 +1276,55 @@ static InterpreterStatus run(VM* vm){
             R(a) = OBJECT_VAL(newListObj);
         }
 
+    } DISPATCH();
+
+    DO_OP_FOREACH:
+    {
+        int a = GET_ARG_A(instruction);
+        int b = GET_ARG_B(instruction);
+
+        Value iter = R(b);
+        Value state = R(b + 1);
+
+        bool hasNext = false;
+
+        if(IS_LIST(iter)){
+            ObjectList* list = AS_LIST(iter);
+            int index = IS_NUM(state) ? 0 : (int)AS_NUM(state);
+            if(index < list->count){
+                R(b + 2) = list->items[index];
+                R(b + 1) = NUM_VAL(index + 1);
+                hasNext = true;
+            }
+        }else if(IS_MAP(iter)){
+            ObjectMap* map = AS_MAP(iter);
+            int index = IS_NUM(state) ? 0 : (int)AS_NUM(state);
+            while(index < map->table.capacity){
+                if(!IS_NULL(map->table.entries[index].key)){
+                    R(b + 2) = map->table.entries[index].key;
+                    R(b + 1) = NUM_VAL(index + 1);
+                    hasNext = true;
+                    break;
+                }
+                index++;
+            }
+            if(!hasNext){
+                R(b + 1) = NUM_VAL(index);
+            }
+        }else if(IS_STRING(iter)){
+            ObjectString* str = AS_STRING(iter);
+            int index = IS_NUM(state) ? 0 : (int)AS_NUM(state);
+            if(index < str->length){
+                char chars[2] = {str->chars[index], '\0'};
+                R(b + 2) = OBJECT_VAL(copyString(vm, chars, 1));
+                R(b + 1) = NUM_VAL(index + 1);
+                hasNext = true;
+            }
+        }else{
+            runtimeError(vm, "Object is not iterable.");
+            return VM_RUNTIME_ERROR;
+        }
+        R(a) = BOOL_VAL(hasNext);
     } DISPATCH();
 
     DO_OP_BUILD_MAP:

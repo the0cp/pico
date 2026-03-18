@@ -998,13 +998,48 @@ static void forStmt(Compiler* compiler){
                                         |                                                                                 |
                                         +---------------------------------------------------------------------------------+
     */
+    bool isForeach = false;
+    int iterReg = -1;
+    int stateReg = -1;
+
     beginScope(compiler);
     consume(compiler, TOKEN_LEFT_PAREN, "Expect '(' after 'for'.");
 
     if(match(compiler, TOKEN_SEMICOLON)){
         // No initializer
     }else if(match(compiler, TOKEN_VAR)){
-        varDecl(compiler);
+        Token varName = compiler->parser.cur;
+        consume(compiler, TOKEN_IDENTIFIER, "Expect variable name.");
+        
+        if(match(compiler, TOKEN_COLON)){
+            isForeach = true;
+            iterReg = getFreeReg(compiler);
+            reserveReg(compiler, 2);
+            stateReg = iterReg + 1;
+
+            ExprDesc iterExpr;
+            expression(compiler, &iterExpr);
+            expr2Reg(compiler, &iterExpr, iterReg);
+            freeExpr(compiler, &iterExpr);
+
+            emitABC(compiler, OP_LOADNULL, stateReg, 0, 0);
+
+            addLocal(compiler, varName);
+            defineVar(compiler, 0);
+            consume(compiler, TOKEN_RIGHT_PAREN, "Expect ')' after foreach variable.");
+        }else{
+            addLocal(compiler, varName);
+            int reg = compiler->locals[compiler->localCnt - 1].reg;
+            if(match(compiler, TOKEN_ASSIGN)){
+                ExprDesc initExpr;
+                expression(compiler, &initExpr);
+                expr2Reg(compiler, &initExpr, reg);
+            }else{
+                emitABC(compiler, OP_LOADNULL, reg, 0, 0);
+            }
+             defineVar(compiler, 0);
+             consume(compiler, TOKEN_SEMICOLON, "Expect ';' after loop initializer.");
+        }
     }else{
         ExprDesc initExpr;
         expression(compiler, &initExpr);
@@ -1024,36 +1059,57 @@ static void forStmt(Compiler* compiler){
     loop->breakCnt = 0;
 
     int exitJmp = -1;
-    if(!match(compiler, TOKEN_SEMICOLON)){
-        ExprDesc condition;
-        expression(compiler, &condition);
-        consume(compiler, TOKEN_SEMICOLON, "Expect ';' after loop condition.");
+    if(isForeach){
+        reserveReg(compiler, 1);
+        int condReg = getFreeReg(compiler) - 1;
+        emitABC(compiler, OP_FOREACH, condReg, iterReg, 0);
+        exitJmp = emitJmpIfFalse(compiler, condReg);
+        freeRegs(compiler, 1);
+    }else{
+        if(!match(compiler, TOKEN_SEMICOLON)){
+            ExprDesc condition;
+            expression(compiler, &condition);
+            consume(compiler, TOKEN_SEMICOLON, "Expect ';' after loop condition.");
+    
+            expr2NextReg(compiler, &condition);
+            exitJmp = emitJmpIfFalse(compiler, condition.data.loc.index);
+            freeExpr(compiler, &condition);
+        }
+    }
+    
+    int bodyJmp = -1;
+    int incStart = -1;
 
-        expr2NextReg(compiler, &condition);
-        exitJmp = emitJmpIfFalse(compiler, condition.data.loc.index);
-        freeExpr(compiler, &condition);
+    if(!isForeach){
+        int bodyJmp = emitJmp(compiler);
+        int incStart = compiler->func->chunk.count;
+        loop->start = incStart;
+
+        if(!match(compiler, TOKEN_RIGHT_PAREN)){
+            ExprDesc incExpr;
+            expression(compiler, &incExpr);
+            freeExpr(compiler, &incExpr);
+            consume(compiler, TOKEN_RIGHT_PAREN, "Expect ')' after loop increment.");
+        }
+
+        int loopJmpIndex = emitJmp(compiler);
+        int loopOffset = loopStart - loopJmpIndex - 1;
+        compiler->func->chunk.code[loopJmpIndex] = CREATE_AsBx(OP_JMP, 0, loopOffset);
+        patchJump(compiler, bodyJmp);
     }
 
-    int bodyJmp = emitJmp(compiler); //
-    int incStart = compiler->func->chunk.count;
-    loop->start = incStart;
-
-    if(!match(compiler, TOKEN_RIGHT_PAREN)){
-        ExprDesc incExpr;
-        expression(compiler, &incExpr);
-        freeExpr(compiler, &incExpr);
-        consume(compiler, TOKEN_RIGHT_PAREN, "Expect ')' after loop increment.");
-    }
-
-    int loopJmpIndex = emitJmp(compiler);
-    int loopOffset = loopStart - loopJmpIndex - 1;
-    compiler->func->chunk.code[loopJmpIndex] = CREATE_AsBx(OP_JMP, 0, loopOffset);
-    patchJump(compiler, bodyJmp);
+    
     stmt(compiler);
 
-    int incJmp = emitJmp(compiler);
-    int incOffset = incStart - incJmp - 1;
-    compiler->func->chunk.code[incJmp] = CREATE_AsBx(OP_JMP, 0, incOffset);
+    if(isForeach){
+        emitLoop(compiler, loopStart);
+    }else{
+        int incJmp = emitJmp(compiler);
+        int incOffset = incStart - incJmp - 1;
+        compiler->func->chunk.code[incJmp] = CREATE_AsBx(OP_JMP, 0, incOffset);
+    }
+
+    
     if(exitJmp != -1){
         patchJump(compiler, exitJmp);
     }
@@ -1757,6 +1813,7 @@ static void handleString(Compiler* compiler, ExprDesc* expr, bool canAssign){
                 emitABC(compiler, OP_ADD, resReg, resReg, tmpExpr.data.loc.index);
                 freeRegs(compiler, 1);
             }
+            advance(compiler);
         }else{
             consume(compiler, TOKEN_INTERPOLATION_START, "Expect string or interpolation.");
             expression(compiler, &tmpExpr);
