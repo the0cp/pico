@@ -1086,8 +1086,8 @@ static void forStmt(Compiler* compiler){
     int incStart = -1;
 
     if(!isForeach){
-        int bodyJmp = emitJmp(compiler);
-        int incStart = compiler->func->chunk.count;
+        bodyJmp = emitJmp(compiler);
+        incStart = compiler->func->chunk.count;
         loop->start = incStart;
 
         if(!match(compiler, TOKEN_RIGHT_PAREN)){
@@ -1386,7 +1386,7 @@ static void parsePrecedence(Compiler* compiler, ExprDesc* expr, Precedence prece
         }
         else if(match(compiler, TOKEN_PLUS_PLUS)){
             ExprDesc incExpr = *expr;
-            expr2NextReg(compiler, &incExpr);
+            unplugExpr(compiler, &incExpr);
 
             int oneReg = getFreeReg(compiler);
             reserveReg(compiler, 1);
@@ -1408,12 +1408,11 @@ static void parsePrecedence(Compiler* compiler, ExprDesc* expr, Precedence prece
 
             freeRegs(compiler, 1);  // free oneReg
 
-            storeVar(compiler, expr, &incExpr);
             *expr = incExpr;
         }
         else if(match(compiler, TOKEN_MINUS_MINUS)){
             ExprDesc decExpr = *expr;
-            expr2NextReg(compiler, &decExpr);
+            unplugExpr(compiler, &decExpr);
 
             int oneReg = getFreeReg(compiler);
             reserveReg(compiler, 1);
@@ -1435,7 +1434,6 @@ static void parsePrecedence(Compiler* compiler, ExprDesc* expr, Precedence prece
 
             freeRegs(compiler, 1);  // free oneReg
 
-            storeVar(compiler, expr, &decExpr);
             *expr = decExpr;
         }
     }
@@ -1696,8 +1694,8 @@ static void handleBinary(Compiler* compiler, ExprDesc* expr, bool canAssign){
                 case TOKEN_NOT_EQUAL:       op = OP_EQ; expectTrue = 0; break;
                 case TOKEN_LESS:            op = OP_LT; break;
                 case TOKEN_LESS_EQUAL:      op = OP_LE; break;
-                case TOKEN_GREATER:         op = OP_LT; expectTrue = 0; break;
-                case TOKEN_GREATER_EQUAL:   op = OP_LE; expectTrue = 0; break;
+                case TOKEN_GREATER:         op = OP_LE; expectTrue = 0; break;
+                case TOKEN_GREATER_EQUAL:   op = OP_LT; expectTrue = 0; break;
                 default:                    op = OP_EQ; break;  // Should not reach here
             }
             
