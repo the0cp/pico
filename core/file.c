@@ -6,7 +6,7 @@
 static bool endsWith(const char* str, const char* suffix){
     if(!str || !suffix) return false;
     size_t str_len = strlen(str);
-    size_t suffix_len = strlen(str);
+    size_t suffix_len = strlen(suffix);
     if(suffix_len > str_len)    return false;
     return strncmp(str+str_len-suffix_len, suffix, suffix_len) == 0;
 }
@@ -59,9 +59,9 @@ void buildScript(VM* vm, const char* path){
     char* dot = strrchr(outputPath, '.');
     int base_len;
     if(dot != NULL){
-        base_len = strlen(path);
+        base_len = dot - outputPath;
     }else{
-        base_len = dot - path;
+        base_len = strlen(path);
     }
 
     int written = snprintf(outputPath, sizeof(outputPath), "%.*s.pco", base_len, path);

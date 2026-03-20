@@ -1,3 +1,5 @@
 /.vscode
 *.exe
 /build
+tests/test_file.tmp
+tests/val-log.txt

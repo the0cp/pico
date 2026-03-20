@@ -137,6 +137,7 @@ static void advance(Compiler* compiler){
 }
 
 static void initExpr(ExprDesc* expr, ExprType type, int index){
+    memset(expr, 0, sizeof(ExprDesc));
     expr->type = type;
     expr->data.loc.index = index;
     expr->data.loc.aux = 0;
@@ -287,6 +288,7 @@ static void expr2Reg(Compiler* compiler, ExprDesc* expr,int reg){
             compiler->func->chunk.code[expr->data.loc.index] = instruction;
             break;
         }
+        case EXPR_LOCAL:
         case EXPR_REG:{
             if(reg != expr->data.loc.index){
                 emitABC(compiler, OP_MOVE, reg, expr->data.loc.index, 0);
@@ -297,6 +299,8 @@ static void expr2Reg(Compiler* compiler, ExprDesc* expr,int reg){
             // Should not reach here
             break;
     }
+    expr->type = EXPR_REG;
+    expr->data.loc.index = reg;
 }
 
 static void expr2NextReg(Compiler* compiler, ExprDesc* expr){
@@ -407,6 +411,7 @@ static void initCompiler(Compiler* compiler, VM* vm, Compiler* enclosing, FuncTy
 
     Local *local = &compiler->locals[compiler->localCnt++];
     local->depth = 0;
+    local->reg = 0;
     
     compiler->freeReg++;
     compiler->maxRegSlots = compiler->freeReg;
@@ -1022,13 +1027,17 @@ static void forStmt(Compiler* compiler){
             expr2Reg(compiler, &iterExpr, iterReg);
             freeExpr(compiler, &iterExpr);
 
+            compiler->freeReg = stateReg + 1;
+
             emitABC(compiler, OP_LOADNULL, stateReg, 0, 0);
 
             addLocal(compiler, varName);
+            reserveReg(compiler, 1);
             defineVar(compiler, 0);
             consume(compiler, TOKEN_RIGHT_PAREN, "Expect ')' after foreach variable.");
         }else{
             addLocal(compiler, varName);
+            reserveReg(compiler, 1);
             int reg = compiler->locals[compiler->localCnt - 1].reg;
             if(match(compiler, TOKEN_ASSIGN)){
                 ExprDesc initExpr;
@@ -1060,11 +1069,7 @@ static void forStmt(Compiler* compiler){
 
     int exitJmp = -1;
     if(isForeach){
-        reserveReg(compiler, 1);
-        int condReg = getFreeReg(compiler) - 1;
-        emitABC(compiler, OP_FOREACH, condReg, iterReg, 0);
-        exitJmp = emitJmpIfFalse(compiler, condReg);
-        freeRegs(compiler, 1);
+        exitJmp = emitAsBx(compiler, OP_FOREACH, iterReg, 0);
     }else{
         if(!match(compiler, TOKEN_SEMICOLON)){
             ExprDesc condition;
@@ -1338,8 +1343,8 @@ static void parsePrecedence(Compiler* compiler, ExprDesc* expr, Precedence prece
             *expr = valExpr;
         }
         else if(match(compiler, TOKEN_PLUS_EQUAL)){
-            ExprDesc augendExpr;
-            unplugExpr(compiler, &augendExpr);
+            ExprDesc augendExpr = *expr;
+            expr2NextReg(compiler, &augendExpr);
 
             ExprDesc valExpr;
             expression(compiler, &valExpr);
@@ -1359,8 +1364,8 @@ static void parsePrecedence(Compiler* compiler, ExprDesc* expr, Precedence prece
             *expr = augendExpr;
         }
         else if(match(compiler, TOKEN_MINUS_EQUAL)){
-            ExprDesc minuendExpr;
-            unplugExpr(compiler, &minuendExpr);
+            ExprDesc minuendExpr = *expr;
+            expr2NextReg(compiler, &minuendExpr);
 
             ExprDesc valExpr;
             expression(compiler, &valExpr);
@@ -1380,8 +1385,8 @@ static void parsePrecedence(Compiler* compiler, ExprDesc* expr, Precedence prece
             *expr = minuendExpr;
         }
         else if(match(compiler, TOKEN_PLUS_PLUS)){
-            ExprDesc incExpr;
-            unplugExpr(compiler, &incExpr);
+            ExprDesc incExpr = *expr;
+            expr2NextReg(compiler, &incExpr);
 
             int oneReg = getFreeReg(compiler);
             reserveReg(compiler, 1);
@@ -1407,8 +1412,8 @@ static void parsePrecedence(Compiler* compiler, ExprDesc* expr, Precedence prece
             *expr = incExpr;
         }
         else if(match(compiler, TOKEN_MINUS_MINUS)){
-            ExprDesc decExpr;
-            unplugExpr(compiler, &decExpr);
+            ExprDesc decExpr = *expr;
+            expr2NextReg(compiler, &decExpr);
 
             int oneReg = getFreeReg(compiler);
             reserveReg(compiler, 1);
@@ -1451,8 +1456,7 @@ static void addLocal(Compiler* compiler, Token name){
     local->name = name;
     local->depth = -1;  // sentinel, decl-ed but not def-ed
 
-    local->reg = getFreeReg(compiler);
-    reserveReg(compiler, 1);
+    local->reg = compiler->freeReg;
 }
 
 static void declLocal(Compiler* compiler){

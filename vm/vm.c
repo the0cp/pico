@@ -57,7 +57,6 @@ void initVM(VM* vm, int argc, const char* argv[]){
     registerOsModule(vm);
     registerPathModule(vm);
     registerGlobModule(vm);
-    registerListModule(vm);
     registerIterModule(vm);
 
     if(argc > 0 && argv != NULL){
@@ -239,14 +238,16 @@ static Value bindListFunc(VM* vm, Value receiver, ObjectString* name){
 
     if(func){
         ObjectCFunc* cfuncObj = newCFunc(vm, func);
+        push(vm, OBJECT_VAL(cfuncObj));
         ObjectBoundMethod* bound = newBoundMethod(vm, receiver, (Object*)cfuncObj);
+        pop(vm);    // pop cfuncObj
         return OBJECT_VAL(bound);
     }
 
     return NULL_VAL;
 }
 
-static bool bindFileFunc(VM* vm, Value receiver, ObjectString* name){
+static Value bindFileFunc(VM* vm, Value receiver, ObjectString* name){
     CFunc func = NULL;
     switch(name->length){
         case 4:
@@ -270,7 +271,9 @@ static bool bindFileFunc(VM* vm, Value receiver, ObjectString* name){
 
     if(func){
         ObjectCFunc* cfuncObj = newCFunc(vm, func);
+        push(vm, OBJECT_VAL(cfuncObj));
         ObjectBoundMethod* bound = newBoundMethod(vm, receiver, (Object*)cfuncObj);
+        pop(vm);    // pop cfuncObj
         return OBJECT_VAL(bound);
     }
 
@@ -307,7 +310,9 @@ static Value bindStringFunc(VM* vm, Value receiver, ObjectString* name){
 
     if(func){
         ObjectCFunc* cfuncObj = newCFunc(vm, func);
+        push(vm, OBJECT_VAL(cfuncObj));
         ObjectBoundMethod* bound = newBoundMethod(vm, receiver, (Object*)cfuncObj);
+        pop(vm);    // pop cfuncObj
         return OBJECT_VAL(bound);
     }
     return NULL_VAL;
@@ -349,7 +354,6 @@ static InterpreterStatus run(VM* vm){
         [OP_JMP]            = &&DO_OP_JMP,
         [OP_JMP_IF_FALSE]   = &&DO_OP_JMP_IF_FALSE,
         [OP_JMP_IF_TRUE]    = &&DO_OP_JMP_IF_TRUE,
-        [OP_CALL]           = &&DO_OP_CALL,
         [OP_RETURN]         = &&DO_OP_RETURN,
 
         [OP_CLOSURE]        = &&DO_OP_CLOSURE,
@@ -440,8 +444,10 @@ static InterpreterStatus run(VM* vm){
         ObjectString* name = AS_STRING(K(GET_ARG_Bx(instruction)));
         Value value;
         if(!tableGet(vm, vm->curGlobal, OBJECT_VAL(name), &value)){
-            runtimeError(vm, "Undefined global variable '%s'.", name->chars);
-            return VM_RUNTIME_ERROR;
+            if(!tableGet(vm, &vm->modules, OBJECT_VAL(name), &value)){
+                runtimeError(vm, "Undefined global variable '%s'.", name->chars);
+                return VM_RUNTIME_ERROR;
+            }
         }
         R(GET_ARG_A(instruction)) = value;
     } DISPATCH();
@@ -524,17 +530,17 @@ static InterpreterStatus run(VM* vm){
 
     DO_OP_SET_INDEX:
     {
-        Value val = R(GET_ARG_B(instruction));
-        Value key = R(GET_ARG_C(instruction));
-        Value newVal = R(GET_ARG_A(instruction));
+        Value cont = R(GET_ARG_A(instruction));
+        Value key = R(GET_ARG_B(instruction));
+        Value newVal = R(GET_ARG_C(instruction));
 
-        if(IS_LIST(val)){
+        if(IS_LIST(cont)){
             if(!IS_NUM(key)){
                 runtimeError(vm, "List index must be a number.");
                 return VM_RUNTIME_ERROR;
             }
 
-            ObjectList* list = AS_LIST(val);
+            ObjectList* list = AS_LIST(cont);
 
             int index = (int)AS_NUM(key);
             if(index < 0){
@@ -545,8 +551,8 @@ static InterpreterStatus run(VM* vm){
                 return VM_RUNTIME_ERROR;
             }
             list->items[index] = newVal;
-        }else if(IS_MAP(val)){
-            ObjectMap* map = AS_MAP(val);
+        }else if(IS_MAP(cont)){
+            ObjectMap* map = AS_MAP(cont);
             if(!isValidKey(key)){
                 runtimeError(vm, "Invalid map key.");
                 return VM_RUNTIME_ERROR;
@@ -612,7 +618,7 @@ static InterpreterStatus run(VM* vm){
             else if(IS_FILE(instanceVal)) bound = bindFileFunc(vm, instanceVal, key);
             
             if(!IS_NULL(bound)){
-                R(GET_ARG_A(instruction)) = pop(vm);
+                R(GET_ARG_A(instruction)) = bound;
             }else{
                 runtimeError(vm, "Property '%s' not found on object.", key->chars); 
                 return VM_RUNTIME_ERROR;
@@ -717,9 +723,15 @@ static InterpreterStatus run(VM* vm){
         if(IS_NUM(b) && IS_NUM(c)){
             double result = AS_NUM(b) + AS_NUM(c);
             R(GET_ARG_A(instruction)) = NUM_VAL(result);
-        }else if(IS_STRING(b) && IS_STRING(c)){
-            ObjectString* bStr = AS_STRING(b);
-            ObjectString* cStr = AS_STRING(c);
+        }else if(IS_STRING(b) || IS_STRING(c)){
+            push(vm, b);
+            push(vm, c);
+
+            ObjectString* bStr = IS_STRING(b) ? AS_STRING(b) : toString(vm, b);
+            vm->stackTop[-2] = OBJECT_VAL(bStr);
+
+            ObjectString* cStr = IS_STRING(c) ? AS_STRING(c) : toString(vm, c);
+            vm->stackTop[-1] = OBJECT_VAL(cStr);
 
             size_t len = bStr->length + cStr->length;
             char* chars = (char*)reallocate(vm, NULL, 0, len + 1);  // add 1 for '\0'
@@ -730,7 +742,13 @@ static InterpreterStatus run(VM* vm){
             memcpy(chars, bStr->chars, bStr->length);
             memcpy(chars + bStr->length, cStr->chars, cStr->length);
             chars[len] = '\0';
-            R(GET_ARG_A(instruction)) = OBJECT_VAL(copyString(vm, chars, (int)len));
+
+            ObjectString* reStr = takeString(vm, chars, (int)len);
+
+            pop(vm);
+            pop(vm);
+
+            R(GET_ARG_A(instruction)) = OBJECT_VAL(reStr);
         }else{
             runtimeError(vm, "Operands must be two numbers or two strings.");
             return VM_RUNTIME_ERROR;
@@ -835,7 +853,7 @@ static InterpreterStatus run(VM* vm){
 
                 chars[len] = '\0';
 
-                R(GET_ARG_A(instruction)) = OBJECT_VAL(copyString(vm, chars, (int)len));
+                R(GET_ARG_A(instruction)) = OBJECT_VAL(takeString(vm, chars, (int)len));
             }
             #undef PATH_SEP
             #undef IS_SEP
@@ -913,8 +931,15 @@ static InterpreterStatus run(VM* vm){
         
         vm->stackTop = &R(a + b);
 
+        int frameCnt = vm->frameCount;
+
         if(!callValue(vm, callee, argCount)){
             return VM_RUNTIME_ERROR;
+        }
+
+        if(vm->frameCount == frameCnt){ 
+            // no new frame was pushed
+            vm->stackTop = frame->base + frame->closure->func->maxRegSlots;
         }
 
         frame = &vm->frames[vm->frameCount - 1];
@@ -959,7 +984,12 @@ static InterpreterStatus run(VM* vm){
             runtimeError(vm, "Out of memory creating module");
             return VM_RUNTIME_ERROR;
         }
+
+        push(vm, OBJECT_VAL(module)); // in case of GC during initialization
+
         tableSet(vm, &vm->modules, OBJECT_VAL(path), OBJECT_VAL(module));
+
+        pop(vm); // pop module after adding to modules table
 
         R(a) = OBJECT_VAL(module);
 
@@ -1060,11 +1090,14 @@ static InterpreterStatus run(VM* vm){
         int size = GET_ARG_B(instruction);
 
         ObjectList* list = newList(vm);
+        push(vm, OBJECT_VAL(list)); // in case of GC during allocation
         
         if(size > 0){
             list->items = (Value*)reallocate(vm, NULL, 0, sizeof(Value) * size);
             list->capacity = size;
+            list->count = 0;
         }
+        pop(vm); // pop list after initialization
         
         R(a) = OBJECT_VAL(list);
     } DISPATCH();
@@ -1124,6 +1157,8 @@ static InterpreterStatus run(VM* vm){
         }
 
         ObjectList* list = newList(vm);
+
+        push(vm, OBJECT_VAL(list)); // in case of GC during allocation
         
         if(count > 0){
             list->items = (Value*)reallocate(vm, NULL, 0, sizeof(Value) * count);
@@ -1134,6 +1169,7 @@ static InterpreterStatus run(VM* vm){
                 list->items[k] = item;
             }
         }
+        pop(vm); // pop list after initialization
         
         R(a) = OBJECT_VAL(list);
     } DISPATCH();
@@ -1259,6 +1295,8 @@ static InterpreterStatus run(VM* vm){
             // List
             ObjectList* list = AS_LIST(receiver);
             ObjectList* newListObj = newList(vm);
+
+            push(vm, OBJECT_VAL(newListObj)); // in case of GC during allocation
             
             if(count > 0){
                 newListObj->items = (Value*)reallocate(vm, NULL, 0, sizeof(Value) * count);
@@ -1273,6 +1311,8 @@ static InterpreterStatus run(VM* vm){
                     current += step;
                 }
             }
+            pop(vm); // pop newListObj after initialization
+
             R(a) = OBJECT_VAL(newListObj);
         }
 
@@ -1281,50 +1321,53 @@ static InterpreterStatus run(VM* vm){
     DO_OP_FOREACH:
     {
         int a = GET_ARG_A(instruction);
-        int b = GET_ARG_B(instruction);
+        int sBx = GET_ARG_sBx(instruction);
 
-        Value iter = R(b);
-        Value state = R(b + 1);
+        Value iter = R(a);
+        Value state = R(a + 1);
 
         bool hasNext = false;
 
         if(IS_LIST(iter)){
             ObjectList* list = AS_LIST(iter);
-            int index = IS_NUM(state) ? 0 : (int)AS_NUM(state);
+            int index = IS_NUM(state) ? (int)AS_NUM(state) : 0;
             if(index < list->count){
-                R(b + 2) = list->items[index];
-                R(b + 1) = NUM_VAL(index + 1);
+                R(a + 2) = list->items[index];
+                R(a + 1) = NUM_VAL(index + 1);
                 hasNext = true;
             }
         }else if(IS_MAP(iter)){
             ObjectMap* map = AS_MAP(iter);
-            int index = IS_NUM(state) ? 0 : (int)AS_NUM(state);
+            int index = IS_NUM(state) ? (int)AS_NUM(state) : 0;
             while(index < map->table.capacity){
                 if(!IS_NULL(map->table.entries[index].key)){
-                    R(b + 2) = map->table.entries[index].key;
-                    R(b + 1) = NUM_VAL(index + 1);
+                    R(a + 2) = map->table.entries[index].key;
+                    R(a + 1) = NUM_VAL(index + 1);
                     hasNext = true;
                     break;
                 }
                 index++;
             }
             if(!hasNext){
-                R(b + 1) = NUM_VAL(index);
+                R(a + 1) = NUM_VAL(index);
             }
         }else if(IS_STRING(iter)){
             ObjectString* str = AS_STRING(iter);
-            int index = IS_NUM(state) ? 0 : (int)AS_NUM(state);
+            int index = IS_NUM(state) ? (int)AS_NUM(state) : 0;
             if(index < str->length){
                 char chars[2] = {str->chars[index], '\0'};
-                R(b + 2) = OBJECT_VAL(copyString(vm, chars, 1));
-                R(b + 1) = NUM_VAL(index + 1);
+                R(a + 2) = OBJECT_VAL(copyString(vm, chars, 1));
+                R(a + 1) = NUM_VAL(index + 1);
                 hasNext = true;
             }
         }else{
             runtimeError(vm, "Object is not iterable.");
             return VM_RUNTIME_ERROR;
         }
-        R(a) = BOOL_VAL(hasNext);
+
+        if(!hasNext){
+            frame->ip += sBx;
+        }
     } DISPATCH();
 
     DO_OP_BUILD_MAP:
@@ -1373,11 +1416,13 @@ static InterpreterStatus run(VM* vm){
 
         if(frame->deferCnt > 0){
             ObjectClosure* deferClosure = frame->defers[--frame->deferCnt];
+            frame->ip--;  // step back to re-execute return after defer
+
+            vm->stackTop[0] = OBJECT_VAL(deferClosure);
+            vm->stackTop++;
+
             call(vm, deferClosure, 0);
             frame = &vm->frames[vm->frameCount - 1];
-            DISPATCH();
-            frame = &vm->frames[vm->frameCount - 2];
-            frame->ip--;
             DISPATCH();
         }
 
@@ -1400,12 +1445,16 @@ static InterpreterStatus run(VM* vm){
 
         vm->stackTop = frame->base + frame->closure->func->maxRegSlots;
 
-        Instruction callerInstance = frame->ip[-1];
-        int callerA = GET_ARG_A(callerInstance);
-        int callerC = GET_ARG_C(callerInstance);
+        if(GET_OPCODE(*frame->ip) != OP_RETURN){
+            Instruction callerInstance = frame->ip[-1];
+            if(GET_OPCODE(callerInstance) == OP_CALL){
+                int callerA = GET_ARG_A(callerInstance);
+                int callerC = GET_ARG_C(callerInstance);
 
-        if(callerC > 1){
-            R(callerA) = result;
+                if(callerC > 1){
+                    R(callerA) = result;
+                }
+            }
         }
     } DISPATCH();
     
@@ -1424,11 +1473,21 @@ static bool call(VM* vm, ObjectClosure* closure, int argCnt){
         return false;
     }
 
+    Value* newBase = vm->stackTop - argCnt - 1; // -1 to skip func self
+    if(newBase + closure->func->maxRegSlots >= vm->stack + STACK_MAX){
+        runtimeError(vm, "Stack overflow.");
+        return false;
+    }
+
     CallFrame* frame = &vm->frames[vm->frameCount++];   // 0-indexing++ to actual count
     frame->closure = closure;
     frame->ip = closure->func->chunk.code;
-    frame->base = vm->stackTop - argCnt - 1;   // -1 to skip func self
+    frame->base = newBase;
     frame->deferCnt = 0;
+
+    for(int i = argCnt + 1; i < closure->func->maxRegSlots; i++){
+        frame->base[i] = NULL_VAL;
+    }
 
     vm->stackTop = frame->base + closure->func->maxRegSlots;
 
@@ -1459,7 +1518,8 @@ static bool callValue(VM* vm, Value callee, int argCnt){
                 if(method->type == OBJECT_CFUNC){
                     CFunc cfunc = AS_CFUNC(OBJECT_VAL(method));
                     Value result = cfunc(vm, argCnt, vm->stackTop - argCnt);
-                    vm->stackTop[-argCnt - 1] = result;
+                    vm->stackTop -= (argCnt + 1); 
+                    push(vm, result);
                     return true;
                 }else{
                     return call(vm, AS_CLOSURE(OBJECT_VAL(method)), argCnt);
@@ -1474,7 +1534,8 @@ static bool callValue(VM* vm, Value callee, int argCnt){
                     // stack is reseted by runtimeError
                     return false;
                 }
-                vm->stackTop[-argCnt - 1] = result;
+                vm->stackTop -= (argCnt + 1); 
+                push(vm, result);
                 return true;
             }
             default:

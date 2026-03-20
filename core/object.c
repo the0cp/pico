@@ -76,6 +76,8 @@ ObjectString* takeString(VM* vm, char* chars, int length){
     tableSet(vm, &vm->strings, OBJECT_VAL(string), NULL_VAL);
     pop(vm);
 
+    reallocate(vm, chars, length + 1, 0);
+
     return string;
 }
 
