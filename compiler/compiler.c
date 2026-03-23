@@ -43,6 +43,8 @@ static void freeExpr(Compiler* compiler, ExprDesc* expr);
 
 static void handleLiteral(Compiler* compiler, ExprDesc* expr, bool canAssign);
 static void handleGrouping(Compiler* compiler, ExprDesc* expr, bool canAssign);
+static void handlePrefix(Compiler* compiler, ExprDesc* expr, bool canAssign);
+static void handlePostfix(Compiler* compiler, ExprDesc* expr, bool canAssign);
 static void handleUnary(Compiler* compiler, ExprDesc* expr, bool canAssign);
 static void handleBinary(Compiler* compiler, ExprDesc* expr, bool canAssign);
 static void handleTernary(Compiler* compiler, ExprDesc* expr, bool canAssign);
@@ -82,8 +84,8 @@ ParseRule rules[] = {
     [TOKEN_PERCENT]                 = {NULL,            handleBinary,   PREC_FACTOR},
     [TOKEN_PLUS_EQUAL]              = {NULL,            NULL,           PREC_NONE},
     [TOKEN_MINUS_EQUAL]             = {NULL,            NULL,           PREC_NONE},
-    [TOKEN_PLUS_PLUS]               = {handleUnary,     NULL,           PREC_NONE},
-    [TOKEN_MINUS_MINUS]             = {handleUnary,     NULL,           PREC_NONE},
+    [TOKEN_PLUS_PLUS]               = {handlePrefix,    handlePostfix,  PREC_CALL},
+    [TOKEN_MINUS_MINUS]             = {handlePrefix,    handlePostfix,  PREC_CALL},
     [TOKEN_QUESTION]                = {NULL,            handleTernary,  PREC_TERNARY},
 
     [TOKEN_NUMBER]                  = {handleNum,       NULL,           PREC_NONE},
@@ -191,7 +193,7 @@ static void freeRegs(Compiler* compiler, int cnt){
     compiler->freeReg -= cnt;
     int minReg = compiler->localCnt > 0 ? compiler->locals[compiler->localCnt - 1].reg + 1 : 1;
     if(compiler->freeReg < minReg){
-        compiler->freeReg = 0;
+        compiler->freeReg = minReg;
     }
 }
 
@@ -377,7 +379,8 @@ static void emitBinaryOp(Compiler* compiler, OpCode op, ExprDesc* left, ExprDesc
 
 static void freeExpr(Compiler* compiler, ExprDesc* expr){
     if(expr->type == EXPR_TBD){
-        if(expr->data.loc.index >= compiler->locals[compiler->localCnt - 1].depth){
+        int minReg = compiler->localCnt > 0 ? compiler->locals[compiler->localCnt - 1].reg + 1 : 1;
+        if(expr->data.loc.index >= minReg){
             if(expr->data.loc.index < compiler->freeReg){
                 freeRegs(compiler, 1);
             }
@@ -405,8 +408,12 @@ static void initCompiler(Compiler* compiler, VM* vm, Compiler* enclosing, FuncTy
     compiler->localCnt = 0;
     compiler->scopeDepth = 0;
     compiler->loopCnt = 0;
-    compiler->parser.hadError = false;
-    compiler->parser.panic = false;
+
+    if(type == TYPE_SCRIPT){
+        compiler->parser.hadError = false;
+        compiler->parser.panic = false;
+    }
+
     compiler->freeReg = 0;
 
     Local *local = &compiler->locals[compiler->localCnt++];
@@ -508,6 +515,7 @@ static void varDecl(Compiler* compiler){
         }else{
             emitABC(compiler, OP_LOADNULL, reg, 0, 0);
         }
+        consume(compiler, TOKEN_SEMICOLON, "Expect ';' after variable declaration.");
         defineVar(compiler, global);
     }else{
         if(match(compiler, TOKEN_ASSIGN)){
@@ -584,8 +592,10 @@ static void compileFunc(Compiler* compiler, FuncType type, int destReg, Token* f
 }
 
 static void funcExpr(Compiler* compiler, ExprDesc* expr, bool canAssign){
-    expr2NextReg(compiler, expr);
-    compileFunc(compiler, TYPE_FUNC, expr->data.loc.index, NULL);
+    int destReg = getFreeReg(compiler);
+    reserveReg(compiler, 1);
+    compileFunc(compiler, TYPE_FUNC, destReg, NULL);
+    initExpr(expr, EXPR_REG, destReg);
 }
 
 static void funcDecl(Compiler* compiler){
@@ -666,10 +676,11 @@ static void classDecl(Compiler* compiler){
 
     if(compiler->scopeDepth > 0){
         declLocal(compiler);
-        classReg = compiler->localCnt - 1;
+        classReg = compiler->locals[compiler->localCnt - 1].reg;
         emitABx(compiler, OP_CLASS, classReg, nameConst);
     }else{
         classReg = getFreeReg(compiler);
+        reserveReg(compiler, 1);
         emitABx(compiler, OP_CLASS, classReg, nameConst);
         emitABx(compiler, OP_SET_GLOBAL, classReg, nameConst);
         defineVar(compiler, nameConst);
@@ -681,24 +692,28 @@ static void classDecl(Compiler* compiler){
         consume(compiler, TOKEN_IDENTIFIER, "Expect field name.");
         
         int fieldNameIndex = identifierConst(compiler); 
+        reserveReg(compiler, 1); // reserve register for class instance
+        int valReg = getFreeReg(compiler) - 1;
+
         if(match(compiler, TOKEN_ASSIGN)){
             ExprDesc initExpr;
             expression(compiler, &initExpr);
-            expr2Reg(compiler, &initExpr, classReg);
+            expr2Reg(compiler, &initExpr, valReg);
             freeExpr(compiler, &initExpr);
         }else{
-            emitABC(compiler, OP_LOADNULL, classReg, 0, 0);
+            emitABC(compiler, OP_LOADNULL, valReg, 0, 0);
         }
 
         reserveReg(compiler, 1); // reserve register for field value
         int keyReg = getFreeReg(compiler);
         emitABx(compiler, OP_LOADK, keyReg, fieldNameIndex);
         
-        emitABC(compiler, OP_FIELD, classReg, keyReg, classReg);
+        emitABC(compiler, OP_FIELD, classReg, keyReg, valReg);
         consume(compiler, TOKEN_SEMICOLON, "Expect ';' after field declaration.");
         freeRegs(compiler, 2);
     }
     consume(compiler, TOKEN_RIGHT_BRACE, "Expect '}' after class body.");
+
     if(compiler->scopeDepth == 0){
         freeRegs(compiler, 1); // free class register if it's global
     }
@@ -714,6 +729,7 @@ static void methodDecl(Compiler* compiler){
     consume(compiler, TOKEN_RIGHT_PAREN, "Expect ')' after receiver.");
 
     int classReg = getFreeReg(compiler);
+    reserveReg(compiler, 1);
 
     int classIndex = resolveLocal(compiler, &className);
     if(classIndex != -1){
@@ -730,7 +746,9 @@ static void methodDecl(Compiler* compiler){
 
     Token methodName = compiler->parser.pre;
     int methodNameConst = identifierConst(compiler);
+
     int nameReg = getFreeReg(compiler);
+    reserveReg(compiler, 1);
     emitABx(compiler, OP_LOADK, nameReg, methodNameConst);
 
     FuncType type = TYPE_METHOD;
@@ -738,8 +756,8 @@ static void methodDecl(Compiler* compiler){
         type = TYPE_INITIALIZER;
     }
 
-    reserveReg(compiler, 2); // reserve registers for class and method name
     int methodReg = getFreeReg(compiler);
+    reserveReg(compiler, 1);
 
     compileMethod(compiler, recvName, methodName, type, methodReg);
     emitABC(compiler, OP_METHOD, classReg, nameReg, methodReg);
@@ -1037,8 +1055,8 @@ static void forStmt(Compiler* compiler){
             consume(compiler, TOKEN_RIGHT_PAREN, "Expect ')' after foreach variable.");
         }else{
             addLocal(compiler, varName);
-            reserveReg(compiler, 1);
             int reg = compiler->locals[compiler->localCnt - 1].reg;
+            reserveReg(compiler, 1);
             if(match(compiler, TOKEN_ASSIGN)){
                 ExprDesc initExpr;
                 expression(compiler, &initExpr);
@@ -1315,10 +1333,13 @@ static void returnStmt(Compiler* compiler){
 
         emitABC(compiler, OP_RETURN, retExpr.data.loc.index, 2, 0);
         freeExpr(compiler, &retExpr);
+
+        consume(compiler, TOKEN_SEMICOLON, "Expect ';' after return value.");
     }
 }
 
 static void parsePrecedence(Compiler* compiler, ExprDesc* expr, Precedence precedence){
+    initExpr(expr, EXPR_VOID, 0);
     advance(compiler);
     ParseFunc preRule = getRule(compiler->parser.pre.type)->prefix;
     if(preRule == NULL){
@@ -1384,59 +1405,125 @@ static void parsePrecedence(Compiler* compiler, ExprDesc* expr, Precedence prece
             storeVar(compiler, expr, &minuendExpr);
             *expr = minuendExpr;
         }
-        else if(match(compiler, TOKEN_PLUS_PLUS)){
-            ExprDesc incExpr = *expr;
-            unplugExpr(compiler, &incExpr);
-
-            int oneReg = getFreeReg(compiler);
-            reserveReg(compiler, 1);
-
-            emitABx(
-                compiler, 
-                OP_LOADK, 
-                oneReg, 
-                makeConstant(compiler, NUM_VAL(1))
-            );
-
-            emitABC(
-                compiler, 
-                OP_ADD, 
-                incExpr.data.loc.index, 
-                incExpr.data.loc.index, 
-                oneReg
-            );
-
-            freeRegs(compiler, 1);  // free oneReg
-
-            *expr = incExpr;
-        }
-        else if(match(compiler, TOKEN_MINUS_MINUS)){
-            ExprDesc decExpr = *expr;
-            unplugExpr(compiler, &decExpr);
-
-            int oneReg = getFreeReg(compiler);
-            reserveReg(compiler, 1);
-
-            emitABx(
-                compiler, 
-                OP_LOADK, 
-                oneReg, 
-                makeConstant(compiler, NUM_VAL(1))
-            );
-
-            emitABC(
-                compiler, 
-                OP_SUB, 
-                decExpr.data.loc.index, 
-                decExpr.data.loc.index, 
-                oneReg
-            );
-
-            freeRegs(compiler, 1);  // free oneReg
-
-            *expr = decExpr;
-        }
     }
+}
+
+static void handlePostfix(Compiler* compiler, ExprDesc* expr, bool canAssign){
+    if(!canAssign){
+        runtimeError(compiler->vm, "Invalid assignment target.");
+        return;
+    }
+
+    TokenType type = compiler->parser.pre.type;
+    ExprDesc lval = *expr;
+
+    expr2NextReg(compiler, expr);
+
+    int mathReg = getFreeReg(compiler);
+    reserveReg(compiler, 1);
+
+    emitABC(
+        compiler,
+        OP_MOVE,
+        mathReg,
+        expr->data.loc.index,
+        0
+    );
+
+    int oneReg = getFreeReg(compiler);
+    reserveReg(compiler, 1);
+    emitABx(
+        compiler,
+        OP_LOADK,
+        oneReg,
+        makeConstant(compiler, NUM_VAL(1))
+    );
+
+    if(type == TOKEN_PLUS_PLUS){
+        emitABC(
+            compiler,
+            OP_ADD,
+            mathReg,
+            mathReg,
+            oneReg
+        );
+    }else if(type == TOKEN_MINUS_MINUS){
+        emitABC(
+            compiler,
+            OP_SUB,
+            mathReg,
+            mathReg,
+            oneReg
+        );
+    }
+
+    freeRegs(compiler, 1); // free oneReg
+
+    ExprDesc storeExpr;
+    initExpr(&storeExpr, EXPR_REG, mathReg);
+    storeVar(compiler, &lval, &storeExpr);
+}
+
+static void handlePrefix(Compiler* compiler, ExprDesc* expr, bool canAssign){
+    TokenType type = compiler->parser.pre.type;
+
+    parsePrecedence(compiler, expr, PREC_UNARY);
+
+    if(!canAssign){
+        errorAt(compiler, &compiler->parser.pre, "Invalid assignment target.");
+        return;
+    }
+
+    ExprDesc lval = *expr;
+
+    // for unary plus and minus, emit code to compute the value first before storing it back
+    // e.g. -x => temp = x; temp = 0 - temp; x = temp;
+    // to support expressions like -x++ or -(x + 1)
+
+    expr2NextReg(compiler, expr);
+
+    int oneReg = getFreeReg(compiler);
+    reserveReg(compiler, 1);
+    emitABx(
+        compiler,
+        OP_LOADK,
+        oneReg,
+        makeConstant(compiler, NUM_VAL(1))
+    );
+
+    if(type == TOKEN_PLUS_PLUS){
+        emitABC(
+            compiler,
+            OP_ADD,
+            expr->data.loc.index,
+            expr->data.loc.index,
+            oneReg
+        );
+    }else if(type == TOKEN_MINUS_MINUS){
+        emitABC(
+            compiler,
+            OP_SUB,
+            expr->data.loc.index,
+            expr->data.loc.index,
+            oneReg
+        );
+    }
+
+    freeRegs(compiler, 1);
+
+    int storeReg = getFreeReg(compiler);
+    reserveReg(compiler, 1);
+    emitABC(
+        compiler,
+        OP_MOVE,
+        storeReg,
+        expr->data.loc.index,
+        0
+    );
+
+    ExprDesc storeExpr;
+    initExpr(&storeExpr, EXPR_REG, storeReg);
+    storeVar(compiler, &lval, &storeExpr);
 }
 
 static int identifierConst(Compiler* compiler){
@@ -1455,6 +1542,7 @@ static void addLocal(Compiler* compiler, Token name){
     local->depth = -1;  // sentinel, decl-ed but not def-ed
 
     local->reg = compiler->freeReg;
+    reserveReg(compiler, 1);
 }
 
 static void declLocal(Compiler* compiler){
