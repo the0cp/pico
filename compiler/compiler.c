@@ -941,7 +941,35 @@ static void ifStmt(Compiler* compiler){
 
     expr2NextReg(compiler, &condition);
     int condReg = condition.data.loc.index;
-    int elseJmp = emitJmpIfFalse(compiler, condReg);
+    int elseJmp = -1;
+
+    int codeCnt = compiler->func->chunk.count;
+    if(codeCnt >= 3){
+        Instruction instFalse = compiler->func->chunk.code[codeCnt - 1];   // loadbool false
+        Instruction instTrue = compiler->func->chunk.code[codeCnt - 2];    // loadbool true
+        Instruction instCmp = compiler->func->chunk.code[codeCnt - 3];     // jump if false
+
+        if(GET_OPCODE(instFalse) == OP_LOADBOOL && GET_OPCODE(instTrue) == OP_LOADBOOL){
+            OpCode cmpOp = GET_OPCODE(instCmp);
+            if(cmpOp == OP_LT || cmpOp == OP_LE || cmpOp == OP_EQ){
+                compiler->func->chunk.count -= 2;
+                freeRegs(compiler, 1);  // free targetReg
+
+                // expect False
+                int argA = GET_ARG_A(instCmp);
+                int argB = GET_ARG_B(instCmp);
+                int argC = GET_ARG_C(instCmp);
+                compiler->func->chunk.code[codeCnt - 3] = CREATE_ABC(cmpOp, 0, argB, argC);
+                
+                elseJmp = emitJmp(compiler);
+            }
+        }
+    }
+
+    if(elseJmp == -1){
+        elseJmp = emitJmpIfFalse(compiler, condReg);
+    }
+
     freeExpr(compiler, &condition);
     stmt(compiler);
     if(match(compiler, TOKEN_ELSE)){
@@ -987,22 +1015,41 @@ static void whileStmt(Compiler* compiler){
     consume(compiler, TOKEN_RIGHT_PAREN, "Expect ')' after condition.");
     expr2NextReg(compiler, &condition);
 
-    int exitJmp = emitJmpIfFalse(compiler, condition.data.loc.index);
+    int condReg = condition.data.loc.index;
+
+    int exitJmp = -1;
+
+    int codeCnt = compiler->func->chunk.count;
+    if(codeCnt >= 3){
+        Instruction instFalse = compiler->func->chunk.code[codeCnt - 1];   // loadbool false
+        Instruction instTrue = compiler->func->chunk.code[codeCnt - 2];    // loadbool true
+        Instruction instCmp = compiler->func->chunk.code[codeCnt - 3];     // jump if false
+
+        if(GET_OPCODE(instFalse) == OP_LOADBOOL && GET_OPCODE(instTrue) == OP_LOADBOOL){
+            OpCode cmpOp = GET_OPCODE(instCmp);
+            if(cmpOp == OP_LT || cmpOp == OP_LE || cmpOp == OP_EQ){
+                compiler->func->chunk.count -= 2;
+                freeRegs(compiler, 1);  // free targetReg
+
+                // expect False
+                int argB = GET_ARG_B(instCmp);
+                int argC = GET_ARG_C(instCmp);
+                compiler->func->chunk.code[codeCnt - 3] = CREATE_ABC(cmpOp, 0, argB, argC);
+                
+                exitJmp = emitJmp(compiler);
+            }
+        }
+    }
+
+    if(exitJmp == -1){
+        exitJmp = emitJmpIfFalse(compiler, condReg);
+    }
+
     freeExpr(compiler, &condition);
     stmt(compiler);
 
-    int loopJmpIndex = emitJmp(compiler);
-    patchJump(compiler, loopJmpIndex);
-    
-    Instruction* instruction = compiler->func->chunk.code;
-    int offset = loopStart - loopJmpIndex - 1;
-    instruction[loopJmpIndex] = CREATE_AsBx(OP_JMP, 0, offset);
-
+    emitLoop(compiler, loopStart);
     patchJump(compiler, exitJmp);
-    for(int i = 0; i < loop->breakCnt; i++){
-        patchJump(compiler, loop->breakJump[i]);
-    }
-    compiler->loopCnt--;
 }
 
 static void forStmt(Compiler* compiler){

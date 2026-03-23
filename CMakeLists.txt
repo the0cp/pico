@@ -38,7 +38,7 @@ if(NOT WIN32)
 else()
 endif()
 
-add_compile_options(-g)
+add_compile_options(-g -O3)
 
 add_executable(pico 
     ${CORE_SRC} 
