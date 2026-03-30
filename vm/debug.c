@@ -4,6 +4,15 @@
 #include "value.h"
 #include "instruction.h"
 
+#define CLR_RESET   "\033[0m"
+#define CLR_BOLD    "\033[1m"
+#define CLR_GRAY    "\033[90m"
+#define CLR_RED     "\033[31m"
+#define CLR_GREEN   "\033[32m"
+#define CLR_YELLOW  "\033[33m"
+#define CLR_CYAN    "\033[36m"
+#define CLR_MAGENTA "\033[35m"
+
 static const char* opNames[] = {
     "OP_MOVE",        // R[A] <= R[B]
     "OP_LOADK",       // R[A] <= K[Bx]
@@ -73,8 +82,8 @@ int getLine(const Chunk* chunk, int offset){
 
 void dasmChunk(Chunk* chunk, const char* name){
     printf("== %s ==\n", name);
-    for(size_t offset = 0; offset < chunk->count; ){
-        offset = dasmInstruction(chunk, offset);
+    for(size_t offset = 0; offset < chunk->count; offset++){
+        dasmInstruction(chunk, offset);
     }
 }
 
@@ -82,35 +91,72 @@ static void dasmABC(const char* name, Instruction instruction){
     int a = GET_ARG_A(instruction);
     int b = GET_ARG_B(instruction);
     int c = GET_ARG_C(instruction);
-    printf("%-16s %4d %4d %4d\n", name, a, b, c);
+    printf(
+        CLR_CYAN "%-16s" CLR_GRAY " | " \
+        CLR_MAGENTA "%-5s" CLR_GRAY " | " \
+        CLR_YELLOW "%4d" CLR_GRAY " | " \
+        CLR_YELLOW "%5d" CLR_GRAY " | " \
+        CLR_YELLOW "%5d" CLR_GRAY " | " \
+        CLR_RESET, name, "iABC", a, b, c
+    );
 }
 
 static void dasmABx(const char* name, Instruction instruction){
     int a = GET_ARG_A(instruction);
     int bx = GET_ARG_Bx(instruction);
-    printf("%-16s %4d %4d\n", name, a, bx);
+    printf(
+        CLR_CYAN "%-16s" CLR_GRAY " | " \
+        CLR_MAGENTA "%-5s" CLR_GRAY " | " \
+        CLR_YELLOW "%4d" CLR_GRAY " | " \
+        CLR_YELLOW "%5d" CLR_GRAY " | " \
+        CLR_GRAY "%5s" CLR_GRAY " | " \
+        CLR_RESET, name, "iABx", a, bx, "-"
+    );
 }
 
 static void dasmAsBx(const char* name, Instruction instruction){
     int a = GET_ARG_A(instruction);
     int sbx = GET_ARG_sBx(instruction);
-    printf("%-16s %4d %4d\n", name, a, sbx);
+    printf(
+        CLR_CYAN "%-16s" CLR_GRAY " | " \
+        CLR_MAGENTA "%-5s" CLR_GRAY " | " \
+        CLR_YELLOW "%4d" CLR_GRAY " | " \
+        CLR_YELLOW "%5d" CLR_GRAY " | " \
+        CLR_GRAY "%5s" CLR_GRAY " | " \
+        CLR_RESET, name, "iAsBx", a, sbx, "-"
+    );
 }
 
 static void dasmLoadK(const char* name, const Chunk* chunk, Instruction instruction){
     int a = GET_ARG_A(instruction);
     int bx = GET_ARG_Bx(instruction);
     Value constant = chunk->constants.values[bx];
-    printf("%-16s %4d %4d '", name, a, bx);
+    printf(
+        CLR_CYAN "%-16s" CLR_GRAY " | " \
+        CLR_MAGENTA "%-5s" CLR_GRAY " | " \
+        CLR_YELLOW "%4d" CLR_GRAY " | " \
+        CLR_YELLOW "%5d" CLR_GRAY " | " \
+        CLR_GRAY "%5s" CLR_GRAY " | " \
+        CLR_GRAY "'", name, "iABx", a, bx, "-"
+    );
     printValue(constant);
+    printf(CLR_RESET);
 }
 
 static void dasmGlobal(const char* name, Chunk* chunk, Instruction instruction){
     int a = GET_ARG_A(instruction);
     int bx = GET_ARG_Bx(instruction);
     Value constant = chunk->constants.values[bx];
-    printf("%-16s %4d %4d '", name, a, bx);
+    printf(
+        CLR_CYAN "%-16s" CLR_GRAY " | " \
+        CLR_MAGENTA "%-5s" CLR_GRAY " | " \
+        CLR_YELLOW "%4d" CLR_GRAY " | " \
+        CLR_YELLOW "%5d" CLR_GRAY " | " \
+        CLR_GRAY "%5s" CLR_GRAY " | " \
+        CLR_GRAY "'", name, "iABx", a, bx, "-"
+    );
     printValue(constant);
+    printf(CLR_RESET);
 }
 
 static void dasmField(const char* name, const Chunk* chunk, Instruction instruction){
@@ -118,17 +164,26 @@ static void dasmField(const char* name, const Chunk* chunk, Instruction instruct
     int b = GET_ARG_B(instruction);
     int c = GET_ARG_C(instruction);
     Value constant = chunk->constants.values[c];
-    printf("%-16s %4d %4d %4d '", name, a, b, c);
+    printf(
+        CLR_CYAN "%-16s" CLR_GRAY " | " \
+        CLR_MAGENTA "%-5s" CLR_GRAY " | " \
+        CLR_YELLOW "%4d" CLR_GRAY " | " \
+        CLR_YELLOW "%5d" CLR_GRAY " | " \
+        CLR_YELLOW "%5d" CLR_GRAY " | " \
+        CLR_GRAY "'", name, "iABC", a, b, c
+    );
     printValue(constant);
+    printf(CLR_RESET);
 }
 
-int dasmInstruction(Chunk* chunk, int offset){
+void dasmInstruction(Chunk* chunk, int offset){
     printf("offset: %04d ", offset);
     int line = chunk->lines[offset];
+
     if(offset > 0 && line == chunk->lines[offset - 1]){
-        printf("\t| ");
+        printf(CLR_GRAY "   ~ | " CLR_RESET);
     }else{
-        printf("%4d ", line);
+        printf(CLR_GREEN "%4d | " CLR_RESET, line);
     }
 
     Instruction instruction = chunk->code[offset];
@@ -144,6 +199,10 @@ int dasmInstruction(Chunk* chunk, int offset){
         case OP_LOADNULL:
         case OP_GET_UPVAL:
         case OP_SET_UPVAL:
+        case OP_CLOSE_UPVAL:
+
+        case OP_GET_INDEX:
+        case OP_SET_INDEX:
 
         case OP_ADD:
         case OP_SUB:
@@ -164,6 +223,12 @@ int dasmInstruction(Chunk* chunk, int offset){
         case OP_BUILD_LIST: 
         case OP_BUILD_MAP: 
         case OP_INIT_LIST:
+        case OP_FILL_LIST:
+        case OP_SLICE:
+        case OP_TO_STRING:
+        case OP_DEFER:
+        case OP_SYSTEM:
+        case OP_PRINT:
             dasmABC(opName, instruction);
             break;
 
@@ -191,20 +256,30 @@ int dasmInstruction(Chunk* chunk, int offset){
             break;
 
         case OP_FIELD:
+        case OP_GET_PROPERTY:
+        case OP_SET_PROPERTY:
             dasmField(opName, chunk, instruction);
             break;
 
         // iAsBx
         case OP_JMP:
+        case OP_JMP_IF_FALSE:
+        case OP_JMP_IF_TRUE:
         case OP_FOREACH:
             dasmAsBx(opName, instruction);
             break;
 
         default:
-            printf("Unknown opcode %d\n", op);
+            printf(
+                CLR_RED "%-16s" CLR_GRAY " | " \
+                CLR_RED "%-5s" CLR_GRAY " | " \
+                CLR_RED "%4s" CLR_GRAY " | " \
+                CLR_RED "%5s" CLR_GRAY " | " \
+                CLR_RED "%5s" CLR_GRAY " | " \
+                CLR_RESET, "UNKNOWN", "?", "?", "?", "?"
+            );
             break;
     }
 
     printf("\n");
-    return offset + 1;
 }
