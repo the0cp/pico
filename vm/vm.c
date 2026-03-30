@@ -1220,6 +1220,8 @@ static InterpreterStatus run(VM* vm){
             }
             start = (int)AS_NUM(startVal);
 
+            int originalStart = start;
+
             if(start < 0){
                 start += length;
             }
@@ -1246,6 +1248,8 @@ static InterpreterStatus run(VM* vm){
                 return VM_RUNTIME_ERROR; 
             }
             end = (int)AS_NUM(endVal);
+
+            int originalEnd = end;
 
             if(end < 0){
                 end += length;
