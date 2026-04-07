@@ -1220,6 +1220,8 @@ static InterpreterStatus run(VM* vm){
             }
             start = (int)AS_NUM(startVal);
 
+            int originalStart = start;
+
             if(start < 0){
                 start += length;
             }
@@ -1246,6 +1248,8 @@ static InterpreterStatus run(VM* vm){
                 return VM_RUNTIME_ERROR; 
             }
             end = (int)AS_NUM(endVal);
+
+            int originalEnd = end;
 
             if(end < 0){
                 end += length;
@@ -1430,6 +1434,8 @@ static InterpreterStatus run(VM* vm){
 
         Value result = (b > 1) ? R(a) : NULL_VAL;
 
+        Value* calleeBase = frame->base;
+
         if(frame->closure->func->type == TYPE_MODULE){
             popGlobal(vm);
         }
@@ -1445,17 +1451,7 @@ static InterpreterStatus run(VM* vm){
 
         vm->stackTop = frame->base + frame->closure->func->maxRegSlots;
 
-        if(GET_OPCODE(*frame->ip) != OP_RETURN){
-            Instruction callerInstance = frame->ip[-1];
-            if(GET_OPCODE(callerInstance) == OP_CALL){
-                int callerA = GET_ARG_A(callerInstance);
-                int callerC = GET_ARG_C(callerInstance);
-
-                if(callerC > 1){
-                    R(callerA) = result;
-                }
-            }
-        }
+        calleeBase[0] = result; // place return value in caller's register 0
     } DISPATCH();
     
     #undef DISPATCH
@@ -1485,10 +1481,12 @@ static bool call(VM* vm, ObjectClosure* closure, int argCnt){
     frame->base = newBase;
     frame->deferCnt = 0;
 
+    /*
     for(int i = argCnt + 1; i < closure->func->maxRegSlots; i++){
         frame->base[i] = NULL_VAL;
     }
-
+    */
+   
     vm->stackTop = frame->base + closure->func->maxRegSlots;
 
     return true;

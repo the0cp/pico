@@ -4,7 +4,7 @@
 #include "chunk.h"
 
 void dasmChunk(Chunk* chunk, const char* name);
-int dasmInstruction(Chunk* chunk, int offset);
+void dasmInstruction(Chunk* chunk, int offset);
 int getLine(const Chunk* chunk, int offset);
 
 static void dasmABC(const char* name, Instruction instruction);
