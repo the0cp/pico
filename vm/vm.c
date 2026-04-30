@@ -370,8 +370,6 @@ static InterpreterStatus run(VM* vm){
 
         [OP_TO_STRING]      = &&DO_OP_TO_STRING,
 
-        [OP_JMP]            = &&DO_OP_JMP,
-
         [OP_CALL]           = &&DO_OP_CALL,
 
         [OP_IMPORT]         = &&DO_OP_IMPORT,

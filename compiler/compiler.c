@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <math.h>
 
 #include "compiler.h"
 #include "chunk.h"
@@ -279,8 +280,8 @@ static void expr2Reg(Compiler* compiler, ExprDesc* expr,int reg){
             emitABx(compiler, OP_LOADK, reg, expr->data.loc.index);
             break;
         case EXPR_NUM:
-            // optimize later
-            emitABx(compiler, OP_LOADK, reg, expr->data.loc.index);
+            int constIndex = makeConstant(compiler, NUM_VAL(expr->data.num));
+            emitABx(compiler, OP_LOADK, reg, constIndex);
             break;
         case EXPR_TBD:{
             Instruction instruction = compiler->func->chunk.code[expr->data.loc.index];
@@ -1745,9 +1746,8 @@ static ObjectFunc* stopCompiler(Compiler* compiler){
 
 static void handleNum(Compiler* compiler, ExprDesc* expr, bool canAssign){
     double value = strtod(compiler->parser.pre.head, NULL);
-    // TODO: Optimize
-    int constIndex = makeConstant(compiler, NUM_VAL(value));
-    initExpr(expr, EXPR_K, constIndex);
+    initExpr(expr, EXPR_NUM, 0);
+    expr->data.num = value;
 }
 
 static int makeConstant(Compiler* compiler, Value value){
@@ -1785,6 +1785,13 @@ static void handleUnary(Compiler* compiler, ExprDesc* expr, bool canAssign){
     TokenType type = compiler->parser.pre.type;
 
     parsePrecedence(compiler, expr, PREC_UNARY);
+
+    if(type == TOKEN_MINUS && expr->type == EXPR_NUM){
+        // constant folding for negative number literal
+        expr->data.num = -expr->data.num;
+        return;
+    }
+
     expr2NextReg(compiler, expr);
     freeExpr(compiler, expr);
     reserveReg(compiler, 1);
@@ -1809,7 +1816,32 @@ static void handleBinary(Compiler* compiler, ExprDesc* expr, bool canAssign){
 
     ExprDesc right;
     parsePrecedence(compiler, &right, (Precedence)(rule->precedence + 1));  // parse the right-hand side, parse only if precedence is higher
-     // parse the right-hand side, parse only if precedence is higher
+    // parse the right-hand side, parse only if precedence is higher
+
+    if(expr->type == EXPR_NUM && right.type == EXPR_NUM){
+        // constant folding for binary operations with number literals
+        switch(type){
+            case TOKEN_PLUS: expr->data.num += right.data.num; return;
+            case TOKEN_MINUS: expr->data.num -= right.data.num; return;
+            case TOKEN_STAR: expr->data.num *= right.data.num; return;
+            case TOKEN_SLASH:
+                if(right.data.num == 0){
+                    errorAt(compiler, &compiler->parser.pre, "Division by zero.");
+                }else{
+                    expr->data.num /= right.data.num;
+                }
+                return;
+            case TOKEN_PERCENT:
+                if(right.data.num == 0){
+                    errorAt(compiler, &compiler->parser.pre, "Division by zero.");
+                }else{
+                    expr->data.num = fmod(expr->data.num, right.data.num);
+                }
+                return;
+            default: return;  // Should not reach here
+        }
+    }
+
     switch(type){
         case TOKEN_PLUS:            emitBinaryOp(compiler, OP_ADD, expr, &right); break;
         case TOKEN_MINUS:           emitBinaryOp(compiler, OP_SUB, expr, &right); break;

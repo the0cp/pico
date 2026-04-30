@@ -63,7 +63,7 @@ ObjectString* copyString(VM* vm, const char* chars, int len){
 ObjectString* takeString(VM* vm, char* chars, int length){
     uint64_t hash = hashString(chars, length, vm->hash_seed);
     ObjectString* interned = tableGetInternedString(vm, &vm->strings, chars, length, hash);
-    if (interned != NULL) {
+    if(interned != NULL){
         reallocate(vm, chars, length + 1, 0); 
         return interned;
     }
