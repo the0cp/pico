@@ -1825,19 +1825,17 @@ static void handleBinary(Compiler* compiler, ExprDesc* expr, bool canAssign){
             case TOKEN_MINUS: expr->data.num -= right.data.num; return;
             case TOKEN_STAR: expr->data.num *= right.data.num; return;
             case TOKEN_SLASH:
-                if(right.data.num == 0){
-                    errorAt(compiler, &compiler->parser.pre, "Division by zero.");
-                }else{
+                if(right.data.num != 0){
                     expr->data.num /= right.data.num;
+                    return;
                 }
-                return;
+                break;  // Division by zero, do not fold
             case TOKEN_PERCENT:
-                if(right.data.num == 0){
-                    errorAt(compiler, &compiler->parser.pre, "Division by zero.");
-                }else{
+                if(right.data.num != 0){
                     expr->data.num = fmod(expr->data.num, right.data.num);
+                    return;
                 }
-                return;
+                break; // Modulo by zero, do not fold
             default: return;  // Should not reach here
         }
     }
