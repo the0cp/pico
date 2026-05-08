@@ -3,6 +3,8 @@
 
 #include "vm.h"
 
+void defineCFunc(VM* vm, HashTable* table, const char* name, CFunc func);
+
 void registerFsModule(VM* vm);
 void registerTimeModule(VM* vm);
 void registerOsModule(VM* vm);
@@ -10,6 +12,7 @@ void registerPathModule(VM* vm);
 void registerGlobModule(VM* vm);
 void registerListModule(VM* vm);
 void registerIterModule(VM* vm);
+void registerGcModule(VM* vm);
 
 // String Functions
 Value string_len(VM* vm, int argCount, Value* args);

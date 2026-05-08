@@ -192,14 +192,6 @@ static Value stringModule_ascii(VM* vm, int argCount, Value* args){
     return OBJECT_VAL(copyString(vm, &c, 1));
 }
 
-static void defineCFunc(VM* vm, HashTable* table, const char* name, CFunc func){
-    push(vm, OBJECT_VAL(copyString(vm, name, (int)strlen(name))));
-    push(vm, OBJECT_VAL(newCFunc(vm, func)));
-    tableSet(vm, table, peek(vm, 1), peek(vm, 0));
-    pop(vm);
-    pop(vm);
-}
-
 void registerStringModule(VM* vm){
     ObjectString* moduleName = copyString(vm, "string", 6);
     push(vm, OBJECT_VAL(moduleName));

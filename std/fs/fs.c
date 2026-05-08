@@ -471,14 +471,6 @@ static void scan_dir(VM* vm, const char* baseDir, const char* relDir, ObjectList
 #endif
 }
 
-static void defineCFunc(VM* vm, HashTable* table, const char* name, CFunc func){
-    push(vm, OBJECT_VAL(copyString(vm, name, (int)strlen(name))));
-    push(vm, OBJECT_VAL(newCFunc(vm, func)));
-    tableSet(vm, table, peek(vm, 1), peek(vm, 0));
-    pop(vm);
-    pop(vm);
-}
-
 void registerFsModule(VM* vm){
     ObjectString* moduleName = copyString(vm, "fs", 2);
     push(vm, OBJECT_VAL(moduleName));

@@ -19,6 +19,7 @@ static void traceRef(VM* vm, Object* object);
 void markObject(VM* vm, Object* object);
 void markValue(VM* vm, Value value);
 void markArray(VM* vm, ValueArray* array);
+void collectGarbage(VM* vm);
 static void sweep(VM* vm);
 
 void* reallocate(VM* vm, void* ptr, size_t oldSize, size_t newSize);

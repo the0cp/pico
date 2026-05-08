@@ -177,14 +177,6 @@ static Value glob_match(VM* vm, int argCount, Value* args){
     return BOOL_VAL(matched);
 }
 
-static void defineCFunc(VM* vm, HashTable* table, const char* name, CFunc func){
-    push(vm, OBJECT_VAL(copyString(vm, name, (int)strlen(name))));
-    push(vm, OBJECT_VAL(newCFunc(vm, func)));
-    tableSet(vm, table, peek(vm, 1), peek(vm, 0));
-    pop(vm);
-    pop(vm);
-}
-
 void registerGlobModule(VM* vm){
     ObjectString* moduleName = copyString(vm, "glob", 4);
     push(vm, OBJECT_VAL(moduleName));

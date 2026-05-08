@@ -22,6 +22,12 @@ typedef struct CallFrame{
     int deferCnt;
 }CallFrame;
 
+typedef enum{
+    GC_MODE_AUTO,
+    GC_MODE_MANUAL,
+    GC_MODE_OFF
+}GCMode;
+
 typedef struct VM{
     Value stack[STACK_MAX];  // Stack for values
     Value* stackTop;         // for alloc new CallFrame
@@ -38,6 +44,8 @@ typedef struct VM{
     int frameCount;
     size_t bytesAllocated;
     size_t nextGC;
+    size_t gcThreshold;
+    GCMode gcMode;
     Compiler* compiler;
     uint64_t hash_seed;
 }VM;

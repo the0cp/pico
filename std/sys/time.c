@@ -17,6 +17,7 @@
 #include "object.h"
 #include "value.h"
 #include "vm.h"
+#include "time.h"
 
 static double getSteady(){
 #ifdef _WIN32
@@ -112,14 +113,6 @@ static Value time_fmt(VM* vm, int argCount, Value* args){
     }
 
     return OBJECT_VAL(copyString(vm, buffer, (int)len));
-}
-
-static void defineCFunc(VM* vm, HashTable* table, const char* name, CFunc function){
-    push(vm, OBJECT_VAL(copyString(vm, name, (int)strlen(name))));
-    push(vm, OBJECT_VAL(newCFunc(vm, function)));
-    tableSet(vm, table, peek(vm, 1), peek(vm, 0));
-    pop(vm);
-    pop(vm);
 }
 
 void registerTimeModule(VM* vm){

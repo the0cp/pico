@@ -1,0 +1,28 @@
+import "gc";
+import "assert.pcs";
+
+assert.eq(gc.mode(), "auto", "default gc mode is auto");
+
+gc.mode("manual");
+assert.eq(gc.mode(), "manual", "switch gc mode to manual");
+
+var oldThreshold = gc.threshold();
+gc.threshold(1024 * 1024);
+assert.eq(gc.threshold(), 1024 * 1024, "set gc threshold");
+
+var s = gc.stats();
+assert.eq(s["mode"], "manual", "gc.stats mode field");
+assert.ok(s["bytes"] >= 0, "gc.stats bytes field");
+assert.ok(s["next"] >= 0, "gc.stats next field");
+assert.ok(s["threshold"] == 1024 * 1024, "gc.stats threshold field");
+
+assert.eq(gc.collect(), true, "manual gc.collect works");
+
+gc.mode("off");
+assert.eq(gc.mode(), "off", "switch gc mode to off");
+assert.eq(gc.collect(), false, "gc.collect does nothing in off mode");
+
+gc.mode("auto");
+assert.eq(gc.mode(), "auto", "switch gc mode back to auto");
+
+gc.threshold(oldThreshold);

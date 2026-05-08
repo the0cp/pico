@@ -16,7 +16,7 @@ set(CMAKE_C_EXTENSIONS ON)
 file(GLOB_RECURSE CORE_SRC "core/*.c")
 file(GLOB_RECURSE VM_SRC "vm/*.c")
 file(GLOB_RECURSE COMPILER_SRC "compiler/*.c")
-file(GLOB_RECURSE STD_SRC "std/*.c")
+file(GLOB_RECURSE STD_SRC CONFIGURE_DEPENDS "std/*.c")
 file(GLOB_RECURSE CMD_SRC "cmd/*.c")
 
 include_directories(

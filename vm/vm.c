@@ -45,7 +45,9 @@ void initVM(VM* vm, int argc, const char* argv[]){
     vm->globalStack[0] = vm->curGlobal;
 
     vm->bytesAllocated = 0;
-    vm->nextGC = 1024 * 1024 * 10;   // 10MB
+    vm->gcThreshold = 1024 * 1024 * 10;   // 10MB
+    vm->nextGC = vm->gcThreshold;
+    vm->gcMode = GC_MODE_AUTO;
 
     vm->compiler = NULL;
 
@@ -58,6 +60,7 @@ void initVM(VM* vm, int argc, const char* argv[]){
     registerPathModule(vm);
     registerGlobModule(vm);
     registerIterModule(vm);
+    registerGcModule(vm);
 
     if(argc > 0 && argv != NULL){
         Value osModVal;
