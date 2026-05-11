@@ -128,13 +128,32 @@ typedef struct ObjectCFunc{
 
 ObjectCFunc* newCFunc(VM* vm, CFunc func);
 
+typedef enum{
+    MODULE_NATIVE,
+    MODULE_SCRIPT
+}ModuleKind;
+
+typedef enum{
+    MODULE_LOADED,
+    MODULE_LOADING,
+    MODULE_ERROR
+}ModuleStatus;
+
 typedef struct ObjectModule{
     Object obj;
+    ObjectString* path;
     ObjectString* name;
+    ModuleKind kind;
+    ModuleStatus status;
     HashTable members;
 }ObjectModule;
 
-ObjectModule* newModule(VM* vm, ObjectString* name);
+ObjectModule* newModule(
+    VM* vm, 
+    ObjectString* name,
+    ObjectString* path,
+    ModuleKind kind
+);
 
 typedef struct ObjectUpvalue{
     Object obj;

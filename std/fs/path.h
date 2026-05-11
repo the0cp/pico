@@ -3,6 +3,6 @@
 
 #include "vm.h"
 
-void registerPathModule(VM* vm);
+void initPathModule(VM* vm, ObjectModule* module);
 
 #endif

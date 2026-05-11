@@ -36,7 +36,7 @@ typedef struct VM{
     HashTable* curGlobal;
     HashTable* globalStack[GLOBAL_STATCK_MAX];
     int globalCnt;
-    HashTable modules;
+    HashTable modCache;
     Object* objects;
     ObjectString* initString;
     ObjectUpvalue* openUpvalues;    // descending locations
@@ -48,6 +48,8 @@ typedef struct VM{
     GCMode gcMode;
     Compiler* compiler;
     uint64_t hash_seed;
+    int argc;
+    const char** argv;
 }VM;
 
 typedef enum{

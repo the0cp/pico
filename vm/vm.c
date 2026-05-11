@@ -11,6 +11,7 @@
 #include "compiler.h"
 #include "mem.h"
 #include "registry.h"
+#include "module_loader.h"
 #include "file.h"
 
 #ifdef DEBUG_TRACE
@@ -38,7 +39,7 @@ void initVM(VM* vm, int argc, const char* argv[]){
 
     initHashTable(&vm->strings);
     initHashTable(&vm->globals);
-    initHashTable(&vm->modules);
+    initHashTable(&vm->modCache);
 
     vm->globalCnt = 0;
     vm->curGlobal = &vm->globals;
@@ -54,20 +55,17 @@ void initVM(VM* vm, int argc, const char* argv[]){
     vm->initString = NULL;
     vm->initString = copyString(vm, "init", 4);
 
-    registerFsModule(vm);
-    registerTimeModule(vm);
-    registerOsModule(vm);
-    registerPathModule(vm);
-    registerGlobModule(vm);
-    registerIterModule(vm);
-    registerGcModule(vm);
+    vm->argc = argc;
+    vm->argv = argv;
+
+    registerPrelude(vm);
 
     if(argc > 0 && argv != NULL){
         Value osModVal;
         ObjectString* osName = copyString(vm, "os", 2);
         push(vm, OBJECT_VAL(osName));
 
-        if(tableGet(vm, &vm->modules, OBJECT_VAL(osName), &osModVal)){
+        if(tableGet(vm, &vm->modCache, OBJECT_VAL(osName), &osModVal)){
             ObjectModule* osMod = AS_MODULE(osModVal);
             ObjectList* argvList = newList(vm);
             push(vm, OBJECT_VAL(argvList));
@@ -92,7 +90,7 @@ void initVM(VM* vm, int argc, const char* argv[]){
 void freeVM(VM* vm){
     freeHashTable(vm, &vm->strings);
     freeHashTable(vm, &vm->globals);
-    freeHashTable(vm, &vm->modules);
+    freeHashTable(vm, &vm->modCache);
 
     vm->globalCnt = 0;
     vm->curGlobal = NULL;
@@ -445,10 +443,8 @@ static InterpreterStatus run(VM* vm){
         ObjectString* name = AS_STRING(K(GET_ARG_Bx(instruction)));
         Value value;
         if(!tableGet(vm, vm->curGlobal, OBJECT_VAL(name), &value)){
-            if(!tableGet(vm, &vm->modules, OBJECT_VAL(name), &value)){
-                runtimeError(vm, "Undefined global variable '%s'.", name->chars);
-                return VM_RUNTIME_ERROR;
-            }
+            runtimeError(vm, "Undefined global variable '%s'.", name->chars);
+            return VM_RUNTIME_ERROR; 
         }
         R(GET_ARG_A(instruction)) = value;
     } DISPATCH();
@@ -950,62 +946,33 @@ static InterpreterStatus run(VM* vm){
     {
         int a = GET_ARG_A(instruction);
         int bx = GET_ARG_Bx(instruction);
-        ObjectString* path = AS_STRING(K(bx));
+        ObjectString* spec = AS_STRING(K(bx));
 
-        Value modVal;
-        if(tableGet(vm, &vm->modules, OBJECT_VAL(path), &modVal)){
-            R(a) = modVal;
-            DISPATCH(); // next dispatch
-        }
+        ImportResult result;
+        const char* requester = frame->closure->func->srcName != NULL ? 
+            frame->closure->func->srcName->chars : 
+            NULL;
 
-        char* source = readScript(path->chars);
-        if(source == NULL){
-            runtimeError(vm, "Could not read import file '%s'.", path->chars);
+        if(importModule(vm, spec, requester, &result) != VM_OK){
+            runtimeError(vm, "Failed to import module '%s'.", spec->chars);
             return VM_RUNTIME_ERROR;
         }
 
-        ObjectFunc* func = compile(vm, source, path->chars);
-        free(source);
-        if(func == NULL){
-            return VM_COMPILE_ERROR; 
+        R(a) = OBJECT_VAL(result.module);
+
+        if(result.closure != NULL){
+            pushGlobal(vm, &result.module->members);
+            vm->stackTop[0] = OBJECT_VAL(result.closure);
+            vm->stackTop++;
+
+            if(!call(vm, result.closure, 0)){
+                popGlobal(vm);
+                result.module->status = MODULE_ERROR;
+                return VM_RUNTIME_ERROR;
+            }
+
+            frame = &vm->frames[vm->frameCount - 1];
         }
-
-        func->type = TYPE_MODULE;
-
-
-        ObjectClosure* closure = newClosure(vm, func);
-        if(closure == NULL){
-            runtimeError(vm, "Out of memory creating closure");
-            return VM_RUNTIME_ERROR;
-        }
-        push(vm, OBJECT_VAL(closure));
-
-        ObjectModule* module = newModule(vm, path);
-        if(module == NULL){
-            runtimeError(vm, "Out of memory creating module");
-            return VM_RUNTIME_ERROR;
-        }
-
-        push(vm, OBJECT_VAL(module)); // in case of GC during initialization
-
-        tableSet(vm, &vm->modules, OBJECT_VAL(path), OBJECT_VAL(module));
-
-        pop(vm); // pop module after adding to modules table
-
-        R(a) = OBJECT_VAL(module);
-
-        pushGlobal(vm, &module->members);
-
-        vm->stackTop[0] = OBJECT_VAL(closure);
-        vm->stackTop++;
-        
-        if(!call(vm, closure, 0)){
-            popGlobal(vm);
-            return VM_RUNTIME_ERROR;
-        }
-
-        frame = &vm->frames[vm->frameCount - 1];
-
     } DISPATCH();
 
     DO_OP_CLOSURE:

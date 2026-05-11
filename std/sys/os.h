@@ -3,6 +3,6 @@
 
 #include "vm.h"
 
-void registerOsModule(VM* vm);
+void initOsModule(VM* vm, ObjectModule* module);
 
 #endif

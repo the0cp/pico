@@ -471,13 +471,7 @@ static void scan_dir(VM* vm, const char* baseDir, const char* relDir, ObjectList
 #endif
 }
 
-void registerFsModule(VM* vm){
-    ObjectString* moduleName = copyString(vm, "fs", 2);
-    push(vm, OBJECT_VAL(moduleName));
-
-    ObjectModule* module = newModule(vm, moduleName);
-    push(vm, OBJECT_VAL(module));
-
+void initFsModule(VM* vm, ObjectModule* module){
     defineCFunc(vm, &module->members, "read", fs_readFile);
     defineCFunc(vm, &module->members, "write", fs_writeFile);
     defineCFunc(vm, &module->members, "exists", fs_exists);
@@ -488,8 +482,4 @@ void registerFsModule(VM* vm){
     defineCFunc(vm, &module->members, "open", fs_open);
     defineCFunc(vm, &module->members, "mkdir", fs_mkdir);
     defineCFunc(vm, &module->members, "isDir", fs_isDir);
-
-    tableSet(vm, &vm->modules, OBJECT_VAL(moduleName), OBJECT_VAL(module));
-    pop(vm);
-    pop(vm);
 }

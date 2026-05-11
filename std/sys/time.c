@@ -115,20 +115,10 @@ static Value time_fmt(VM* vm, int argCount, Value* args){
     return OBJECT_VAL(copyString(vm, buffer, (int)len));
 }
 
-void registerTimeModule(VM* vm){
-    ObjectString* moduleName = copyString(vm, "time", 4);
-    push(vm, OBJECT_VAL(moduleName));
-
-    ObjectModule* module = newModule(vm, moduleName);
-    push(vm, OBJECT_VAL(module));
-
+void initTimeModule(VM* vm, ObjectModule* module){
     defineCFunc(vm, &module->members, "steady", time_steady);
     defineCFunc(vm, &module->members, "now", time_now);
     defineCFunc(vm, &module->members, "clock", time_system);
     defineCFunc(vm, &module->members, "sleep", time_sleep);
     defineCFunc(vm, &module->members, "fmt", time_fmt);
-
-    tableSet(vm, &vm->modules, OBJECT_VAL(moduleName), OBJECT_VAL(module));
-    pop(vm);
-    pop(vm);
 }

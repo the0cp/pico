@@ -149,11 +149,14 @@ ObjectCFunc* newCFunc(VM* vm, CFunc func){
     return cfunc;
 }
 
-ObjectModule* newModule(VM* vm, ObjectString* name){
+ObjectModule* newModule(VM* vm, ObjectString* name, ObjectString* path, ModuleKind kind){
     ObjectModule* module = (ObjectModule*)reallocate(vm, NULL, 0, sizeof(ObjectModule));
     module->obj.type = OBJECT_MODULE;
     module->obj.isMarked = false;
     module->name = name;
+    module->path = path;
+    module->kind = kind;
+    module->status = MODULE_LOADING;
     initHashTable(&module->members);
     
     module->obj.next = vm->objects;

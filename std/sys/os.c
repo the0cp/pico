@@ -142,20 +142,10 @@ static Value os_exit(VM* vm, int argCount, Value* args){
     return NULL_VAL; // Unreachable
 }
 
-void registerOsModule(VM* vm){
-    ObjectString* moduleName = copyString(vm, "os", 2);
-    push(vm, OBJECT_VAL(moduleName));
-
-    ObjectModule* module = newModule(vm, moduleName);
-    push(vm, OBJECT_VAL(module));
-
+void initOsModule(VM* vm, ObjectModule* module){
     defineCFunc(vm, &module->members, "exec", os_exec);
     defineCFunc(vm, &module->members, "run", os_system);
     defineCFunc(vm, &module->members, "getenv", os_getenv);
     defineCFunc(vm, &module->members, "setenv", os_setenv);
     defineCFunc(vm, &module->members, "exit", os_exit);
-
-    tableSet(vm, &vm->modules, OBJECT_VAL(moduleName), OBJECT_VAL(module));
-    pop(vm);
-    pop(vm);
 }

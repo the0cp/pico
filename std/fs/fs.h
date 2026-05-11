@@ -10,7 +10,7 @@ typedef struct GlobConfig{
     bool recursive;
 }GlobConfig;
 
-void registerFsModule(VM* vm);
+void initFsModule(VM* vm, ObjectModule* module);
 
 static bool is_excluded(VM* vm, const char* filename, Value excludeVal, bool ignoreCase);
 static void scan_dir(VM* vm, const char* baseDir, const char* relDir, ObjectList* list, GlobConfig* config);

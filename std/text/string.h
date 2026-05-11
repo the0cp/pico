@@ -3,7 +3,7 @@
 
 #include "vm.h"
 
-void registerStringModule(VM* vm);
+void initStringModule(VM* vm, ObjectModule* module);
 
 Value string_len(VM* vm, int argCount, Value* args);
 Value string_sub(VM* vm, int argCount, Value* args);

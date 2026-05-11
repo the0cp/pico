@@ -192,16 +192,6 @@ static Value stringModule_ascii(VM* vm, int argCount, Value* args){
     return OBJECT_VAL(copyString(vm, &c, 1));
 }
 
-void registerStringModule(VM* vm){
-    ObjectString* moduleName = copyString(vm, "string", 6);
-    push(vm, OBJECT_VAL(moduleName));
-
-    ObjectModule* module = newModule(vm, moduleName);
-    push(vm, OBJECT_VAL(module));
-
+void initStringModule(VM* vm, ObjectModule* module){
     defineCFunc(vm, &module->members, "ascii", stringModule_ascii);
-
-    tableSet(vm, &vm->modules, OBJECT_VAL(moduleName), OBJECT_VAL(module));
-    pop(vm);
-    pop(vm);
 }

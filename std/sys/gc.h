@@ -3,6 +3,6 @@
 
 #include "vm.h"
 
-void registerGcModule(VM* vm);
+void initGcModule(VM* vm, ObjectModule* module);
 
 #endif

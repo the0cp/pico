@@ -177,13 +177,7 @@ static Value glob_match(VM* vm, int argCount, Value* args){
     return BOOL_VAL(matched);
 }
 
-void registerGlobModule(VM* vm){
-    ObjectString* moduleName = copyString(vm, "glob", 4);
-    push(vm, OBJECT_VAL(moduleName));
-
-    ObjectModule* module = newModule(vm, moduleName);
-    push(vm, OBJECT_VAL(module));
-
+void initGlobModule(VM* vm, ObjectModule* module){
     ObjectString* className = copyString(vm, "Glob", 4);
     push(vm, OBJECT_VAL(className));
     ObjectClass* klass = newClass(vm, className);
@@ -194,13 +188,11 @@ void registerGlobModule(VM* vm){
     tableSet(vm, &klass->fields, OBJECT_VAL(copyString(vm, "IgnoreCase", 10)), BOOL_VAL(false));
     tableSet(vm, &klass->fields, OBJECT_VAL(copyString(vm, "Exclude", 7)), NULL_VAL);
     tableSet(vm, &klass->fields, OBJECT_VAL(copyString(vm, "Recursive", 9)), BOOL_VAL(false));
+    
     tableSet(vm, &module->members, OBJECT_VAL(className), OBJECT_VAL(klass));
+    
     pop(vm); // klass
     pop(vm); // className
 
     defineCFunc(vm, &module->members, "match", glob_match);
-
-    tableSet(vm, &vm->modules, OBJECT_VAL(moduleName), OBJECT_VAL(module));
-    pop(vm);
-    pop(vm);
 }

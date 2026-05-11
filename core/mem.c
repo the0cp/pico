@@ -73,6 +73,7 @@ static void traceRef(VM* vm, Object* object){
         case OBJECT_MODULE:{
             ObjectModule* module = (ObjectModule*)object;
             markObject(vm, (Object*)module->name);
+            markObject(vm, (Object*)module->path);
             markTable(vm, &module->members);
             break;
         }
@@ -146,7 +147,7 @@ static void markRoots(VM* vm){
         markTable(vm, vm->globalStack[i]);
     }
 
-    markTable(vm, &vm->modules);
+    markTable(vm, &vm->modCache);
 
     if(vm->compiler != NULL){
         markCompilerRoots(vm);

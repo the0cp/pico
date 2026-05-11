@@ -3,6 +3,6 @@
 
 #include "vm.h"
 
-void registerTimeModule(VM* vm);
+void initTimeModule(VM* vm, ObjectModule* module);
 
 #endif

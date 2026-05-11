@@ -130,20 +130,9 @@ static Value gc_stats(VM* vm, int argCount, Value* args){
     return OBJECT_VAL(statsMap);
 }
 
-void registerGcModule(VM* vm){
-    ObjectString* moduleName = copyString(vm, "gc", 2);
-    push(vm, OBJECT_VAL(moduleName));
-
-    ObjectModule* module = newModule(vm, moduleName);
-    push(vm, OBJECT_VAL(module));
-
+void initGcModule(VM* vm, ObjectModule* module){
     defineCFunc(vm, &module->members, "mode", gc_mode);
     defineCFunc(vm, &module->members, "collect", gc_collect);
     defineCFunc(vm, &module->members, "threshold", gc_threshold);
     defineCFunc(vm, &module->members, "stats", gc_stats);
-
-    tableSet(vm, &vm->modules, OBJECT_VAL(moduleName), OBJECT_VAL(module));
-
-    pop(vm);
-    pop(vm);
 }

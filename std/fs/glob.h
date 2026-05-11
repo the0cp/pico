@@ -3,7 +3,7 @@
 
 #include "vm.h"
 
-void registerGlobModule(VM* vm);
+void initGlobModule(VM* vm, ObjectModule* module);
 bool glob_match_string(const char* text, const char* pattern, bool ignoreCase);
 
 #endif

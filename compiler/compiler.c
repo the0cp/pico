@@ -777,7 +777,7 @@ static void importDecl(Compiler* compiler){
 
     Token aliasName = pathToken;
     for(int i = 0; i < aliasName.len; i++){
-        char c = aliasName.head[1];
+        char c = aliasName.head[i];
         if(c == '/' || c == '\\'){
             aliasName.head += i + 1;
             aliasName.len -= i + 1;

@@ -305,12 +305,7 @@ static Value path_sep(VM* vm, int argCount, Value* args){
     return OBJECT_VAL(copyString(vm, PATH_SEP_STR, 1));
 }
 
-void registerPathModule(VM* vm){
-    ObjectString* moduleName = copyString(vm, "path", 4);
-    push(vm, OBJECT_VAL(moduleName));
-    ObjectModule* module = newModule(vm, moduleName);
-    push(vm, OBJECT_VAL(module));
-
+void initPathModule(VM* vm, ObjectModule* module){
     defineCFunc(vm, &module->members, "join", path_join);
     defineCFunc(vm, &module->members, "base", path_base);
     defineCFunc(vm, &module->members, "dirname", path_dirname);
@@ -318,7 +313,4 @@ void registerPathModule(VM* vm){
     defineCFunc(vm, &module->members, "isAbs", path_isAbs);
     defineCFunc(vm, &module->members, "abs", path_abs);
     defineCFunc(vm, &module->members, "sep", path_sep);
-    tableSet(vm, &vm->modules, OBJECT_VAL(moduleName), OBJECT_VAL(module));
-    pop(vm);
-    pop(vm);
 }
