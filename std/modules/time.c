@@ -1,8 +1,6 @@
 #define _POSIX_C_SOURCE 199309L
 #define _XOPEN_SOURCE 500
 
-#include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
 #include <time.h>
 
@@ -14,9 +12,6 @@
 #endif
 
 #include "registry.h"
-#include "object.h"
-#include "value.h"
-#include "vm.h"
 #include "time.h"
 
 static double getSteady(){

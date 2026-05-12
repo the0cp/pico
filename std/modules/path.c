@@ -1,12 +1,7 @@
-#include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
 
-#include "common.h"
 #include "vm.h"
 #include "mem.h"
-#include "object.h"
-#include "value.h"
 #include "registry.h"
 
 #ifdef _WIN32

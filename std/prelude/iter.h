@@ -3,6 +3,7 @@
 
 #include "vm.h"
 
-void registerIterModule(VM* vm);
+Value iterNative(VM* vm, int argCount, Value* args);
+Value nextNative(VM* vm, int argCount, Value* args);
 
 #endif

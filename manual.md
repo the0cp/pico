@@ -642,7 +642,10 @@ u.Name = "Alice";
 
 ## Modules
 
-PiCo uses a file-based module system. Each file is a separate module.
+PiCo supports two kinds of modules:
+
+1. Script modules: user-defined `.pcs` files.
+2. Native standard modules: built-in modules implemented by the runtime, such as `fs`, `os`, `time`, `path`, `glob`, and `gc`.
 
 ### Importing
 
@@ -689,6 +692,8 @@ logger.log("Ready");
 ```
 
 ## Standard Libs
+
+Core value types such as strings and lists do not require imports; their operations are exposed as built-in object methods.
 
 ### fs - File System Modules
 
@@ -971,21 +976,6 @@ search.IgnoreCase = true;             # Match .C or .H too
 
 var all_source_files = fs.list(search);
 ```
-
-### string - String Module
-
-#### Import:
-
-```
-import "string";
-```
-
-#### Functions:
-
-- `string.ascii(code)`
-  - *Description*: Returns a one-character string corresponding to the given ASCII/Unicode code point.
-  - *Arguments*: `code` (Number).
-  - *Returns*: String.
 
 ## Built-in Object Methods
 

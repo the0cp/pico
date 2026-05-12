@@ -5,14 +5,16 @@
 #include <math.h>
 #include <time.h>
 
-#include "common.h"
-#include "chunk.h"
 #include "vm.h"
 #include "compiler.h"
 #include "mem.h"
 #include "registry.h"
 #include "module_loader.h"
-#include "file.h"
+
+#include "methods/list.h"
+#include "methods/string.h"
+
+#include "modules/fs.h"
 
 #ifdef DEBUG_TRACE
 #include "debug.h"

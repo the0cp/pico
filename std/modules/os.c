@@ -3,11 +3,7 @@
 #include <string.h>
 #include <errno.h>
 
-#include "common.h"
 #include "mem.h"
-#include "vm.h"
-#include "object.h"
-#include "value.h"
 #include "registry.h"
 
 #include "os.h"

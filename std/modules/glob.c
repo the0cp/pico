@@ -1,14 +1,8 @@
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
 
-#include "common.h"
 #include "vm.h"
-#include "mem.h"
-#include "object.h"
-#include "value.h"
-#include "container/list.h"
 #include "registry.h"
 #include "glob.h"
 

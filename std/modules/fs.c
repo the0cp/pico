@@ -31,6 +31,9 @@
     #define PATH_SEP_STR "/"
 #endif
 
+static bool is_excluded(VM* vm, const char* filename, Value excludeVal, bool ignoreCase);
+static void scan_dir(VM* vm, const char* baseDir, const char* relDir, ObjectList* list, GlobConfig* config);
+
 #define GET_FILE(val) \
     if(!IS_FILE(val)){ \
         runtimeError(vm, "Expected a file object.\n"); \

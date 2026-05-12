@@ -1,27 +1,78 @@
 import "assert.pcs";
 
-# Interpolation
-var name = "PiCo";
-var msg = "Hello, ${name}!";
-assert.eq(msg, "Hello, PiCo!", "String interpolation");
+func testInterpolation() {
+    var name = "PiCo";
+    var msg = "Hello, ${name}!";
+    assert.eq(msg, "Hello, PiCo!", "String interpolation");
+}
 
-# Indexing
-var s = "abcdef";
-assert.eq(s[0], "a", "String positive index");
-assert.eq(s[-1], "f", "String negative index");
+func testIndexingAndSlicing() {
+    var s = "abcdef";
+    assert.eq(s[0], "a", "String positive index");
+    assert.eq(s[-1], "f", "String negative index");
 
-# Slicing
-var slice1 = s[1:4];
-assert.eq(slice1, "bcd", "Basic slicing");
+    var slice1 = s[1:4];
+    assert.eq(slice1, "bcd", "Basic slicing");
 
-var slice2 = s[::-1];
-assert.eq(slice2, "fedcba", "Reverse slicing with negative step");
+    var slice2 = s[::-1];
+    assert.eq(slice2, "fedcba", "Reverse slicing with negative step");
+}
 
-# Methods
-var text = "  Hello World  ";
-var clean = text.trim().upper();
-assert.eq(clean, "HELLO WORLD", "Method chaining (trim and upper)");
+func testCaseAndTrim() {
+    var text = "  Hello World  ";
+    assert.eq(text.len(), 15, "String len");
+    assert.eq(text.trim(), "Hello World", "String trim");
+    assert.eq(text.trim().upper(), "HELLO WORLD", "Method chaining trim and upper");
+    assert.eq("HELLO".lower(), "hello", "String lower");
+    assert.eq("".trim(), "", "Trim empty string");
+    assert.eq("     ".trim(), "", "Trim whitespace-only string");
+}
 
-var parts = "a,b,c".split(",");
-assert.eq(parts.size(), 3, "Split size");
-assert.eq(parts[1], "b", "Split content");
+func testSub() {
+    assert.eq("abcdef".sub(1), "bcdef", "String sub from start");
+    assert.eq("abcdef".sub(1, 4), "bcd", "String sub with end");
+    assert.eq("abcdef".sub(-3), "def", "String sub negative start");
+    assert.eq("abcdef".sub(1, -1), "bcde", "String sub negative end");
+    assert.eq("abcdef".sub(4, 2), "", "String sub invalid range returns empty string");
+    assert.eq("abcdef".sub(-100, 2), "ab", "String sub clamps start");
+    assert.eq("abcdef".sub(4, 100), "ef", "String sub clamps end");
+}
+
+func testFind() {
+    assert.eq("hello world".find("world"), 6, "String find existing substring");
+    assert.eq("hello world".find("x"), -1, "String find missing substring");
+    assert.eq("hello".find(""), 0, "String find empty substring");
+}
+
+func testSplit() {
+    var parts = "a,b,c".split(",");
+    assert.eq(parts.size(), 3, "Split size");
+    assert.eq(parts[0], "a", "Split first content");
+    assert.eq(parts[1], "b", "Split middle content");
+    assert.eq(parts[2], "c", "Split last content");
+
+    var edgeParts = "a,,c,".split(",");
+    assert.eq(edgeParts.size(), 4, "Split keeps empty segments");
+    assert.eq(edgeParts[1], "", "Split empty middle segment");
+    assert.eq(edgeParts[3], "", "Split empty trailing segment");
+
+    var chars = "abc".split("");
+    assert.eq(chars.size(), 3, "Split empty delimiter size");
+    assert.eq(chars[0], "a", "Split empty delimiter first char");
+    assert.eq(chars[2], "c", "Split empty delimiter last char");
+}
+
+func testReplace() {
+    assert.eq("banana".replace("na", "NA"), "baNANA", "String replace repeated substring");
+    assert.eq("hello".replace("x", "y"), "hello", "String replace missing substring keeps original value");
+    assert.eq("hello".replace("", "x"), "hello", "String replace empty old string keeps original value");
+    assert.eq("aaaa".replace("aa", "b"), "bb", "String replace non-overlapping matches");
+}
+
+testInterpolation();
+testIndexingAndSlicing();
+testCaseAndTrim();
+testSub();
+testFind();
+testSplit();
+testReplace();

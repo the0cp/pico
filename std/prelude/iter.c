@@ -1,10 +1,7 @@
-#include <stdio.h>
 #include <string.h>
 
 #include "iter.h"
 #include "object.h"
-#include "vm.h"
-#include "value.h"
 
 static Value iterMap(VM* vm, ObjectIterator* iter, ObjectMap* map){
     while(iter->index < map->table.capacity){
@@ -67,16 +64,4 @@ Value nextNative(VM* vm, int argCount, Value* args){
     }
 
     return NULL_VAL;
-}
-
-void registerIterModule(VM* vm){
-    push(vm, OBJECT_VAL(copyString(vm, "iter", 4)));
-    push(vm, OBJECT_VAL(newCFunc(vm, iterNative)));
-    tableSet(vm, &vm->globals, peek(vm, 1), peek(vm, 0));
-    pop(vm); pop(vm);
-
-    push(vm, OBJECT_VAL(copyString(vm, "next", 4)));
-    push(vm, OBJECT_VAL(newCFunc(vm, nextNative)));
-    tableSet(vm, &vm->globals, peek(vm, 1), peek(vm, 0));
-    pop(vm); pop(vm);
 }

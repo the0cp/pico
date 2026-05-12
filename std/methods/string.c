@@ -1,15 +1,10 @@
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
 
-#include "common.h"
-#include "mem.h"
 #include "vm.h"
 #include "object.h"
 #include "value.h"
-#include "container/list.h"
-#include "registry.h"
 #include "string.h"
 
 Value string_len(VM* vm, int argCount, Value* args){
@@ -51,6 +46,10 @@ Value string_sub(VM* vm, int argCount, Value* args){
 Value string_trim(VM* vm, int argCount, Value* args){
     Value receiver = args[-1];
     ObjectString* strObj = AS_STRING(receiver);
+
+    if(strObj->length == 0){
+        return OBJECT_VAL(copyString(vm, "", 0));
+    }
     
     char* st = strObj->chars;
     char* end = st + strObj->length - 1;
@@ -183,15 +182,4 @@ Value string_replace(VM* vm, int argCount, Value* args){
     strcpy(dst, src);
 
     return OBJECT_VAL(takeString(vm, result, (int)newLen));
-}
-
-static Value stringModule_ascii(VM* vm, int argCount, Value* args){
-    if(argCount != 1 || !IS_NUM(args[0]))   return NULL_VAL;
-    int code = (int)AS_NUM(args[0]);
-    char c = (char)code;
-    return OBJECT_VAL(copyString(vm, &c, 1));
-}
-
-void initStringModule(VM* vm, ObjectModule* module){
-    defineCFunc(vm, &module->members, "ascii", stringModule_ascii);
 }

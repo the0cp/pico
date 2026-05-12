@@ -1,9 +1,15 @@
 #include <string.h>
 
 #include "registry.h"
-#include "object.h"
-#include "value.h"
-#include "vm.h"
+
+#include "prelude/iter.h"
+
+#include "modules/fs.h"
+#include "modules/path.h"
+#include "modules/glob.h"
+#include "modules/os.h"
+#include "modules/time.h"
+#include "modules/gc.h"
 
 void defineCFunc(VM* vm, HashTable* table, const char* name, CFunc func){
     push(vm, OBJECT_VAL(copyString(vm, name, (int)strlen(name))));
@@ -20,7 +26,6 @@ static NativeModuleDef nativeModules[] = {
     {"path", initPathModule},
     {"glob", initGlobModule},
     {"gc", initGcModule},
-    {"string", initStringModule},
     {NULL, NULL}
 };
 
