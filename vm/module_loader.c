@@ -1,4 +1,5 @@
 #include <string.h>
+#include <stdlib.h>
 
 #include "module_loader.h"
 #include "object.h"
@@ -15,8 +16,86 @@
     #define PATH_SEP_STR "/"
 #endif
 
+static bool isPathSep(char c){
+    return c == '/' || c == '\\';
+}
+
 static bool hasSep(const char* path){
-    return strchr(path, PATH_SEP) != NULL;
+    for(const char* p = path; *p != '\0'; p++){
+        if(isPathSep(*p)) return true;
+    }
+    return false;
+}
+
+static bool isAbsPath(const char* path){
+    if(path == NULL || path[0] == '\0'){
+        return false;
+    }
+
+#ifdef _WIN32
+    // Check for drive letter (e.g., C:\)
+    if(((path[0] >= 'A' && path[0] <= 'Z') || (path[0] >= 'a' && path[0] <= 'z')) &&
+       path[1] == ':' && isPathSep(path[2])){
+        return true;
+    }
+#endif
+
+    // Check for Unix-style absolute path
+    return isPathSep(path[0]);
+}
+
+static char* dupPath(const char* path){
+    size_t len = strlen(path);
+    char* copy = (char*)malloc(len + 1);
+    if(copy != NULL){
+        memcpy(copy, path, len + 1);
+    }
+    return copy;
+}
+
+static char* resolveScriptPath(const char* spec, const char* requester){
+    if(spec == NULL || spec[0] == '\0'){
+        return NULL;
+    }
+
+    if(isAbsPath(spec) || requester == NULL || requester[0] == '\0'){
+        return dupPath(spec);
+    }
+
+    const char* lastSep = NULL;
+    for(const char* p = requester; *p != '\0'; p++){
+        if(isPathSep(*p)){
+            lastSep = p;
+        }
+    }
+
+    if(lastSep == NULL){
+        return dupPath(spec);
+    }
+
+    size_t dirLen = (size_t)(lastSep - requester);
+    if(dirLen == 0 || isPathSep(requester[0])){
+        dirLen = 1;  // Handle cases like "/module" or "C:\module"
+    }
+
+    bool needSep = dirLen > 0 && !isPathSep(requester[dirLen - 1]);
+    size_t specLen = strlen(spec);
+    size_t totalLen = dirLen + (needSep ? 1 : 0) + specLen;
+
+    char* resolved = (char*)malloc(totalLen + 1);
+    if(resolved == NULL){
+        return NULL;
+    }
+
+    memcpy(resolved, requester, dirLen);
+    size_t pos = dirLen;
+    if(needSep){
+        resolved[pos++] = PATH_SEP;
+    }
+
+    memcpy(resolved + pos, spec, specLen);
+    resolved[totalLen] = '\0';
+    return resolved;
 }
 
 static bool endWith(const char* str, const char* suffix){
@@ -36,7 +115,7 @@ static ObjectString* getModuleName(VM* vm, const char* spec){
     const char* start = spec;
 
     for(const char* p = spec; *p != '\0'; p++){
-        if(*p == PATH_SEP){
+        if(isPathSep(*p)){
             start = p + 1;
         }
     }
@@ -161,8 +240,6 @@ InterpreterStatus importModule(
     const char* requester,
     ImportResult* result
 ){
-    (void)requester;
-
     result->module = NULL;
     result->closure = NULL;
 
@@ -177,6 +254,15 @@ InterpreterStatus importModule(
         return VM_RUNTIME_ERROR;
     }
 
-    return loadScriptModule(vm, spec, result);
+    char* resolvedPath = resolveScriptPath(spec->chars, requester);
+    if(resolvedPath == NULL){
+        runtimeError(vm, "Failed to resolve module path for '%s'.", spec->chars);
+        return VM_RUNTIME_ERROR;
+    }
+
+    ObjectString* resolvedSpec = copyString(vm, resolvedPath, (int)strlen(resolvedPath));
+    free(resolvedPath);
+
+    return loadScriptModule(vm, resolvedSpec, result);
 }
 

@@ -1,5 +1,8 @@
 import "math_lib.pcs";
 import "assert.pcs";
+import "module_cases/main.pcs";
+
+assert.eq(main.value, 42, "Nested relative import should resolve from requester directory");
 
 # Variable Export
 assert.eq(math_lib.PI, 3.14159, "Imported variable value");

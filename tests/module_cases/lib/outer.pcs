@@ -1,0 +1,3 @@
+import "inner.pcs";
+
+var value = inner.answer;

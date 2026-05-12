@@ -1,0 +1,3 @@
+import "lib/outer.pcs";
+
+var value = outer.value;
