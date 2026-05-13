@@ -1,0 +1,3 @@
+import "counter.pcs";
+
+var value = counter.value;

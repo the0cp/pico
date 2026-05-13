@@ -1,5 +1,6 @@
 #include <string.h>
 #include <stdlib.h>
+#include <ctype.h>
 
 #include "module_loader.h"
 #include "object.h"
@@ -96,6 +97,131 @@ static char* resolveScriptPath(const char* spec, const char* requester){
     memcpy(resolved + pos, spec, specLen);
     resolved[totalLen] = '\0';
     return resolved;
+}
+
+inline static char normalizeSep(){
+    return '/';  // Use '/' as the normalized separator
+}
+
+static char* normalizeScriptPath(const char* path){
+    if(path == NULL){
+        return NULL;
+    }
+
+    size_t len = strlen(path);
+    char* work = (char*)malloc(len + 1);
+    if(work == NULL){
+        return NULL;
+    }
+
+    for(size_t i = 0; i < len; i++){
+        char c = path[i];
+        work[i] = isPathSep(c) ? normalizeSep() : c;
+    }
+    work[len] = '\0';
+
+    char** parts = (char**)malloc(sizeof(char*) * (len + 1));
+    if(parts == NULL){
+        free(work);
+        return NULL;
+    }
+
+    size_t partCount = 0;
+    size_t prefixLen = 0;
+    bool absolute = false;
+
+#ifdef _WIN32
+    if(len >= 3 &&
+        ((work[0] >= 'A' && work[0] <= 'Z') || (work[0] >= 'a' && work[0] <= 'z')) &&
+        work[1] == ':' && 
+        isPathSep(work[2])){
+            work[0] = (char)toupper((unsigned char)work[0]);
+            prefixLen = 3;
+            absolute = true;
+    }else
+#endif
+    if(len >= 1 && isPathSep(work[0])){
+        prefixLen = 1;
+        absolute = true;
+    }
+
+    char* p = work + prefixLen;
+
+    while(*p != '\0'){
+        while(isPathSep(*p)){
+            p++;
+        }
+
+        if(*p == '\0'){
+            break;
+        }
+
+        char* start = p;
+
+        while(*p != '\0' && !isPathSep(*p)){
+            p++;
+        }
+
+        if(*p != '\0'){
+            *p = '\0';
+            p++;
+        }
+
+        if(strcmp(start, ".") == 0){
+            continue;
+        }
+
+        if(strcmp(start, "..") == 0){
+            if(partCount > 0 && strcmp(parts[partCount - 1], "..") != 0){
+                partCount--;
+            }else if(!absolute){
+                parts[partCount++] = start;
+            }
+            continue;
+        }
+
+        parts[partCount++] = start;
+    }
+
+    char* result = (char*)malloc(len + 1);
+    if(result == NULL){
+        free(work);
+        free(parts);
+        return NULL;
+    }
+
+    size_t pos = 0;
+
+    if(prefixLen > 0){
+        memcpy(result, work, prefixLen);
+        pos += prefixLen;
+
+        if(pos > 0 && result[pos - 1] != normalizeSep()){
+            result[pos++] = normalizeSep();
+        }
+    }
+
+    for(size_t i = 0; i < partCount; i++){
+        size_t partLen = strlen(parts[i]);
+
+        if(pos > 0 && result[pos - 1] != normalizeSep()){
+            result[pos++] = normalizeSep();
+        }
+
+        memcpy(result + pos, parts[i], partLen);
+        pos += partLen;
+    }
+
+    if(pos == 0){
+        result[pos++] = '.';
+    }
+
+    result[pos] = '\0';
+
+    free(parts);
+    free(work);
+
+    return result;
 }
 
 static bool endWith(const char* str, const char* suffix){
@@ -260,8 +386,16 @@ InterpreterStatus importModule(
         return VM_RUNTIME_ERROR;
     }
 
-    ObjectString* resolvedSpec = copyString(vm, resolvedPath, (int)strlen(resolvedPath));
+    char* normalizedPath = normalizeScriptPath(resolvedPath);
     free(resolvedPath);
+
+    if(normalizedPath == NULL){
+        runtimeError(vm, "Failed to normalize module path for '%s'.", spec->chars);
+        return VM_RUNTIME_ERROR;
+    }
+
+    ObjectString* resolvedSpec = copyString(vm, normalizedPath, (int)strlen(normalizedPath));
+    free(normalizedPath);
 
     return loadScriptModule(vm, resolvedSpec, result);
 }
