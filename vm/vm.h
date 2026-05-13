@@ -28,6 +28,8 @@ typedef enum{
     GC_MODE_OFF
 }GCMode;
 
+typedef struct GCPolicy GCPolicy;
+
 typedef struct VM{
     Value stack[STACK_MAX];  // Stack for values
     Value* stackTop;         // for alloc new CallFrame
@@ -42,12 +44,18 @@ typedef struct VM{
     ObjectUpvalue* openUpvalues;    // descending locations
     CallFrame frames[FRAMES_MAX];
     int frameCount;
+
     size_t bytesAllocated;
     size_t nextGC;
     size_t gcThreshold;
+
     GCMode gcMode;
+    const GCPolicy* gcPolicy;
+    bool gcRunning;
+
     Compiler* compiler;
     uint64_t hash_seed;
+
     int argc;
     const char** argv;
 }VM;
