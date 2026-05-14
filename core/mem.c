@@ -3,38 +3,53 @@
 
 #include "mem.h"
 #include "compiler.h"
+#include "gc_policy.h"
 
 #define GC_HEAP_GROW_FACTOR 2
 // #define GC_MIN_THRESHOLD 1024 * 1024 * 10
 
-void collectGarbage(VM* vm){
-    if(vm->bytesAllocated == 0) return;
-    #ifdef GC_LOG_ALLOC
-    printf("\n-- gc begin\n");
-    #endif
+bool gcMarkSweep(VM* vm, GCReason reason){
+    (void)reason;
+
+    if(vm->bytesAllocated == 0){
+        return false;
+    }
+
+#ifdef DEBUG_LOG_GC
+    printf("-- gc begin --\n");
+#endif
+
     size_t before = vm->bytesAllocated;
 
     markRoots(vm);
-    
-    #ifdef GC_LOG_ALLOC
-    printf("-- mark phase complete\n");
-    #endif
+
+#ifdef DEBUG_LOG_GC
+    printf("Marked objects. Starting sweep...\n");
+#endif
 
     tableRemoveWhite(vm, &vm->strings);
     sweep(vm);
 
     vm->nextGC = vm->bytesAllocated * GC_HEAP_GROW_FACTOR;
+
     if(vm->nextGC < vm->gcThreshold){
         vm->nextGC = vm->gcThreshold;
     }
 
-    #ifdef GC_LOG_ALLOC
-    printf("-- sweep phase complete\n");
-    printf("   collected %zu bytes (from %zu to %zu) next at %zu\n",
-           before - vm->bytesAllocated, before, vm->bytesAllocated,
-           vm->nextGC);
-    printf("-- gc end\n\n");
-   #endif
+#ifdef DEBUG_LOG_GC
+    printf("-- sweep finished. Collected %zu bytes (from %zu to %zu) next at %zu --\n", 
+        before - vm->bytesAllocated, 
+        before, 
+        vm->bytesAllocated, 
+        vm->nextGC);
+    printf("-- gc end --\n");
+#endif
+
+    return true;
+}
+
+void collectGarbage(VM* vm){
+    (void)gcCollect(vm, GC_REASON_MANUAL);
 }
 
 static void traceRef(VM* vm, Object* object){
@@ -189,28 +204,8 @@ void* reallocate(VM* vm, void* ptr, size_t oldSize, size_t newSize){
     }else{
         vm->bytesAllocated -= oldSize - newSize;
     }
-    
-    static bool gc_running = false;
-   
-    #ifdef DEBUG_STRESS_GC
-    if(!gc_running && 
-        vm->gcMode == GC_MODE_AUTO && 
-        newSize > oldSize){
-        gc_running = true;
-        collectGarbage(vm);
-        gc_running = false;
-    }
-    #else
-    if(!gc_running && 
-        vm->gcMode == GC_MODE_AUTO && 
-        newSize > oldSize && 
-        vm->bytesAllocated > vm->nextGC){
-        gc_running = true;
-        collectGarbage(vm);
-        gc_running = false;
-    }
-    #endif
-    
+       
+    gcOnAlloc(vm, ptr, oldSize, newSize);
 
     if(newSize == 0){
         free(ptr);

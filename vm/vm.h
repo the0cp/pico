@@ -4,10 +4,12 @@
 #include "hashtable.h"
 #include "object.h"
 #include "instruction.h"
+#include "gc_types.h"
 
 typedef struct Chunk Chunk;
 typedef struct Object Object;
 typedef struct Compiler Compiler;
+typedef struct GCPolicy GCPolicy;
 
 #define FRAMES_MAX 64
 #define STACK_MAX (FRAMES_MAX * 256)
@@ -21,14 +23,6 @@ typedef struct CallFrame{
     ObjectClosure* defers[MAX_DEFERS];
     int deferCnt;
 }CallFrame;
-
-typedef enum{
-    GC_MODE_AUTO,
-    GC_MODE_MANUAL,
-    GC_MODE_OFF
-}GCMode;
-
-typedef struct GCPolicy GCPolicy;
 
 typedef struct VM{
     Value stack[STACK_MAX];  // Stack for values

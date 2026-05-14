@@ -5,37 +5,12 @@
 #include "value.h"
 #include "vm.h"
 #include "mem.h"
-
-static const char* gcModeToStr(GCMode mode){
-    switch(mode){
-        case GC_MODE_AUTO: 
-            return "auto";
-        case GC_MODE_MANUAL: 
-            return "manual";
-        case GC_MODE_OFF: 
-            return "off";
-        default: 
-            return "unknown";
-    }
-}
-
-static bool getGcMode(const char* modeStr, GCMode* mode){
-    if(strcmp(modeStr, "auto") == 0){
-        *mode = GC_MODE_AUTO;
-        return true;
-    }else if(strcmp(modeStr, "manual") == 0){
-        *mode = GC_MODE_MANUAL;
-        return true;
-    }else if(strcmp(modeStr, "off") == 0){
-        *mode = GC_MODE_OFF;
-        return true;
-    }
-    return false;
-}
+#include "gc_policy.h"
+#include "gc.h"
 
 static Value gc_mode(VM* vm, int argCount, Value* args){
     if(argCount == 0){
-        const char* modeStr = gcModeToStr(vm->gcMode);
+        const char* modeStr = gcModeName(vm->gcMode);
         return OBJECT_VAL(copyString(vm, modeStr, (int)strlen(modeStr)));
     }
 
@@ -47,12 +22,12 @@ static Value gc_mode(VM* vm, int argCount, Value* args){
     GCMode mode;
     const char* modeStr = AS_CSTRING(args[0]);
 
-    if(!getGcMode(modeStr, &mode)){
+    if(!gcModeFromString(modeStr, &mode)){
         runtimeError(vm, "Invalid GC mode: %s. Valid modes are 'auto', 'manual', 'off'.\n", modeStr);
         return NULL_VAL;
     }
 
-    vm->gcMode = mode;
+    gcSetMode(vm, mode);
     return args[0];
 }
 
@@ -62,12 +37,7 @@ static Value gc_collect(VM* vm, int argCount, Value* args){
         return NULL_VAL;
     }
 
-    if(vm->gcMode == GC_MODE_OFF){
-        return BOOL_VAL(false);
-    }
-
-    collectGarbage(vm);
-    return BOOL_VAL(true);
+    return BOOL_VAL(gcCollect(vm, GC_REASON_MANUAL));
 }
 
 static Value gc_threshold(VM* vm, int argCount, Value* args){
@@ -104,8 +74,15 @@ static int countObjects(VM* vm){
 }
 
 static void mapCString(VM* vm, ObjectMap* map, const char* key, Value value){
+    push(vm, value);
+
     ObjectString* keyStr = copyString(vm, key, (int)strlen(key));
+    push(vm, OBJECT_VAL(keyStr));
+
     tableSet(vm, &map->table, OBJECT_VAL(keyStr), value);
+
+    pop(vm);    // keyStr
+    pop(vm);    // value
 }
 
 static Value gc_stats(VM* vm, int argCount, Value* args){
@@ -117,7 +94,7 @@ static Value gc_stats(VM* vm, int argCount, Value* args){
     ObjectMap* statsMap = newMap(vm);
     push(vm, OBJECT_VAL(statsMap));
 
-    const char* modeName = gcModeToStr(vm->gcMode);
+    const char* modeName = gcModeName(vm->gcMode);
     ObjectString* modeStr = copyString(vm, modeName, (int)strlen(modeName));
 
     mapCString(vm, statsMap, "mode", OBJECT_VAL(modeStr));
@@ -125,6 +102,13 @@ static Value gc_stats(VM* vm, int argCount, Value* args){
     mapCString(vm, statsMap, "next", NUM_VAL((double)vm->nextGC));
     mapCString(vm, statsMap, "threshold", NUM_VAL((double)vm->gcThreshold));
     mapCString(vm, statsMap, "objects", NUM_VAL((double)countObjects(vm)));
+    mapCString(vm, statsMap, "running", BOOL_VAL(vm->gcRunning));
+    mapCString(vm, statsMap, "policy",
+        OBJECT_VAL(copyString(vm,
+            vm->gcPolicy != NULL ? vm->gcPolicy->name : "none",
+            (int)strlen(vm->gcPolicy != NULL ? vm->gcPolicy->name : "none")
+        ))
+    );
 
     pop(vm);
     return OBJECT_VAL(statsMap);

@@ -10,6 +10,7 @@
 #include "mem.h"
 #include "registry.h"
 #include "module_loader.h"
+#include "gc_policy.h"
 
 #include "methods/list.h"
 #include "methods/string.h"
@@ -47,10 +48,14 @@ void initVM(VM* vm, int argc, const char* argv[]){
     vm->curGlobal = &vm->globals;
     vm->globalStack[0] = vm->curGlobal;
 
+    /*
     vm->bytesAllocated = 0;
     vm->gcThreshold = 1024 * 1024 * 10;   // 10MB
     vm->nextGC = vm->gcThreshold;
     vm->gcMode = GC_MODE_AUTO;
+    */
+
+    initGC(vm);
 
     vm->compiler = NULL;
 
@@ -98,6 +103,8 @@ void freeVM(VM* vm){
     vm->curGlobal = NULL;
     vm->openUpvalues = NULL;
     freeObjects(vm);
+
+    shutdownGC(vm);
 }
 
 void push(VM* vm, Value value){

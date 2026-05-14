@@ -1,0 +1,17 @@
+#ifndef PICO_GC_TYPES_H
+#define PICO_GC_TYPES_H
+
+typedef enum{
+    GC_REASON_THRESHOLD,
+    GC_REASON_MANUAL,
+    GC_REASON_STRESS,
+    GC_REASON_SHUTDOWN
+}GCReason;
+
+typedef enum{
+    GC_MODE_AUTO,
+    GC_MODE_MANUAL,
+    GC_MODE_OFF
+}GCMode;
+
+#endif // PICO_GC_TYPES_H
