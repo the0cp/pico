@@ -1,0 +1,12 @@
+import "assert.pcs";
+
+$> true
+assert.eq(_exit_code, 0, "$> true exit code");
+
+$> false
+assert.eq(_exit_code, 1, "$> false exit code");
+
+$> echo pico-system-test
+assert.eq(_exit_code, 0, "$> echo exit code");
+
+print "system command tests done";

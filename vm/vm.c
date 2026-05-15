@@ -24,6 +24,30 @@
 #define R(n) (frame->base[(n)])
 #define K(n) (frame->closure->func->chunk.constants.values[(n)])
 
+#ifdef _WIN32
+static int normalizeSystemStatus(int status){
+    return status;
+}
+#else
+#include <sys/wait.h>
+
+static int normalizeSystemStatus(int status){
+    if(status == -1){
+        return -1;
+    }
+
+    if(WIFEXITED(status)){
+        return WEXITSTATUS(status);
+    }
+
+    if(WIFSIGNALED(status)){
+        return 128 + WTERMSIG(status);
+    }
+
+    return -1;
+}
+#endif
+
 void resetStack(VM* vm){
     vm->stackTop = vm->stack;
 }
@@ -564,10 +588,7 @@ static InterpreterStatus run(VM* vm){
                 return VM_RUNTIME_ERROR;
             }
 
-            if(!tableSet(vm, &map->table, key, newVal)){
-                runtimeError(vm, "Out of memory.");
-                return VM_RUNTIME_ERROR;
-            }
+            tableSet(vm, &map->table, key, newVal);
         }else{
             runtimeError(vm, "Only map type support key-value assignment.");
             return VM_RUNTIME_ERROR;
@@ -1368,7 +1389,8 @@ static InterpreterStatus run(VM* vm){
             return VM_RUNTIME_ERROR;
         }
         
-        int status = system(AS_STRING(cmd)->chars);
+        int rawStatus = system(AS_STRING(cmd)->chars);
+        int status = normalizeSystemStatus(rawStatus);
         Value statusVal = NUM_VAL((double)status);
         R(a) = statusVal;
 

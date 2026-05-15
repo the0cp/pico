@@ -78,7 +78,7 @@ Maps are key-value pairs enclosed in curly braces `{}`.
 - **Syntax**: `{ key1: value1, key2: value2 }`.
 - **Access**: Values are accessed using square brackets `[]` with the key.
 
-> Map keys must be integers. Using a float with a fractional part (e.g., `1.5`) as a key will result in a runtime error. However, `1.0` is treated as integer `1`.
+> Map keys support string, integer numbers, bool, and null. Using a float with a fractional part (e.g., `1.5`) as a key will result in a runtime error. However, `1.0` is treated as integer `1`.
 
 Example:
 
@@ -466,7 +466,9 @@ PiCo features a simple syntax for executing system shell commands directly.
   
   3. Prints the command's output directly to the standard output (stdout).
   
-  4. This is a statement, not an expression. The exit code is discarded in the current implementation (verified via `OP_POP` in compiler).
+  4. $> is a statement, not an expression. It executes the rest of the line through the system shell. The normalized exit code is stored in the global variable _exit_code. 
+  
+  5. $> does not require a semicolon. It ends at the end of the line.
 
 Exit Status (`_exit_code`): Unlike standard function calls, the `$>` command does not return a value directly to the expression. Instead, the exit status of the executed command is stored in a special global variable named `_exit_code`.
 

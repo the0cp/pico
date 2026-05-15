@@ -1307,20 +1307,23 @@ static void switchStmt(Compiler* compiler){
 }
 
 static void systemStmt(Compiler* compiler){
-    ExprDesc cmdExpr;
-    expression(compiler, &cmdExpr);
-    expr2NextReg(compiler, &cmdExpr);
+    Token* cmdToken = &compiler->parser.pre;
 
-    int cmdReg = cmdExpr.data.loc.index;
-    int statusReg = getFreeReg(compiler);
+    Value cmdVal = OBJECT_VAL(copyString(
+        compiler->vm, 
+        cmdToken->head, 
+        cmdToken->len
+    ));
+
+    int cmdConst = makeConstant(compiler, cmdVal);
+
+    int cmdReg = getFreeReg(compiler);
     reserveReg(compiler, 1);
 
-    emitABC(compiler, OP_SYSTEM, statusReg, cmdReg, 0);
+    emitABx(compiler, OP_LOADK, cmdReg, cmdConst);
+    emitABC(compiler, OP_SYSTEM, cmdReg, cmdReg, 0);
 
-    freeExpr(compiler, &cmdExpr);
     freeRegs(compiler, 1);
-
-    consume(compiler, TOKEN_SEMICOLON, "Expect ';' after system command.");
 }
 
 static void deferStmt(Compiler* compiler){
