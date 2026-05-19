@@ -955,8 +955,13 @@ static InterpreterStatus run(VM* vm){
 
         Value callee = R(a);
         int argCount = b - 1;
-        
-        vm->stackTop = &R(a + b);
+
+        Value* oldStackTop = vm->stackTop;
+        Value* callTop = &R(a + b);
+        for(Value* slot = callTop; slot < oldStackTop; slot++){
+            *slot = NULL_VAL;
+        }
+        vm->stackTop = callTop;
 
         int frameCnt = vm->frameCount;
 
@@ -1480,11 +1485,9 @@ static bool call(VM* vm, ObjectClosure* closure, int argCnt){
     frame->base = newBase;
     frame->deferCnt = 0;
 
-    /*
     for(int i = argCnt + 1; i < closure->func->maxRegSlots; i++){
         frame->base[i] = NULL_VAL;
     }
-    */
    
     vm->stackTop = frame->base + closure->func->maxRegSlots;
 

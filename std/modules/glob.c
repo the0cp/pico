@@ -171,17 +171,37 @@ static Value glob_match(VM* vm, int argCount, Value* args){
     return BOOL_VAL(matched);
 }
 
+static void defineGlobField(VM* vm, ObjectClass* klass, const char* name, Value value){
+    push(vm, value);
+
+    ObjectString* key = copyString(vm, name, (int)strlen(name));
+    push(vm, OBJECT_VAL(key));
+
+    tableSet(vm, &klass->fields, OBJECT_VAL(key), value);
+
+    pop(vm);
+    pop(vm);
+}
+
 void initGlobModule(VM* vm, ObjectModule* module){
     ObjectString* className = copyString(vm, "Glob", 4);
     push(vm, OBJECT_VAL(className));
     ObjectClass* klass = newClass(vm, className);
     push(vm, OBJECT_VAL(klass));
 
-    tableSet(vm, &klass->fields, OBJECT_VAL(copyString(vm, "Pattern", 7)), OBJECT_VAL(copyString(vm, "*", 1)));
-    tableSet(vm, &klass->fields, OBJECT_VAL(copyString(vm, "Dir", 3)), OBJECT_VAL(copyString(vm, ".", 1)));
-    tableSet(vm, &klass->fields, OBJECT_VAL(copyString(vm, "IgnoreCase", 10)), BOOL_VAL(false));
-    tableSet(vm, &klass->fields, OBJECT_VAL(copyString(vm, "Exclude", 7)), NULL_VAL);
-    tableSet(vm, &klass->fields, OBJECT_VAL(copyString(vm, "Recursive", 9)), BOOL_VAL(false));
+    ObjectString* patternDefault = copyString(vm, "*", 1);
+    push(vm, OBJECT_VAL(patternDefault));
+    defineGlobField(vm, klass, "Pattern", OBJECT_VAL(patternDefault));
+    pop(vm);
+
+    ObjectString* dirDefault = copyString(vm, ".", 1);
+    push(vm, OBJECT_VAL(dirDefault));
+    defineGlobField(vm, klass, "Dir", OBJECT_VAL(dirDefault));
+    pop(vm);
+
+    defineGlobField(vm, klass, "IgnoreCase", BOOL_VAL(false));
+    defineGlobField(vm, klass, "Exclude", NULL_VAL);
+    defineGlobField(vm, klass, "Recursive", BOOL_VAL(false));
     
     tableSet(vm, &module->members, OBJECT_VAL(className), OBJECT_VAL(klass));
     

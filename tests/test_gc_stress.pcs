@@ -1,0 +1,41 @@
+import "assert.pcs";
+
+class Node {
+    Data;
+    Next;
+}
+
+func createChain(depth) {
+    var head = Node();
+    var current = head;
+
+    for (var i = 0; i < depth; i++) {
+        var n = Node();
+        n.Data = [i; 10];
+        current.Next = n;
+        current = n;
+    }
+
+    return head;
+}
+
+for (var i = 0; i < 5; i++) {
+    var chain = createChain(50);
+    chain = null;
+}
+
+func createKeeper() {
+    var secret = [1, 2, 3, "kept alive"];
+    return func() {
+        return secret;
+    };
+}
+
+var keeper = createKeeper();
+
+for (var i = 0; i < 5; i++) {
+    createChain(50);
+}
+
+var data = keeper();
+assert.eq(data[3], "kept alive", "Closure upvalue retention after stress GC");

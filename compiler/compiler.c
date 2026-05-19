@@ -1754,7 +1754,10 @@ static void handleNum(Compiler* compiler, ExprDesc* expr, bool canAssign){
 }
 
 static int makeConstant(Compiler* compiler, Value value){
+    push(compiler->vm, value);
     int constIndex = addConstant(compiler->vm, &compiler->func->chunk, value);
+    pop(compiler->vm);
+
     if(constIndex < 0){
         errorAt(compiler, &compiler->parser.pre, "Failed to add constant.");
         return 0;

@@ -150,6 +150,10 @@ static void markRoots(VM* vm){
 
     for(int i = 0; i < vm->frameCount; i++){
         markObject(vm, (Object*)vm->frames[i].closure);
+
+        for(int j = 0; j < vm->frames[i].deferCnt; j++){
+            markObject(vm, (Object*)vm->frames[i].defers[j]);
+        }
     }
 
     for(ObjectUpvalue* upvalue = vm->openUpvalues; upvalue != NULL; upvalue = upvalue->next){
