@@ -4,39 +4,32 @@ on: [push, pull_request]
 
 jobs:
   build:
-    name: Build on ${{ matrix.os }}
+    name: ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
+
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        include:
+          - name: Linux Release
+            os: ubuntu-latest
+            preset: release
+
+          - name: Windows Release
+            os: windows-latest
+            preset: release-windows
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      with:
-        submodules: recursive
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
-    - name: Configure CMake (Linux)
-      if: runner.os == 'Linux'
-      run: cmake -B build -DCMAKE_BUILD_TYPE=Release
+      - name: Configure
+        run: cmake --preset ${{ matrix.preset }}
 
-    - name: Configure CMake (Windows)
-      if: runner.os == 'Windows'
-      run: cmake -B build -G "MinGW Makefiles" -DCMAKE_BUILD_TYPE=Release
+      - name: Build
+        run: cmake --build --preset ${{ matrix.preset }}
 
-    - name: Build
-      run: cmake --build build --config Release
-
-    - name: Run Tests (Linux)
-      if: runner.os == 'Linux'
-      working-directory: tests
-      run: |
-        chmod +x run_tests.sh
-        ./run_tests.sh
-
-    - name: Run Tests (Windows)
-      if: runner.os == 'Windows'
-      working-directory: tests
-      shell: bash
-      run: ./run_tests.sh
+      - name: Run tests
+        run: ctest --preset ${{ matrix.preset }} --output-on-failure

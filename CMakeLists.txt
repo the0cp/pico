@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.10)
+cmake_minimum_required(VERSION 3.21)
 
 project(PiCo)
 
@@ -38,7 +38,11 @@ if(NOT WIN32)
 else()
 endif()
 
-add_compile_options(-g -O3)
+add_compile_options(
+    $<$<CONFIG:Debug>:-g>
+    $<$<CONFIG:Debug>:-O0>
+    $<$<CONFIG:Release>:-O3>
+)
 
 add_executable(pico 
     ${CORE_SRC} 
@@ -54,8 +58,23 @@ else()
     target_link_libraries(pico PRIVATE xxhash_lib linenoise_lib m)
 endif()
 
-target_compile_options(pico PRIVATE
-    $<$<CONFIG:RELEASE>:-O3>
+include(CTest)
+
+if(BUILD_TESTING)
+    add_test(
+        NAME pico_script_tests
+        COMMAND ${CMAKE_COMMAND} -E env
+                "PICO_EXEC=$<TARGET_FILE:pico>"
+                "TIMEOUT_SEC=60"
+                bash run_tests.sh
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/tests
+    )
+endif()
+
+add_custom_target(check
+    COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure
+    DEPENDS pico
+    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
 )
 
 message(STATUS "Project 'PiCo' configured to use C Compiler: ${CMAKE_C_COMPILER}")
