@@ -6,31 +6,69 @@ See the included `manual.md` for a detailed language reference and usage example
 
 ## Building
 
-Requirements: gcc and CMake. The code uses specific techniques such as dispatch table, so gcc is necessary. Installing gcc on Windows can be done through several methods, including using MinGW-w64, Chocolatey and MSYS2.
+Requirements: gcc and CMake. The code uses GCC-specific techniques such as computed goto / dispatch table, so GCC is required. On Windows, GCC can be installed through MinGW-w64, Chocolatey, or MSYS2.
 
-Typical build steps:
+Configure and build a debug version:
 
 ```sh
-mkdir build
-cd build
-cmake ..
-make
+cmake --preset debug
+cmake --build --preset debug
 ```
 
-The build produces a `pico` executable in the build directory.
+Configure and build a release version:
+
+```sh
+cmake --preset release
+cmake --build --preset release
+```
+
+On Windows:
+
+```sh
+cmake --preset release-windows
+cmake --build --preset release-windows
+```
+
+The executable is generated under the corresponding build directory, for example:
+
+```text
+build/debug/pico
+build/release/pico
+build/release-windows/pico.exe
+```
+
+## Testing
+
+Run the test suite with *CTest*:
+
+```sh
+ctest --preset debug --output-on-failure
+```
+
+or for release:
+
+```sh
+ctest --preset release --output-on-failure
+```
 
 ## Usage
 
-- Run the interactive REPL:
+Run the interactive REPL:
 
 ```sh
-./pico
+./build/release/pico
 ```
 
-- Run a script:
+Run a script:
 
 ```sh
-./pico path/to/script.pcs
+./build/release/pico path/to/script.pcs
+```
+
+For a debug build, use:
+
+```sh
+./build/debug/pico path/to/script.pcs
 ```
 
 Check `manual.md` for language syntax, built-in functions, and examples.
