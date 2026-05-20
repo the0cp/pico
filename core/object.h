@@ -82,6 +82,9 @@ typedef struct ObjectString{
 ObjectString* copyString(VM* vm, const char* chars, int len);
 ObjectString* takeString(VM* vm, char* chars, int length);
 
+ObjectString* copyStringRaw(VM* vm, const char* chars, int len);
+ObjectString* takeStringRaw(VM* vm, char* chars, int length);
+
 typedef struct ObjectList{
     Object obj;
     int count;

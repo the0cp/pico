@@ -548,7 +548,7 @@ static InterpreterStatus run(VM* vm){
                 return VM_RUNTIME_ERROR;
             }
             char chars[2] = {str->chars[index], '\0'};
-            ObjectString* charStr = copyString(vm, chars, 1);
+            ObjectString* charStr = copyStringRaw(vm, chars, 1);
             result = OBJECT_VAL(charStr);
         }else{
             runtimeError(vm, "Only list and map type support indexing.");
@@ -770,7 +770,7 @@ static InterpreterStatus run(VM* vm){
             memcpy(chars + bStr->length, cStr->chars, cStr->length);
             chars[len] = '\0';
 
-            ObjectString* reStr = takeString(vm, chars, (int)len);
+            ObjectString* reStr = takeStringRaw(vm, chars, (int)len);
 
             pop(vm);
             pop(vm);
@@ -880,7 +880,7 @@ static InterpreterStatus run(VM* vm){
 
                 chars[len] = '\0';
 
-                R(GET_ARG_A(instruction)) = OBJECT_VAL(takeString(vm, chars, (int)len));
+                R(GET_ARG_A(instruction)) = OBJECT_VAL(takeStringRaw(vm, chars, (int)len));
             }
             #undef PATH_SEP
             #undef IS_SEP
@@ -1296,7 +1296,7 @@ static InterpreterStatus run(VM* vm){
                     current += step;
                 }
                 chars[count] = '\0';
-                R(a) = OBJECT_VAL(takeString(vm, chars, count));
+                R(a) = OBJECT_VAL(takeStringRaw(vm, chars, count));
             }
         }else{
             // List
@@ -1363,7 +1363,7 @@ static InterpreterStatus run(VM* vm){
             int index = IS_NUM(state) ? (int)AS_NUM(state) : 0;
             if(index < str->length){
                 char chars[2] = {str->chars[index], '\0'};
-                R(a + 2) = OBJECT_VAL(copyString(vm, chars, 1));
+                R(a + 2) = OBJECT_VAL(copyStringRaw(vm, chars, 1));
                 R(a + 1) = NUM_VAL(index + 1);
                 hasNext = true;
             }

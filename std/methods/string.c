@@ -41,7 +41,7 @@ Value string_sub(VM* vm, int argCount, Value* args){
 
     if(st >= end) return OBJECT_VAL(copyString(vm, "", 0));
 
-    return OBJECT_VAL(copyString(vm, strObj->chars + st, end - st));
+    return OBJECT_VAL(copyStringRaw(vm, strObj->chars + st, end - st));
 }
 
 Value string_trim(VM* vm, int argCount, Value* args){
@@ -61,7 +61,7 @@ Value string_trim(VM* vm, int argCount, Value* args){
     int len = (int)(end - st + 1);
     if(len <= 0) return OBJECT_VAL(copyString(vm, "", 0));
     
-    return OBJECT_VAL(copyString(vm, st, len));
+    return OBJECT_VAL(copyStringRaw(vm, st, len));
 }
 
 Value string_upper(VM* vm, int argCount, Value* args){
@@ -73,7 +73,7 @@ Value string_upper(VM* vm, int argCount, Value* args){
         chars[i] = toupper((unsigned char)strObj->chars[i]);
     }
     chars[strObj->length] = '\0';
-    return OBJECT_VAL(takeString(vm, chars, strObj->length));
+    return OBJECT_VAL(takeStringRaw(vm, chars, strObj->length));
 }
 
 Value string_lower(VM* vm, int argCount, Value* args){
@@ -85,7 +85,7 @@ Value string_lower(VM* vm, int argCount, Value* args){
         chars[i] = tolower((unsigned char)strObj->chars[i]);
     }
     chars[strObj->length] = '\0';
-    return OBJECT_VAL(takeString(vm, chars, strObj->length));
+    return OBJECT_VAL(takeStringRaw(vm, chars, strObj->length));
 }
 
 Value string_find(VM* vm, int argCount, Value* args){
@@ -120,7 +120,7 @@ Value string_split(VM* vm, int argCount, Value* args){
 
     if(delimLen == 0){
         for(int i = 0; i < strObj->length; i++){
-            ObjectString* charStr = copyString(vm, str + i, 1);
+            ObjectString* charStr = copyStringRaw(vm, str + i, 1);
             push(vm, OBJECT_VAL(charStr));
             appendToList(vm, list, OBJECT_VAL(charStr));
             pop(vm);
@@ -130,13 +130,13 @@ Value string_split(VM* vm, int argCount, Value* args){
         char* nextMatch;
         while((nextMatch = strstr(ptr, delim)) != NULL){
             int len = (int)(nextMatch - ptr);
-            ObjectString* segment = copyString(vm, ptr, len);
+            ObjectString* segment = copyStringRaw(vm, ptr, len);
             push(vm, OBJECT_VAL(segment));
             appendToList(vm, list, OBJECT_VAL(segment));
             pop(vm);
             ptr = nextMatch + delimLen;
         }
-        ObjectString* last = copyString(vm, ptr, (int)strlen(ptr));
+        ObjectString* last = copyStringRaw(vm, ptr, (int)strlen(ptr));
         push(vm, OBJECT_VAL(last));
         appendToList(vm, list, OBJECT_VAL(last));
         pop(vm);
@@ -182,5 +182,5 @@ Value string_replace(VM* vm, int argCount, Value* args){
     }
     strcpy(dst, src);
 
-    return OBJECT_VAL(takeString(vm, result, (int)newLen));
+    return OBJECT_VAL(takeStringRaw(vm, result, (int)newLen));
 }

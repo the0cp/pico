@@ -81,6 +81,28 @@ ObjectString* takeString(VM* vm, char* chars, int length){
     return string;
 }
 
+ObjectString* copyStringRaw(VM* vm, const char* chars, int len){
+    uint64_t hash = hashString(chars, len, vm->hash_seed);
+
+    ObjectString* str = allocString(vm, len, hash);
+    memcpy(str->chars, chars, len);
+    str->chars[len] = '\0';
+
+    return str;
+}
+
+ObjectString* takeStringRaw(VM* vm, char* chars, int length){
+    uint64_t hash = hashString(chars, length, vm->hash_seed);
+
+    ObjectString* string = allocString(vm, length, hash);
+    memcpy(string->chars, chars, length);
+    string->chars[length] = '\0';
+
+    reallocate(vm, chars, length + 1, 0);
+
+    return string;
+}
+
 ObjectList* newList(VM* vm){
     ObjectList* list = (ObjectList*)reallocate(vm, NULL, 0, sizeof(ObjectList));
     list->obj.type = OBJECT_LIST;

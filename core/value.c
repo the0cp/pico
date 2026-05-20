@@ -66,12 +66,12 @@ ObjectString* toString(VM* vm, Value value){
 
         appendString(vm, &buffer, &length, &capacity, "]", 1);
 
-        ObjectString* result = copyString(vm, buffer, length);
+        ObjectString* result = copyStringRaw(vm, buffer, length);
         reallocate(vm, buffer, capacity, 0);
         return result;
     }
     char* chars = valueToString(value);
-    return copyString(vm, chars, (int)strlen(chars));
+    return copyStringRaw(vm, chars, (int)strlen(chars));
 }
 
 void initValueArray(ValueArray* array){
