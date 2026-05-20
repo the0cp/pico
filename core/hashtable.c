@@ -1,8 +1,11 @@
+#include <stdbool.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
 #include <time.h>
 
+#include "common.h"
 #include "mem.h"
 #include "object.h"
 #include "hashtable.h"
@@ -103,12 +106,6 @@ bool tableSet(VM* vm, HashTable* table, Value key, Value value){
         adjustCapacity(vm, table, new_capacity);
     }
 
-    Entry* existing = findEntry(table->entries, table->capacity, key, vm->hash_seed);
-    if(existing != NULL){
-        existing->value = value;
-        return false;
-    }
-
     Entry entryToInsert;
     entryToInsert.key = key;
     entryToInsert.value = value;
@@ -150,18 +147,68 @@ bool tableSet(VM* vm, HashTable* table, Value key, Value value){
     }
 }
 
-bool tableRemove(VM* vm, HashTable* table, Value key){
-    if(table->count == 0){
-        return false;
+static void clearEntry(Entry* entry){
+    entry->key = EMPTY_VAL;
+    entry->value = NULL_VAL;
+}
+
+static void insertEntryNoResize(
+    VM* vm,
+    Entry* entries,
+    int capacity,
+    Value key,
+    Value value
+){
+    Entry entryToInsert;
+    entryToInsert.key = key;
+    entryToInsert.value = value;
+
+    uint64_t key_hash = hashValue(key, vm->hash_seed);
+    uint32_t ideal_index = key_hash & (capacity - 1);
+    uint32_t probe_dist = 0;
+
+    while(true){
+        uint32_t cur_index = (ideal_index + probe_dist) & (capacity - 1);
+        Entry* bucket = &entries[cur_index];
+
+        if(IS_EMPTY(bucket->key)){
+            *bucket = entryToInsert;
+            return;
+        }
+
+        uint64_t bucket_hash = hashValue(bucket->key, vm->hash_seed);
+        uint32_t bucket_ideal_index = bucket_hash & (capacity - 1);
+        uint32_t bucket_dist = get_distance(capacity, bucket_ideal_index, cur_index);
+
+        if(probe_dist > bucket_dist){
+            Entry tmp = *bucket;
+            *bucket = entryToInsert;
+            entryToInsert = tmp;
+
+            key_hash = hashValue(entryToInsert.key, vm->hash_seed);
+            ideal_index = key_hash & (capacity - 1);
+            probe_dist = get_distance(capacity, ideal_index, cur_index);
+        }
+
+        probe_dist++;
+    }
+}
+
+static int capacityForCount(int count){
+    int capacity = 8;
+
+    while(count + 1 > capacity * TABLE_MAX_LOAD){
+        capacity *= 2;
     }
 
-    Entry* entry = findEntry(table->entries, table->capacity, key, vm->hash_seed);
-    if(entry == NULL || IS_EMPTY(entry->key)){
-        return false;
-    }
+    return capacity;
+}
+
+static void removeEntryAt(VM* vm, HashTable* table, uint32_t bucket_index){
+    (void)vm;
 
     table->count--;
-    uint32_t bucket_index = (uint32_t)(entry - table->entries);
+
     uint32_t capacity = table->capacity;
 
     // move entries forward
@@ -175,53 +222,69 @@ bool tableRemove(VM* vm, HashTable* table, Value key){
 
         uint64_t next_hash = hashValue(next_bucket->key, vm->hash_seed);
         uint32_t next_ideal = next_hash & (capacity - 1);
+
         if(get_distance(capacity, next_ideal, next_bucket_index) == 0){
-            break;  // next entry already in its ideal bucket
+            break;  // item already in ideal bucket
         }
 
         table->entries[bucket_index] = *next_bucket;
         bucket_index = next_bucket_index;
     }
+    clearEntry(&table->entries[bucket_index]);   
+}
 
-    table->entries[bucket_index].key = EMPTY_VAL;
-    table->entries[bucket_index].value = NULL_VAL;
+bool tableRemove(VM* vm, HashTable* table, Value key){
+    if(table->count == 0){
+        return false;
+    }
+
+    Entry* entry = findEntry(table->entries, table->capacity, key, vm->hash_seed);
+    if(entry == NULL || IS_EMPTY(entry->key)){
+        return false;
+    }
+
+    uint32_t bucket_index = (uint32_t)(entry - table->entries);
+    
+    removeEntryAt(vm, table, bucket_index);
 
     return true;
 }
 
 static void adjustCapacity(VM* vm, HashTable* table, int capacity){
-    Entry* entries = (Entry*)reallocate(vm, NULL, 0, sizeof(Entry) * capacity);
+    Entry* entries = (Entry*)reallocate(
+        vm,
+        NULL,
+        0,
+        sizeof(Entry) * capacity
+    );
+
     for(int i = 0; i < capacity; i++){
-        entries[i].key = EMPTY_VAL;
-        entries[i].value = NULL_VAL;
+        clearEntry(&entries[i]);
     }
 
-    table->count = 0;
+    int oldCount = table->count;
+
     for(int i = 0; i < table->capacity; i++){
         Entry* entry = &table->entries[i];
+
         if(IS_EMPTY(entry->key)){
             continue;
         }
-        tableSet(vm, 
-                &(HashTable){
-                    .count = 0,
-                    .capacity = capacity,
-                    .entries = entries
-                },
-                entry->key,
-                entry->value);
+
+        insertEntryNoResize(
+            vm,
+            entries,
+            capacity,
+            entry->key,
+            entry->value
+        );
     }
 
     reallocate(vm, table->entries, sizeof(Entry) * table->capacity, 0);
+
     table->entries = entries;
     table->capacity = capacity;
-
-    table->count = 0;
-    for(int i = 0; i < capacity; i++){
-        if(!IS_EMPTY(table->entries[i].key)){
-            table->count++;
-        }
-    }
+    table->count = oldCount;
 }
 
 bool tableMerge(VM* vm, HashTable* from, HashTable* to){
@@ -248,11 +311,7 @@ ObjectString* tableGetInternedString(VM* vm, HashTable* table, const char* chars
         Entry* entry = &table->entries[cur_index];
 
         if(IS_EMPTY(entry->key)){
-            if(IS_NULL(entry->value)){
-                return NULL;
-            }
-            probe_dist++;
-            continue;
+            return NULL;
         }
 
         uint64_t entry_hash = hashValue(entry->key, vm->hash_seed);
@@ -288,32 +347,70 @@ void markTable(VM* vm, HashTable* table){
     }
 }
 
-void tableRemoveWhite(VM* vm, HashTable* table) {
-    if(table->count == 0) return;
+void tableRemoveWhite(VM* vm, HashTable* table){
+    if(table->count == 0){
+        return;
+    }
 
-    HashTable newTable;
-    initHashTable(&newTable);
+    int liveCount = 0;
 
     for(int i = 0; i < table->capacity; i++){
         Entry* entry = &table->entries[i];
 
-        if(IS_EMPTY(entry->key))    continue;
+        if(IS_EMPTY(entry->key)){
+            continue;
+        }
 
         if(IS_OBJECT(entry->key) && AS_OBJECT(entry->key)->isMarked){
-            push(vm, entry->key); 
-            push(vm, entry->value);           
-
-            tableSet(vm, 
-                     &newTable, 
-                     peek(vm, 1), 
-                     peek(vm, 0));
-            
-            pop(vm);
-            pop(vm);
+            liveCount++;
         }
     }
 
-    freeHashTable(vm, table);
+    if(liveCount == table->count){
+        return;
+    }
 
-    *table = newTable;
+    if(liveCount == 0){
+        freeHashTable(vm, table);
+        return;
+    }
+
+    int newCapacity = capacityForCount(liveCount);
+
+    Entry* entries = (Entry*)reallocate(
+        vm,
+        NULL,
+        0,
+        sizeof(Entry) * newCapacity
+    );
+
+    for(int i = 0; i < newCapacity; i++){
+        clearEntry(&entries[i]);
+    }
+
+    for(int i = 0; i < table->capacity; i++){
+        Entry* entry = &table->entries[i];
+
+        if(IS_EMPTY(entry->key)){
+            continue;
+        }
+
+        if(IS_OBJECT(entry->key) && AS_OBJECT(entry->key)->isMarked){
+            insertEntryNoResize(
+                vm,
+                entries,
+                newCapacity,
+                entry->key,
+                entry->value
+            );
+        }
+    }
+
+    reallocate(vm, table->entries, sizeof(Entry) * table->capacity, 0);
+
+    table->entries = entries;
+    table->capacity = newCapacity;
+    table->count = liveCount;
 }
+
+

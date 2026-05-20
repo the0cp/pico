@@ -258,7 +258,7 @@ void dasmInstruction(Chunk* chunk, int offset){
         case OP_FIELD:
         case OP_GET_PROPERTY:
         case OP_SET_PROPERTY:
-            dasmField(opName, chunk, instruction);
+            dasmABC(opName, instruction);
             break;
 
         // iAsBx

@@ -122,17 +122,29 @@ ValueType getValueType(Value value){
 }
 
 bool isEqual(Value a, Value b){
-    if(getValueType(a) != getValueType(b)) return false;
+    if(getValueType(a) != getValueType(b)){
+        return false;
+    }
+
     switch(getValueType(a)){
         case VALUE_NULL:    return true;  // Both are null
         case VALUE_BOOL:    return AS_BOOL(a) == AS_BOOL(b);
         case VALUE_NUM:     return AS_NUM(a) == AS_NUM(b);
         case VALUE_OBJECT: {
+            Object* objA = AS_OBJECT(a);
+            Object* objB = AS_OBJECT(b);
+
+            if(objA == objB){
+                return true;
+            }
+
             if(IS_STRING(a) && IS_STRING(b)){
                 ObjectString* strA = AS_STRING(a);
                 ObjectString* strB = AS_STRING(b);
-                return strA->length == strB->length &&
-                        memcmp(strA->chars, strB->chars, strA->length) == 0;
+                if(strA->hash != strB->hash) return false;
+                if(strA->length != strB->length) return false;
+
+                return memcmp(strA->chars, strB->chars, strA->length) == 0;
             }
 
             if(IS_LIST(a) && IS_LIST(b)){
@@ -148,8 +160,9 @@ bool isEqual(Value a, Value b){
                 }
                 return true;
             }
-            return AS_OBJECT(a) == AS_OBJECT(b);
+            return false;
         }
-        default:            return false;  // Unsupported type comparison
+        default:
+            return false;  // Unsupported type comparison
     }
 }

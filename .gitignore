@@ -6,3 +6,4 @@ tests/val-log.txt
 tests/perf.data
 compile_commands.json
 perf.data
+perf.data.old
