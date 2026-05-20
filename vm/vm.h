@@ -5,6 +5,7 @@
 #include "object.h"
 #include "instruction.h"
 #include "gc_types.h"
+#include <stddef.h>
 
 typedef struct Chunk Chunk;
 typedef struct Object Object;
@@ -23,6 +24,19 @@ typedef struct CallFrame{
     ObjectClosure* defers[MAX_DEFERS];
     int deferCnt;
 }CallFrame;
+
+typedef struct GCStats{
+    size_t count;
+    size_t bytesBefore;
+    size_t bytesAfter;
+    size_t bytesTotalFreed;
+
+    double totalMs;
+    double maxPauseMs;
+    double markMs;
+    double internMs;
+    double sweepMs;
+}GCStats;
 
 typedef struct VM{
     Value stack[STACK_MAX];  // Stack for values
@@ -46,6 +60,7 @@ typedef struct VM{
     GCMode gcMode;
     const GCPolicy* gcPolicy;
     bool gcRunning;
+    GCStats gcStats;
 
     Compiler* compiler;
     uint64_t hash_seed;

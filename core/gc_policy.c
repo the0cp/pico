@@ -1,3 +1,4 @@
+#include <stddef.h>
 #include <string.h>
 
 #include "gc_policy.h"
@@ -107,6 +108,7 @@ void initGC(VM* vm){
     vm->gcMode = GC_MODE_AUTO;
     vm->gcPolicy = &AUTO_POLICY;
     vm->gcRunning = false;
+    memset(&vm->gcStats, 0, sizeof(vm->gcStats));
 
     if(vm->gcPolicy->init != NULL){
         vm->gcPolicy->init(vm);

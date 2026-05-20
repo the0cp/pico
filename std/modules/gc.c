@@ -110,6 +110,16 @@ static Value gc_stats(VM* vm, int argCount, Value* args){
         ))
     );
 
+    mapCString(vm, statsMap, "gc_count", NUM_VAL((double)vm->gcStats.count));
+    mapCString(vm, statsMap, "gc_total_ms", NUM_VAL(vm->gcStats.totalMs));
+    mapCString(vm, statsMap, "gc_max_pause_ms", NUM_VAL(vm->gcStats.maxPauseMs));
+    mapCString(vm, statsMap, "gc_bytes_before", NUM_VAL((double)vm->gcStats.bytesBefore));
+    mapCString(vm, statsMap, "gc_bytes_after", NUM_VAL((double)vm->gcStats.bytesAfter));
+    mapCString(vm, statsMap, "gc_bytes_freed_total", NUM_VAL((double)vm->gcStats.bytesTotalFreed));
+    mapCString(vm, statsMap, "gc_mark_ms", NUM_VAL(vm->gcStats.markMs));
+    mapCString(vm, statsMap, "gc_intern_ms", NUM_VAL(vm->gcStats.internMs));
+    mapCString(vm, statsMap, "gc_sweep_ms", NUM_VAL(vm->gcStats.sweepMs));
+
     pop(vm);
     return OBJECT_VAL(statsMap);
 }

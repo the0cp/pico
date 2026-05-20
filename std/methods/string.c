@@ -6,6 +6,7 @@
 #include "object.h"
 #include "value.h"
 #include "string.h"
+#include "mem.h"
 
 Value string_len(VM* vm, int argCount, Value* args){
     Value receiver = args[-1];
@@ -67,7 +68,7 @@ Value string_upper(VM* vm, int argCount, Value* args){
     Value receiver = args[-1];
     ObjectString* strObj = AS_STRING(receiver);
     
-    char* chars = (char*)malloc(strObj->length + 1);
+    char* chars = (char*)reallocate(vm, NULL, 0, strObj->length + 1);
     for(int i = 0; i < strObj->length; i++){
         chars[i] = toupper((unsigned char)strObj->chars[i]);
     }
@@ -79,7 +80,7 @@ Value string_lower(VM* vm, int argCount, Value* args){
     Value receiver = args[-1];
     ObjectString* strObj = AS_STRING(receiver);
     
-    char* chars = (char*)malloc(strObj->length + 1);
+    char* chars = (char*)reallocate(vm, NULL, 0, strObj->length + 1);
     for(int i = 0; i < strObj->length; i++){
         chars[i] = tolower((unsigned char)strObj->chars[i]);
     }
@@ -166,7 +167,7 @@ Value string_replace(VM* vm, int argCount, Value* args){
     if(count == 0) return receiver;
 
     size_t newLen = str->length + count * (newStr->length - oldStr->length);
-    char* result = (char*)malloc(newLen + 1);
+    char* result = (char*)reallocate(vm, NULL, 0, newLen + 1);
     char* dst = result;
     const char* src = str->chars;
     const char* p;

@@ -1,5 +1,6 @@
 #include <stdlib.h>
 #include <stdio.h>
+#include <time.h>
 
 #include "mem.h"
 #include "compiler.h"
@@ -8,6 +9,12 @@
 #define GC_HEAP_GROW_FACTOR 2
 // #define GC_MIN_THRESHOLD 1024 * 1024 * 10
 
+static double nowMs(void){
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (double)ts.tv_sec * 1000.0 + (double)ts.tv_nsec / 1000000.0;
+}
+
 bool gcMarkSweep(VM* vm, GCReason reason){
     (void)reason;
 
@@ -15,20 +22,44 @@ bool gcMarkSweep(VM* vm, GCReason reason){
         return false;
     }
 
+    double startMs = nowMs();
+
 #ifdef DEBUG_LOG_GC
     printf("-- gc begin --\n");
 #endif
 
     size_t before = vm->bytesAllocated;
 
+    double phaseStart = nowMs();
     markRoots(vm);
+    double markMs = nowMs() - phaseStart;
 
 #ifdef DEBUG_LOG_GC
     printf("Marked objects. Starting sweep...\n");
 #endif
 
+    phaseStart = nowMs();
     tableRemoveWhite(vm, &vm->strings);
+    double internMs = nowMs() - phaseStart;
+
+    phaseStart = nowMs();
     sweep(vm);
+    double sweepMs = nowMs() - phaseStart;
+
+    double elapsedMs = nowMs() - startMs;
+
+    vm->gcStats.count++;
+    vm->gcStats.bytesBefore = before;
+    vm->gcStats.bytesAfter = vm->bytesAllocated;
+    vm->gcStats.bytesTotalFreed += before - vm->bytesAllocated;
+    vm->gcStats.totalMs += elapsedMs;
+    vm->gcStats.markMs += markMs;
+    vm->gcStats.internMs += internMs;
+    vm->gcStats.sweepMs += sweepMs;
+
+    if(elapsedMs > vm->gcStats.maxPauseMs){
+        vm->gcStats.maxPauseMs = elapsedMs;
+    }
 
     vm->nextGC = vm->bytesAllocated * GC_HEAP_GROW_FACTOR;
 
@@ -208,7 +239,7 @@ void* reallocate(VM* vm, void* ptr, size_t oldSize, size_t newSize){
     }else{
         vm->bytesAllocated -= oldSize - newSize;
     }
-       
+    
     gcOnAlloc(vm, ptr, oldSize, newSize);
 
     if(newSize == 0){
