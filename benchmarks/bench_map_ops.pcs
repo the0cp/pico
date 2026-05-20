@@ -1,0 +1,18 @@
+var total = 0;
+
+for (var i = 0; i < 100000; i++) {
+    var m = {};
+
+    var k1 = "key-" + i;
+    var k2 = "value-" + i;
+
+    m[k1] = i;
+    m[k2] = i + 1;
+
+    total = total + m[k1];
+    total = total + m[k2];
+}
+
+if (total == 123456789) {
+    print total;
+}

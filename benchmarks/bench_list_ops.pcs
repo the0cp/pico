@@ -1,0 +1,25 @@
+var total = 0;
+
+for (var i = 0; i < 200000; i++) {
+    var xs = [];
+
+    xs.push(i);
+    xs.push(i + 1);
+    xs.push(i + 2);
+    xs.push(i + 3);
+    xs.push(i + 4);
+    xs.push(i + 5);
+    xs.push(i + 6);
+    xs.push(i + 7);
+
+    total = total + xs[0];
+    total = total + xs[3];
+    total = total + xs[7];
+
+    xs.pop();
+    xs.pop();
+}
+
+if (total == 123456789) {
+    print total;
+}

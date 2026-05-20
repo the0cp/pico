@@ -5,3 +5,4 @@ tests/test_file.tmp
 tests/val-log.txt
 tests/perf.data
 compile_commands.json
+perf.data

@@ -1,0 +1,30 @@
+class Counter {
+    value = 0;
+}
+
+method (c Counter) init(v) {
+    c.value = v;
+}
+
+method (c Counter) inc(x) {
+    c.value = c.value + x;
+    return c.value;
+}
+
+method (c Counter) get() {
+    return c.value;
+}
+
+var total = 0;
+
+for (var i = 0; i < 500000; i++) {
+    var c = Counter(i);
+
+    total = total + c.inc(1);
+    total = total + c.inc(2);
+    total = total + c.get();
+}
+
+if (total == 123456789) {
+    print total;
+}

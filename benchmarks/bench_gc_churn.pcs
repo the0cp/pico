@@ -1,0 +1,29 @@
+import "gc";
+
+gc.threshold(1024 * 1024);
+
+class Node {
+    Data;
+    Next;
+}
+
+func makeChain(n) {
+    var head = Node();
+    var cur = head;
+
+    for (var i = 0; i < n; i++) {
+        var node = Node();
+        node.Data = [i; 32];
+        cur.Next = node;
+        cur = node;
+    }
+
+    return head;
+}
+
+for (var round = 0; round < 300; round++) {
+    var chain = makeChain(200);
+    chain = null;
+}
+
+gc.collect();
