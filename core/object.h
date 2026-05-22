@@ -84,6 +84,7 @@ ObjectString* takeString(VM* vm, char* chars, int length);
 
 ObjectString* copyStringRaw(VM* vm, const char* chars, int len);
 ObjectString* takeStringRaw(VM* vm, char* chars, int length);
+ObjectString* concatStringRaw(VM* vm, ObjectString* left, ObjectString* right);
 
 typedef struct ObjectList{
     Object obj;

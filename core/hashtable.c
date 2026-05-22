@@ -18,6 +18,7 @@ void initHashTable(HashTable* table){
     table->count = 0;
     table->capacity = 0;
     table->entries = NULL;
+    table->version = 1;
 }
 
 static uint64_t hashValue(Value value, uint64_t seed){
@@ -37,6 +38,12 @@ static uint64_t hashValue(Value value, uint64_t seed){
     return (uint64_t)value;
 }
 
+static void bumpTableVersion(HashTable* table){
+    table->version++;
+    if(table->version == 0){
+        table->version = 1;     // avoid 0 version, save from overflow
+    }
+}
 
 void freeHashTable(VM* vm, HashTable* table){
     // free array

@@ -15,6 +15,7 @@ typedef struct{
     int count;
     int capacity;
     Entry* entries;
+    uint64_t version;
 }HashTable;
 
 void initHashTable(HashTable* table);

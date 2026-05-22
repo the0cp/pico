@@ -103,6 +103,21 @@ ObjectString* takeStringRaw(VM* vm, char* chars, int length){
     return string;
 }
 
+ObjectString* concatStringRaw(VM* vm, ObjectString* left, ObjectString* right){
+    int length = (int)(left->length + right->length);
+    uint64_t hash = 0;
+
+    ObjectString* str = allocString(vm, length, hash);
+
+    memcpy(str->chars, left->chars, left->length);
+    memcpy(str->chars + left->length, right->chars, right->length);
+    str->chars[length] = '\0';
+
+    str->hash = hashString(str->chars, length, vm->hash_seed);
+
+    return str;
+}
+
 ObjectList* newList(VM* vm){
     ObjectList* list = (ObjectList*)reallocate(vm, NULL, 0, sizeof(ObjectList));
     list->obj.type = OBJECT_LIST;
