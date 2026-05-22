@@ -1,8 +1,52 @@
+#define PICO_MAX_SAFE_INT 9007199254740991.0
+
 #include <stdio.h>
 
 #include "mem.h"
 #include "value.h"
 #include "object.h"
+
+static int u64ToString(uint64_t num, char* out){
+    char buffer[32];
+    int length = 0;
+
+    do{
+        buffer[length++] = (char)('0' + (num % 10));
+        num /= 10;
+    }while(num != 0);
+
+    for(int i = 0; i < length; i++){
+        out[i] = buffer[length - 1 - i];
+    }
+
+    out[length] = '\0';
+    return length;
+}
+
+int numToString(double num, char* out, size_t cap){
+    if(num == 0.0){
+        out[0] = '0';
+        out[1] = '\0';
+        return 1;
+    }
+
+    if(num > 0.0 && num <= PICO_MAX_SAFE_INT){
+        uint64_t n = (uint64_t)num;
+        if((double)n == num){
+            return u64ToString(n, out);
+        }
+    }
+
+    if(num < 0.0 && num >= -PICO_MAX_SAFE_INT){
+        uint64_t n = (uint64_t)(-num);
+        if((double)(-n) == num){
+            out[0] = '-';
+            return 1 + u64ToString(n, out + 1);
+        }
+    }
+
+    return snprintf(out, cap, "%.14g", num);
+}
 
 char* valueToString(Value value){
     if(IS_BOOL(value)){
@@ -11,7 +55,7 @@ char* valueToString(Value value){
         return "null";
     }else if(IS_NUM(value)){
         static char num_str[32];
-        snprintf(num_str, sizeof(num_str), "%.14g", AS_NUM(value));
+        numToString(AS_NUM(value), num_str, sizeof(num_str));
         return num_str;
     }else if(IS_STRING(value)){
         return AS_CSTRING(value);
