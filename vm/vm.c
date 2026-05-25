@@ -65,7 +65,7 @@ void initVM(VM* vm, int argc, const char* argv[]){
     if(vm->hash_seed == 0) vm->hash_seed = 1;
 
     initHashTable(&vm->strings);
-    initHashTable(&vm->globals);
+    initGlobalEnv(&vm->globals);
     initHashTable(&vm->modCache);
 
     vm->globalCnt = 0;
@@ -110,7 +110,7 @@ void initVM(VM* vm, int argc, const char* argv[]){
 
             ObjectString* argvKey = copyString(vm, "argv", 4);
             push(vm, OBJECT_VAL(argvKey));
-            tableSet(vm, &osMod->members, OBJECT_VAL(argvKey), OBJECT_VAL(argvList));
+            globalSetName(vm, &osMod->members, argvKey, OBJECT_VAL(argvList));
             pop(vm);    // argvKey
             pop(vm);    // argvList
         }
@@ -120,7 +120,7 @@ void initVM(VM* vm, int argc, const char* argv[]){
 
 void freeVM(VM* vm){
     freeHashTable(vm, &vm->strings);
-    freeHashTable(vm, &vm->globals);
+    freeGlobalEnv(vm, &vm->globals);
     freeHashTable(vm, &vm->modCache);
 
     vm->globalCnt = 0;
@@ -152,7 +152,7 @@ Value peek(VM* vm, int distance){
     return vm->stackTop[-1 - distance];
 }
 
-static void pushGlobal(VM* vm, HashTable* globals){
+static void pushGlobal(VM* vm, GlobalEnv* globals){
     if(vm->globalCnt >= GLOBAL_STATCK_MAX){
         runtimeError(vm, "Too many nested imports, globals stack overflow.");
         return;
@@ -223,7 +223,7 @@ InterpreterStatus interpret(VM* vm, const char* code, const char* srcName){
 
     push(vm, OBJECT_VAL(func));
 
-    ObjectClosure* closure = newClosure(vm, func);
+    ObjectClosure* closure = newClosure(vm, func, vm->curGlobal);
     pop(vm);    // pop func
     push(vm, OBJECT_VAL(closure));
 
@@ -473,19 +473,26 @@ static InterpreterStatus run(VM* vm){
 
     DO_OP_GET_GLOBAL:
     {
-        ObjectString* name = AS_STRING(K(GET_ARG_Bx(instruction)));
+        int a = GET_ARG_A(instruction);
+        uint32_t slot = (uint32_t)GET_ARG_Bx(instruction);
         Value value;
-        if(!tableGet(vm, vm->curGlobal, OBJECT_VAL(name), &value)){
-            runtimeError(vm, "Undefined global variable '%s'.", name->chars);
+
+        if(!globalGetSlot(frame->globals, slot, &value)){
+            runtimeError(vm, "Undefined global variable.");
             return VM_RUNTIME_ERROR; 
         }
-        R(GET_ARG_A(instruction)) = value;
+        R(a) = value;
     } DISPATCH();
 
     DO_OP_SET_GLOBAL:
     {
-        ObjectString* name = AS_STRING(K(GET_ARG_Bx(instruction)));
-        tableSet(vm, vm->curGlobal, OBJECT_VAL(name), R(GET_ARG_A(instruction)));
+        int a = GET_ARG_A(instruction);
+        uint32_t slot = (uint32_t)GET_ARG_Bx(instruction);
+
+        if(!globalSetSlot(frame->globals, slot, R(a))){
+            runtimeError(vm, "Undefined global variable.");
+            return VM_RUNTIME_ERROR; 
+        }
     } DISPATCH();
 
     DO_OP_GET_UPVAL:
@@ -632,7 +639,7 @@ static InterpreterStatus run(VM* vm){
             }
         }else if(IS_MODULE(instanceVal)){
             ObjectModule* module = AS_MODULE(instanceVal);
-            if(!tableGet(vm, &module->members, OBJECT_VAL(key), &result)){
+            if(!globalGetName(&module->members, key, &result)){
                 runtimeError(vm, "Module has no member '%s'.", key->chars);
                 return VM_RUNTIME_ERROR;
             }
@@ -674,7 +681,11 @@ static InterpreterStatus run(VM* vm){
             tableSet(vm, &instance->fields, OBJECT_VAL(key), newVal);
         }else if(IS_MODULE(instanceVal)){
             ObjectModule* module = AS_MODULE(instanceVal);
-            tableSet(vm, &module->members, OBJECT_VAL(key), newVal);
+
+            if(!globalSetName(vm, &module->members, key, newVal)){
+                runtimeError(vm, "Module has no member '%s'.", key->chars);
+                return VM_RUNTIME_ERROR;
+            }
         }else{
             runtimeError(vm, "Only instance and module support field assignment.");
             return VM_RUNTIME_ERROR;
@@ -1015,7 +1026,7 @@ static InterpreterStatus run(VM* vm){
         int a = GET_ARG_A(instruction);
         int bx = GET_ARG_Bx(instruction);
         ObjectFunc* func = AS_FUNC(K(bx));
-        ObjectClosure* closure = newClosure(vm, func);
+        ObjectClosure* closure = newClosure(vm, func, frame->globals);
         if(closure == NULL){
             runtimeError(vm, "Out of memory creating closure");
             return VM_RUNTIME_ERROR;
@@ -1400,7 +1411,7 @@ static InterpreterStatus run(VM* vm){
         R(a) = statusVal;
 
         ObjectString* exitKey = copyString(vm, "_exit_code", 10);
-        tableSet(vm, vm->curGlobal, OBJECT_VAL(exitKey), statusVal);
+        globalSetName(vm, frame->globals, exitKey, statusVal);
     } DISPATCH();
 
     DO_OP_DEFER:
@@ -1483,6 +1494,7 @@ static bool call(VM* vm, ObjectClosure* closure, int argCnt){
     frame->closure = closure;
     frame->ip = closure->func->chunk.code;
     frame->base = newBase;
+    frame->globals = closure->globals;
     frame->deferCnt = 0;
 
     for(int i = argCnt + 1; i < closure->func->maxRegSlots; i++){

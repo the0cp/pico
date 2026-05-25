@@ -194,7 +194,7 @@ ObjectModule* newModule(VM* vm, ObjectString* name, ObjectString* path, ModuleKi
     module->path = path;
     module->kind = kind;
     module->status = MODULE_LOADING;
-    initHashTable(&module->members);
+    initGlobalEnv(&module->members);
     
     module->obj.next = vm->objects;
     vm->objects = (Object*)module;
@@ -215,13 +215,14 @@ ObjectUpvalue* newUpvalue(VM* vm, Value* slot){
     return upvalue;
 }
 
-ObjectClosure* newClosure(VM* vm, ObjectFunc* func){
+ObjectClosure* newClosure(VM* vm, ObjectFunc* func, GlobalEnv* globals){
     size_t size = sizeof(ObjectClosure) + sizeof(ObjectUpvalue*) * func->upvalueCnt;
     ObjectClosure* closure = (ObjectClosure*)reallocate(vm, NULL, 0, size);
 
     closure->obj.type = OBJECT_CLOSURE;
     closure->obj.isMarked = false;
     closure->func = func;
+    closure->globals = globals;
     closure->upvalueCnt = func->upvalueCnt;
 
     for(int i = 0; i < func->upvalueCnt; i++){
@@ -335,7 +336,7 @@ void freeObject(VM* vm, Object* object){
         }
         case OBJECT_MODULE:{
             ObjectModule* module = (ObjectModule*)object;
-            freeHashTable(vm, &module->members);
+            freeGlobalEnv(vm, &module->members);
             reallocate(vm, module, sizeof(ObjectModule), 0);
             break;
         }

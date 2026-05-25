@@ -10,7 +10,7 @@ typedef struct NativeModuleDef{
     NativeModuleInit initFunc;
 }NativeModuleDef;
 
-void defineCFunc(VM* vm, HashTable* table, const char* name, CFunc func);
+void defineCFunc(VM* vm, GlobalEnv* env, const char* name, CFunc func);
 
 const NativeModuleDef* findNativeModule(const char* name);
 

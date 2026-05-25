@@ -6,6 +6,7 @@
 
 #include "chunk.h"
 #include "hashtable.h"
+#include "global_env.h"
 
 typedef struct VM VM;
 
@@ -149,7 +150,7 @@ typedef struct ObjectModule{
     ObjectString* name;
     ModuleKind kind;
     ModuleStatus status;
-    HashTable members;
+    GlobalEnv members;
 }ObjectModule;
 
 ObjectModule* newModule(
@@ -169,12 +170,13 @@ typedef struct ObjectUpvalue{
 typedef struct ObjectClosure{
     Object obj;
     ObjectFunc* func; // point to func template
+    GlobalEnv* globals;   // point to defining module's global env for global access
     int upvalueCnt;
     ObjectUpvalue* upvalues[]; // pointer array
 }ObjectClosure;
 
 ObjectUpvalue* newUpvalue(VM* vm, Value* slot);
-ObjectClosure* newClosure(VM* vm, ObjectFunc* func);
+ObjectClosure* newClosure(VM* vm, ObjectFunc* func, GlobalEnv* globals);
 
 typedef struct ObjectClass{
     Object obj;

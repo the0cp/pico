@@ -19,8 +19,8 @@ static const char* opNames[] = {
     "OP_LOADBOOL",    // R[A] <= (B != 0)
     "OP_LOADNULL",    // R[A], R[A+1], ..., R[A+B-1] <= null
 
-    "OP_GET_GLOBAL", // R[A] <= Gbl[K[Bx]]
-    "OP_SET_GLOBAL", // Gbl[K[Bx]] <= R[A]
+    "OP_GET_GLOBAL", // R[A] <= GlobalEnv[Bx]
+    "OP_SET_GLOBAL", // GlobalEnv[Bx] <= R[A]
 
     "OP_GET_UPVAL",  // R[A] <= Upv[B]
     "OP_SET_UPVAL",  // Upv[B] <= R[A]
@@ -144,9 +144,11 @@ static void dasmLoadK(const char* name, const Chunk* chunk, Instruction instruct
 }
 
 static void dasmGlobal(const char* name, Chunk* chunk, Instruction instruction){
+    (void)chunk;  
+    // silence unused parameter warning if global slot optimization is not used
     int a = GET_ARG_A(instruction);
     int bx = GET_ARG_Bx(instruction);
-    Value constant = chunk->constants.values[bx];
+
     printf(
         CLR_CYAN "%-16s" CLR_GRAY " | " \
         CLR_MAGENTA "%-5s" CLR_GRAY " | " \
@@ -155,7 +157,6 @@ static void dasmGlobal(const char* name, Chunk* chunk, Instruction instruction){
         CLR_GRAY "%5s" CLR_GRAY " | " \
         CLR_GRAY "'", name, "iABx", a, bx, "-"
     );
-    printValue(constant);
     printf(CLR_RESET);
 }
 

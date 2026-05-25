@@ -39,6 +39,7 @@ typedef struct Compiler{
     struct Compiler* enclosing;  // Enclosing compiler for nested functions
     Parser parser;
     VM* vm;
+    GlobalEnv* globals;   // point to defining module's global env for global access
     Local locals[LOCAL_MAX];
     int localCnt;
     Upvalue upvalues[LOCAL_MAX];
@@ -92,6 +93,9 @@ static void emitLoop(Compiler* compiler, int loopStart);
 static void emitClosure(Compiler* compiler, int destReg, int constIndex, Compiler* funcCompiler);
 static void consume(Compiler* compiler, TokenType type, const char* errMsg);
 static void errorAt(Compiler* compiler, Token* token, const char* message);
+
+static int globalSlotForToken(Compiler* compiler, Token* name);
+static int identifierGlobalSlot(Compiler* compiler);
 
 static void handleNum(Compiler* compiler, ExprDesc* expr, bool canAssign);
 static int makeConstant(Compiler* compiler, Value value);

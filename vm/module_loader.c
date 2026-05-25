@@ -317,19 +317,8 @@ static InterpreterStatus loadScriptModule(
     if(source == NULL){
         runtimeError(vm, "Failed to read module file '%s'.", spec->chars);
         pop(vm);    // spec
-        return VM_RUNTIME_ERROR;
-    }
-
-    ObjectFunc* func = compile(vm, source, spec->chars);
-    free(source);
-
-    if(func == NULL){
-        pop(vm);    // spec
         return VM_COMPILE_ERROR;
     }
-
-    func->type = TYPE_MODULE;
-    push(vm, OBJECT_VAL(func));
 
     ObjectString* moduleName = getModuleName(vm, spec->chars);
     push(vm, OBJECT_VAL(moduleName));
@@ -337,24 +326,44 @@ static InterpreterStatus loadScriptModule(
     ObjectModule* module = newModule(vm, moduleName, spec, MODULE_SCRIPT);
     push(vm, OBJECT_VAL(module));
 
-    tableSet(vm, &vm->modCache, OBJECT_VAL(spec), OBJECT_VAL(module));
+    GlobalEnv* prevGlobal = vm->curGlobal;
+    vm->curGlobal = &module->members;
 
-    ObjectClosure* closure = newClosure(vm, func);
-    if(closure == NULL){
-        runtimeError(vm, "Failed to create closure for module '%s'.", spec->chars);
+    ObjectFunc* func = compile(vm, source, spec->chars);
+
+    vm->curGlobal = prevGlobal;
+    free(source);
+
+    if(func == NULL){
+        runtimeError(vm, "Failed to compile module '%s'.", spec->chars);
         pop(vm);    // module
         pop(vm);    // moduleName
-        pop(vm);    // func
         pop(vm);    // spec
-        return VM_RUNTIME_ERROR;
+        return VM_COMPILE_ERROR;
+    }
+
+    func->type = TYPE_MODULE;
+    push(vm, OBJECT_VAL(func));
+
+    tableSet(vm, &vm->modCache, OBJECT_VAL(spec), OBJECT_VAL(module));
+    // cache module after compilation to avoid infinite recursion on circular imports
+
+    ObjectClosure* closure = newClosure(vm, func, &module->members);
+    if(closure == NULL){
+        runtimeError(vm, "Failed to create closure for module '%s'.", spec->chars);
+        pop(vm);    // func
+        pop(vm);    // module
+        pop(vm);    // moduleName
+        pop(vm);    // spec
+        return VM_COMPILE_ERROR;
     }
 
     result->module = module;
     result->closure = closure;
 
+    pop(vm);    // func
     pop(vm);    // module
     pop(vm);    // moduleName
-    pop(vm);    // func
     pop(vm);    // spec
 
     return VM_OK;
@@ -377,13 +386,13 @@ InterpreterStatus importModule(
         }
 
         runtimeError(vm, "Module '%s' not found.", spec->chars);
-        return VM_RUNTIME_ERROR;
+        return VM_COMPILE_ERROR;
     }
 
     char* resolvedPath = resolveScriptPath(spec->chars, requester);
     if(resolvedPath == NULL){
         runtimeError(vm, "Failed to resolve module path for '%s'.", spec->chars);
-        return VM_RUNTIME_ERROR;
+        return VM_COMPILE_ERROR;
     }
 
     char* normalizedPath = normalizeScriptPath(resolvedPath);
@@ -391,7 +400,7 @@ InterpreterStatus importModule(
 
     if(normalizedPath == NULL){
         runtimeError(vm, "Failed to normalize module path for '%s'.", spec->chars);
-        return VM_RUNTIME_ERROR;
+        return VM_COMPILE_ERROR;
     }
 
     ObjectString* resolvedSpec = copyString(vm, normalizedPath, (int)strlen(normalizedPath));
