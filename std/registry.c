@@ -11,12 +11,17 @@
 #include "modules/time.h"
 #include "modules/gc.h"
 
-void defineCFunc(VM* vm, HashTable* table, const char* name, CFunc func){
-    push(vm, OBJECT_VAL(copyString(vm, name, (int)strlen(name))));
-    push(vm, OBJECT_VAL(newCFunc(vm, func)));
-    tableSet(vm, table, peek(vm, 1), peek(vm, 0));
-    pop(vm);
-    pop(vm);
+void defineCFunc(VM* vm, GlobalEnv* env, const char* name, CFunc func){
+    ObjectString* key = copyString(vm, name, (int)strlen(name));
+    push(vm, OBJECT_VAL(key));
+
+    ObjectCFunc* cfunc = newCFunc(vm, func);
+    push(vm, OBJECT_VAL(cfunc));
+
+    globalSetName(vm, env, key, OBJECT_VAL(cfunc));
+    
+    pop(vm);    // cfunc
+    pop(vm);    // key
 }
 
 static NativeModuleDef nativeModules[] = {

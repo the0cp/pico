@@ -5,6 +5,7 @@
 #include "object.h"
 #include "instruction.h"
 #include "gc_types.h"
+#include "global_env.h"
 #include <stddef.h>
 
 typedef struct Chunk Chunk;
@@ -21,6 +22,7 @@ typedef struct CallFrame{
     ObjectClosure* closure;
     Instruction* ip;
     Value* base;
+    GlobalEnv* globals;   // point to defining module's global env for global access
     ObjectClosure* defers[MAX_DEFERS];
     int deferCnt;
 }CallFrame;
@@ -42,9 +44,17 @@ typedef struct VM{
     Value stack[STACK_MAX];  // Stack for values
     Value* stackTop;         // for alloc new CallFrame
     HashTable strings;
+
+    /*
     HashTable globals;
     HashTable* curGlobal;
     HashTable* globalStack[GLOBAL_STATCK_MAX];
+    */
+    
+    GlobalEnv globals;
+    GlobalEnv* curGlobal;
+    GlobalEnv* globalStack[GLOBAL_STATCK_MAX];
+
     int globalCnt;
     HashTable modCache;
     Object* objects;

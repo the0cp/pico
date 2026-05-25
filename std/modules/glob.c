@@ -203,7 +203,7 @@ void initGlobModule(VM* vm, ObjectModule* module){
     defineGlobField(vm, klass, "Exclude", NULL_VAL);
     defineGlobField(vm, klass, "Recursive", BOOL_VAL(false));
     
-    tableSet(vm, &module->members, OBJECT_VAL(className), OBJECT_VAL(klass));
+    globalSetName(vm, &module->members, className, OBJECT_VAL(klass));
     
     pop(vm); // klass
     pop(vm); // className

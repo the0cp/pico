@@ -45,7 +45,7 @@ static GlobalNameEntry* findNameEntry(GlobalNameEntry* entries, size_t capacity,
 }
 
 static void adjustNameMap(VM* vm, GlobalNameMap* map, size_t newCapacity){
-    GlobalNameEntry* entries = GROW_ARRAY(vm, GlobalEnv, NULL, 0, newCapacity);
+    GlobalNameEntry* entries = GROW_ARRAY(vm, GlobalNameEntry, NULL, 0, newCapacity);
 
     for(size_t i = 0; i < newCapacity; i++){
         clearNameEntry(&entries[i]);
@@ -70,7 +70,7 @@ static void adjustNameMap(VM* vm, GlobalNameMap* map, size_t newCapacity){
 }
 
 static bool ensureValueCapacity(VM* vm, GlobalEnv* env, size_t minCapacity){
-    if(env->count < env->capacity){
+    if(env->count >= minCapacity){
         return true;
     }
 

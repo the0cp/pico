@@ -78,8 +78,8 @@ typedef enum{
     OP_LOADBOOL,    // R[A] <= (B != 0)
     OP_LOADNULL,    // R[A], R[A+1], ..., R[A+B-1] <= null
 
-    OP_GET_GLOBAL, // R[A] <= Gbl[K[Bx]]
-    OP_SET_GLOBAL, // Gbl[K[Bx]] <= R[A]
+    OP_GET_GLOBAL, // R[A] <= GlobalEnv[Bx]
+    OP_SET_GLOBAL, // GlobalEnv[Bx] <= R[A]
 
     OP_GET_UPVAL,  // R[A] <= Upv[B]
     OP_SET_UPVAL,  // Upv[B] <= R[A]

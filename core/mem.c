@@ -120,7 +120,7 @@ static void traceRef(VM* vm, Object* object){
             ObjectModule* module = (ObjectModule*)object;
             markObject(vm, (Object*)module->name);
             markObject(vm, (Object*)module->path);
-            markTable(vm, &module->members);
+            markGlobalEnv(vm, &module->members);
             break;
         }
         case OBJECT_CLASS:{
@@ -191,10 +191,18 @@ static void markRoots(VM* vm){
         markObject(vm, (Object*)upvalue);
     }
 
-    markTable(vm, vm->curGlobal);
+    markGlobalEnv(vm, &vm->globals);
+
+    if(vm->curGlobal != NULL && vm->curGlobal != &vm->globals){
+        markGlobalEnv(vm, vm->curGlobal);
+    }
 
     for(int i = 0; i < vm->globalCnt; i++){
-        markTable(vm, vm->globalStack[i]);
+        GlobalEnv* env = vm->globalStack[i];
+    
+        if(env != NULL && env != &vm->globals && env != vm->curGlobal){
+            markGlobalEnv(vm, env);
+        }
     }
 
     markTable(vm, &vm->modCache);

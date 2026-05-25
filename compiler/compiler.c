@@ -392,6 +392,8 @@ static void freeExpr(Compiler* compiler, ExprDesc* expr){
 static void initCompiler(Compiler* compiler, VM* vm, Compiler* enclosing, FuncType type, ObjectString* srcName){
     compiler->enclosing = enclosing;
     compiler->vm = vm;
+    compiler->globals = enclosing != NULL ? enclosing->globals : vm->curGlobal;   
+    // point to defining module's global env for global access
     compiler->type = type;
     compiler->func = newFunction(vm);
     compiler->func->srcName = srcName;
@@ -672,6 +674,7 @@ static void classDecl(Compiler* compiler){
     consume(compiler, TOKEN_IDENTIFIER, "Expect class name.");
 
     int nameConst = identifierConst(compiler);
+    int global = compiler->scopeDepth == 0 ? identifierGlobalSlot(compiler) : 0;
 
     int classReg;
 
@@ -683,8 +686,8 @@ static void classDecl(Compiler* compiler){
         classReg = getFreeReg(compiler);
         reserveReg(compiler, 1);
         emitABx(compiler, OP_CLASS, classReg, nameConst);
-        emitABx(compiler, OP_SET_GLOBAL, classReg, nameConst);
-        defineVar(compiler, nameConst);
+        emitABx(compiler, OP_SET_GLOBAL, classReg, global);
+        defineVar(compiler, global);
     }
 
     consume(compiler, TOKEN_LEFT_BRACE, "Expect '{' before class body");
@@ -739,7 +742,7 @@ static void methodDecl(Compiler* compiler){
         emitABC(compiler, OP_GET_UPVAL, classReg, classIndex, 0);
     }else{
         Value nameValue = OBJECT_VAL(copyString(compiler->vm, className.head, className.len));
-        classIndex = makeConstant(compiler, nameValue);
+        classIndex = globalSlotForToken(compiler, &className);
         emitABx(compiler, OP_GET_GLOBAL, classReg, classIndex);
     }
 
@@ -801,8 +804,7 @@ static void importDecl(Compiler* compiler){
         addLocal(compiler, aliasName);
         compiler->locals[compiler->localCnt - 1].depth = compiler->scopeDepth;
     }else{
-        Value aliasValue = OBJECT_VAL(copyString(compiler->vm, aliasName.head, aliasName.len));
-        int aliasIndex = makeConstant(compiler, aliasValue);
+        int aliasIndex = globalSlotForToken(compiler, &aliasName);
         if(aliasIndex < 0){
             errorAt(compiler, &compiler->parser.pre, "Failed to add module alias constant.");
             return;
@@ -1583,6 +1585,27 @@ static int identifierConst(Compiler* compiler){
     return makeConstant(compiler, strVal);
 }
 
+static int globalSlotForToken(Compiler* compiler, Token* name){
+    ObjectString* str = copyString(compiler->vm, name->head, name->len);
+    uint32_t slot = 0;
+
+    if(!globalEnsureSlot(compiler->vm, compiler->globals, str, &slot)){
+        errorAt(compiler, name, "Too many global variables.");
+        return 0;
+    }
+
+    if(slot > MAX_ARG_BX){
+        errorAt(compiler, name, "Too many global variables in one environment.");
+        return 0;
+    }
+
+    return (int)slot;
+}
+
+static int identifierGlobalSlot(Compiler* compiler){
+    return globalSlotForToken(compiler, &compiler->parser.pre);
+}
+
 static void addLocal(Compiler* compiler, Token name){
     if(compiler->localCnt == LOCAL_MAX){
         errorAt(compiler, &name, "Too many local variables");
@@ -1626,7 +1649,7 @@ static int parseVar(Compiler* compiler, const char* err){
         declLocal(compiler);
         return 0;
     }
-    return identifierConst(compiler);
+    return identifierGlobalSlot(compiler);
 }
 
 static void defineVar(Compiler* compiler, int global){
@@ -1777,7 +1800,7 @@ static void handleVar(Compiler* compiler, ExprDesc* expr, bool canAssign){
     }else if((index = resolveUpvalue(compiler, name)) != -1){
         initExpr(expr, EXPR_UPVAL, index);
     }else{
-        index = identifierConst(compiler);
+        index = identifierGlobalSlot(compiler);
         initExpr(expr, EXPR_GLOBAL, index);
     }
 }
