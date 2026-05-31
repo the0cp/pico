@@ -1,0 +1,66 @@
+# A compact PiCo tour: closures, classes, methods, lists, strings, paths and modules.
+
+import "time";
+
+func makeIdGenerator(prefix) {
+    var next = 0;
+    return func() {
+        next++;
+        return "${prefix}-${next}";
+    };
+}
+
+func cleanTitle(s) {
+    return s.trim().lower().replace(" ", "-");
+}
+
+class Note {
+    Title = "";      # Public field: can be read outside the class.
+    body = "";       # Private field: accessed through methods only.
+}
+
+method (n Note) init(title, body) {
+    n.Title = title;
+    n.body = body;
+}
+
+method (n Note) preview() {
+    var text = n.body.trim();
+
+    if (text.len() <= 34) {
+        return text;
+    }
+
+    return text[0:34] + "...";
+}
+
+method (n Note) wordCount() {
+    return n.body.trim().split(" ").size();
+}
+
+method (n Note) slug() {
+    return cleanTitle(n.Title);
+}
+
+var newId = makeIdGenerator("note");
+var notes = [
+    Note("Register VM", "PiCo compiles source code into compact register-based bytecode."),
+    Note("External Methods", "Classes define data, while methods are attached outside the class body."),
+    Note("Tiny Stdlib", "The standard modules cover files, paths, time, glob, os, and gc.")
+];
+
+print "PiCo mini tour";
+print "started at ${time.fmt(time.clock())}";
+print "";
+
+for (var note : notes) {
+    var id = newId();
+    print "${id} | ${note.Title} | ${note.wordCount()} words";
+    print "  slug: ${note.slug()}";
+    print "  preview: ${note.preview()}";
+}
+
+print "";
+print "portable path join with '/': ${"examples" / "data" / "notes.txt"}";
+print "slicing demo: ${"register-vm"[0:8]}";
+print "reverse slicing: ${"PiCo"[::-1]}";

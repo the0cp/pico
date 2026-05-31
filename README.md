@@ -15,6 +15,56 @@ A small, compact scripting language and virtual machine implemented in C. pico i
 
 See the included `manual.md` for a detailed language reference and usage examples: [https://github.com/the0cp/pico/blob/master/manual.md](https://github.com/the0cp/pico/blob/master/manual.md)
 
+## What it looks like
+
+```javascript
+# A tiny PiCo demo: 
+
+func slug(s) {
+    return s.trim().lower().replace(" ", "-");
+}
+
+func badge(s) {
+    return "[" + s + "]";
+}
+
+func makeCounter(prefix) {
+    var n = 0;
+
+    return func(name) {
+        n++;
+        return "${prefix}-${n}: ${name}";
+    };
+}
+
+var next = makeCounter("demo");
+var topics = [" Register VM ", " Pipe Operator ", " Path Join "];
+
+for (var topic : topics) {
+    var name = topic |> slug |> badge;
+    print next(name);
+}
+
+print "path: ${"examples" / "data" / "sample.txt"}";
+print "slice: ${"register-vm"[0:8]}, reverse: ${"PiCo"[::-1]}";
+
+$> echo hello from the host shell
+print "shell exit code = ${_exit_code}";
+```
+
+## Examples
+
+More examples are available in `examples/`.
+
+Try more examples:
+
+```sh
+./build/debug/pico examples/tour.pcs
+./build/debug/pico examples/file_indexer.pcs
+./build/debug/pico examples/modules/main.pcs
+# ...
+```
+
 ## Building
 
 Requirements: gcc and CMake. The code uses GCC-specific techniques such as computed goto / dispatch table, so GCC is required. On Windows, GCC can be installed through MinGW-w64, Chocolatey, or MSYS2.

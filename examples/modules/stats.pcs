@@ -1,0 +1,42 @@
+func sum(xs) {
+    var total = 0;
+    for (var x : xs) {
+        total += x;
+    }
+    return total;
+}
+
+func mean(xs) {
+    if (xs.size() == 0) {
+        return null;
+    }
+    return sum(xs) / xs.size();
+}
+
+func min(xs) {
+    if (xs.size() == 0) {
+        return null;
+    }
+
+    var m = xs[0];
+    for (var x : xs) {
+        if (x < m) {
+            m = x;
+        }
+    }
+    return m;
+}
+
+func max(xs) {
+    if (xs.size() == 0) {
+        return null;
+    }
+
+    var m = xs[0];
+    for (var x : xs) {
+        if (x > m) {
+            m = x;
+        }
+    }
+    return m;
+}

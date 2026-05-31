@@ -1,0 +1,3 @@
+PiCo is a tiny language with a register VM.
+The VM runs bytecode. The language has lists, maps, strings, modules, files, and classes.
+PiCo is small enough to study but useful enough to run examples.

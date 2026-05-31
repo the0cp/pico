@@ -1,0 +1,25 @@
+# PiCo exposes a tiny GC control module for experiments.
+
+import "gc";
+
+print "initial gc mode: ${gc.mode()}";
+
+var oldThreshold = gc.threshold();
+gc.mode("manual");
+gc.threshold(1024 * 1024);
+
+var objects = [];
+for (var i = 0; i < 1000; i++) {
+    objects.push("object-${i}");
+}
+
+var stats = gc.stats();
+print "mode: ${stats["mode"]}";
+print "bytes: ${stats["bytes"]}";
+print "next: ${stats["next"]}";
+print "threshold: ${stats["threshold"]}";
+print "manual collect: ${gc.collect()}";
+
+gc.threshold(oldThreshold);
+gc.mode("auto");
+print "restored gc mode: ${gc.mode()}";

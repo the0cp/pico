@@ -1,0 +1,9 @@
+# Run with extra arguments, for example:
+#   pico examples/argv_echo.pcs hello PiCo 123
+
+import "os";
+
+print "Argument count: ${os.argv.size()}";
+for (var i = 0; i < os.argv.size(); i++) {
+    print "argv[${i}] = ${os.argv[i]}";
+}

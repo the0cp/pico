@@ -1,0 +1,22 @@
+# Scan the examples directory using glob.Glob, fs.list and path helpers.
+
+import "fs";
+import "glob";
+import "path";
+
+var search = glob.Glob();
+search.Dir = "examples";
+search.Pattern = "**/*.pcs";
+search.Recursive = true;
+search.Exclude = ["data/*"];
+
+var files = fs.list(search);
+var count = 0;
+
+print "PiCo source files under examples/:";
+for (var file : files) {
+    count++;
+    print "  ${file} | base=${path.base(file)} | ext=${path.ext(file)}";
+}
+
+print "found ${count} .pcs files";

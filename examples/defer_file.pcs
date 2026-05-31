@@ -1,0 +1,19 @@
+# defer makes cleanup explicit without hiding the control flow.
+
+import "fs";
+import "time";
+
+func writeLog(path) {
+    var f = fs.open(path, "w");
+    defer f.close();
+
+    f.write("PiCo log file\n");
+    f.write("created at: ${time.fmt(time.clock())}\n");
+    f.write("defer will close this file handle automatically\n");
+}
+
+var out = "examples" / "data" / "generated.log";
+writeLog(out);
+
+print "wrote ${out}";
+print fs.read(out);

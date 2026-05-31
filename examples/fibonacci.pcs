@@ -1,0 +1,19 @@
+# Classic recursion plus a tiny timing measurement.
+
+import "time";
+
+func fib(n) {
+    if (n <= 1) {
+        return n;
+    }
+    return fib(n - 1) + fib(n - 2);
+}
+
+var start = time.steady();
+
+for (var i = 0; i <= 12; i++) {
+    print "fib(${i}) = ${fib(i)}";
+}
+
+var elapsed = time.steady() - start;
+print "elapsed: ${elapsed}s";
