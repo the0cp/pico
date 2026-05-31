@@ -19,7 +19,11 @@ static char to_lower(char c){
 }
 
 static bool is_sep(char c){
-    return c == PATH_SEP;
+#ifdef _WIN32
+    return c == '/' || c == '\\';
+#else
+    return c == '/';
+#endif
 }
 
 static bool match_set(char c, const char* set_st, const char** set_end, bool ignoreCase){
