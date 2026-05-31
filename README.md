@@ -2,11 +2,28 @@
 
 A small, compact scripting language and virtual machine implemented in C. pico includes a compiler, virtual machine, REPL, and a set of core modules for working with values, objects, and I/O.
 
+## Features
+
+- Register-based bytecode VM
+- REPL
+- Functions and closures
+- Classes and methods
+- Modules
+- Lists, maps, strings, and slicing
+- Small standard library
+- Manual / automatic GC modes
+
 See the included `manual.md` for a detailed language reference and usage examples: [https://github.com/the0cp/pico/blob/master/manual.md](https://github.com/the0cp/pico/blob/master/manual.md)
 
 ## Building
 
 Requirements: gcc and CMake. The code uses GCC-specific techniques such as computed goto / dispatch table, so GCC is required. On Windows, GCC can be installed through MinGW-w64, Chocolatey, or MSYS2.
+
+Clone the repo:
+
+```sh
+git clone --recursive https://github.com/the0cp/pico.git
+```
 
 Configure and build a debug version:
 
