@@ -52,6 +52,16 @@ void resetStack(VM* vm){
     vm->stackTop = vm->stack;
 }
 
+void recover(VM* vm){
+    resetStack(vm);
+    vm->frameCount = 0;
+    vm->openUpvalues = NULL;
+    vm->globalCnt = 0;
+    vm->curGlobal = &vm->globals;
+    vm->globalStack[0] = vm->curGlobal;
+    vm->hadRuntimeError = false;
+}
+
 void initVM(VM* vm, int argc, const char* argv[]){
     resetStack(vm);
     vm->objects = NULL;
@@ -89,33 +99,9 @@ void initVM(VM* vm, int argc, const char* argv[]){
     vm->argc = argc;
     vm->argv = argv;
 
+    vm->hadRuntimeError = false;
+
     registerPrelude(vm);
-
-    if(argc > 0 && argv != NULL){
-        Value osModVal;
-        ObjectString* osName = copyString(vm, "os", 2);
-        push(vm, OBJECT_VAL(osName));
-
-        if(tableGet(vm, &vm->modCache, OBJECT_VAL(osName), &osModVal)){
-            ObjectModule* osMod = AS_MODULE(osModVal);
-            ObjectList* argvList = newList(vm);
-            push(vm, OBJECT_VAL(argvList));
-
-            for(int i = 0; i < argc; i++){
-                ObjectString* arg = copyString(vm, argv[i], (int)strlen(argv[i]));
-                push(vm, OBJECT_VAL(arg));
-                appendToList(vm, argvList, OBJECT_VAL(arg));
-                pop(vm);    // arg
-            }
-
-            ObjectString* argvKey = copyString(vm, "argv", 4);
-            push(vm, OBJECT_VAL(argvKey));
-            globalSetName(vm, &osMod->members, argvKey, OBJECT_VAL(argvList));
-            pop(vm);    // argvKey
-            pop(vm);    // argvList
-        }
-        pop(vm);    // osName
-    }
 }
 
 void freeVM(VM* vm){
@@ -228,10 +214,16 @@ InterpreterStatus interpret(VM* vm, const char* code, const char* srcName){
     push(vm, OBJECT_VAL(closure));
 
     if(!call(vm, closure, 0)){
+        recover(vm);
         return VM_RUNTIME_ERROR;
     }
 
     InterpreterStatus status = run(vm);
+
+    if(status == VM_RUNTIME_ERROR){
+        recover(vm);
+    }
+
     return status;
 }
 
@@ -1530,6 +1522,11 @@ static bool callValue(VM* vm, Value callee, int argCnt){
                 if(method->type == OBJECT_CFUNC){
                     CFunc cfunc = AS_CFUNC(OBJECT_VAL(method));
                     Value result = cfunc(vm, argCnt, vm->stackTop - argCnt);
+
+                    if(vm->hadRuntimeError){
+                        return false;
+                    }
+
                     vm->stackTop -= (argCnt + 1); 
                     push(vm, result);
                     return true;
@@ -1542,10 +1539,11 @@ static bool callValue(VM* vm, Value callee, int argCnt){
             case OBJECT_CFUNC:{
                 CFunc cfunc = AS_CFUNC(callee);
                 Value result = cfunc(vm, argCnt, vm->stackTop - argCnt);
-                if(vm->stackTop == vm->stack){  
-                    // stack is reseted by runtimeError
+
+                if(vm->hadRuntimeError){  
                     return false;
                 }
+
                 vm->stackTop -= (argCnt + 1); 
                 push(vm, result);
                 return true;
@@ -1581,5 +1579,5 @@ void runtimeError(VM* vm, const char* format, ...){
     }
     #endif
     
-    resetStack(vm);
+    vm->hadRuntimeError = true;
 }

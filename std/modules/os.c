@@ -138,7 +138,29 @@ static Value os_exit(VM* vm, int argCount, Value* args){
     return NULL_VAL; // Unreachable
 }
 
+static void defineArgv(VM* vm, ObjectModule* module){
+    ObjectString* argvKey = copyString(vm, "argv", 4);
+    push(vm, OBJECT_VAL(argvKey));
+
+    ObjectList* argvList = newList(vm);
+    push(vm, OBJECT_VAL(argvList));
+
+    for(int i = 0; i < vm->argc; i++){
+        const char* raw = vm->argv[i];
+        ObjectString* arg = copyString(vm, raw, (int)strlen(raw));
+        push(vm, OBJECT_VAL(arg));
+        appendToList(vm, argvList, OBJECT_VAL(arg));
+        pop(vm);    // arg
+    }
+
+    globalSetName(vm, &module->members, argvKey, OBJECT_VAL(argvList));
+
+    pop(vm);    // argvList
+    pop(vm);    // argvKey
+}
+
 void initOsModule(VM* vm, ObjectModule* module){
+    defineArgv(vm, module);
     defineCFunc(vm, &module->members, "exec", os_exec);
     defineCFunc(vm, &module->members, "run", os_system);
     defineCFunc(vm, &module->members, "getenv", os_getenv);

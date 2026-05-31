@@ -77,6 +77,8 @@ typedef struct VM{
 
     int argc;
     const char** argv;
+
+    bool hadRuntimeError;
 }VM;
 
 typedef enum{
@@ -88,6 +90,7 @@ typedef enum{
 void initVM(VM* vm, int argc, const char* argv[]);
 void freeVM(VM* vm);
 void resetStack(VM* vm);
+void recover(VM* vm);
 void push(VM* vm, Value value);
 Value pop(VM* vm);
 Value peek(VM* vm, int distance);

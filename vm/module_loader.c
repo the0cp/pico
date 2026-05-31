@@ -75,7 +75,7 @@ static char* resolveScriptPath(const char* spec, const char* requester){
     }
 
     size_t dirLen = (size_t)(lastSep - requester);
-    if(dirLen == 0 || isPathSep(requester[0])){
+    if(dirLen == 0){
         dirLen = 1;  // Handle cases like "/module" or "C:\module"
     }
 
