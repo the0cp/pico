@@ -1,6 +1,7 @@
 /.vscode
 *.exe
 /build
+/dist
 tests/test_file.tmp
 tests/val-log.txt
 tests/perf.data

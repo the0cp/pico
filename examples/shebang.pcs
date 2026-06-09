@@ -1,0 +1,4 @@
+#!/usr/bin/env pico
+
+print("hello from a Pico shebang script");
+print("Run me with: chmod +x examples/shebang.pcs && ./examples/shebang.pcs");

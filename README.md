@@ -147,19 +147,28 @@ ctest --preset release --output-on-failure
 Run the interactive REPL:
 
 ```sh
-./build/release/pico
+pico
 ```
 
 Run a script:
 
 ```sh
-./build/release/pico path/to/script.pcs
+pico path/to/script.pcs
 ```
 
-For a debug build, use:
+Pico scripts can also be executed directly with a Unix shebang:
 
 ```sh
-./build/debug/pico path/to/script.pcs
+#!/usr/bin/env pico
+
+print("hello from Shebang");
+```
+
+Make it executable and run it:
+
+```sh
+chmod +x hello.pcs
+./hello.pcs
 ```
 
 Check `manual.md` for language syntax, built-in functions, and examples.
