@@ -1,6 +1,4 @@
 #include "common.h"
-#include "chunk.h"
-#include  "debug.h"
 #include "vm.h"
 #include "repl.h"
 #include "file.h"
@@ -19,6 +17,7 @@ static void printHelp(const char* programName){
     printf("  %s                         Start the REPL\n", programName);
     printf("  %s <file.pcs> [args...]    Run a script\n", programName);
     printf("  %s run <file.pcs> [args...] Run a script\n", programName);
+    printf("  %s --dump, -d <file.pcs>   Compile and dump bytecode\n", programName);
     printf("  %s --help                  Show this help message\n", programName);
     printf("  %s --version               Show version information\n", programName);
     printf("\n");
@@ -46,7 +45,22 @@ int main(int argc, const char* argv[]){
         initVM(&vm, 0, NULL);
         repl(&vm);
     }else{
+        if(strcmp(argv[1], "--dump") == 0 || strcmp(argv[1], "-d") == 0){
+            if(argc != 3){
+                printHelp(argv[0]);
+                return 64;
+            }
+
+            initVM(&vm, 0, NULL);
+
+            int status = dumpScript(&vm, argv[2]);
+
+            freeVM(&vm);
+            return status;
+        }
+
         int scriptArgsSt = 1;
+
         if(strcmp(argv[1], "run") == 0){
             scriptArgsSt = 2;
         }

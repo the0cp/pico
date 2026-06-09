@@ -1,8 +1,11 @@
 #include <stdio.h>
+#include <stdint.h>
 
 #include "debug.h"
 #include "value.h"
 #include "instruction.h"
+#include "global_env.h"
+#include "object.h"
 
 #define CLR_RESET   "\033[0m"
 #define CLR_BOLD    "\033[1m"
@@ -76,14 +79,70 @@ static const char* opNames[] = {
 };
 
 int getLine(const Chunk* chunk, int offset){
-    if(offset < 0 || offset >= chunk->count) return -1;
+    if(offset < 0 || offset >= (int)chunk->count) return -1;
     return chunk->lines[offset];
 }
 
-void dasmChunk(Chunk* chunk, const char* name){
+static ObjectString* getGlobalSlot(GlobalEnv* globals, uint32_t slot){
+    if(globals == NULL)  return NULL;
+
+    for(size_t i = 0; i < globals->names.capacity; i++){
+        GlobalNameEntry* entry = &globals->names.entries[i];
+
+        if(entry->name != NULL && entry->slot == slot){
+            return entry->name;
+        }
+    }
+
+    return NULL;
+}
+
+void dasmChunk(Chunk* chunk, const char* name, GlobalEnv* globals){
     printf("== %s ==\n", name);
+    
     for(size_t offset = 0; offset < chunk->count; offset++){
-        dasmInstruction(chunk, offset);
+        dasmInstruction(chunk, offset, globals);
+    }
+}
+
+void dasmFunction(ObjectFunc* func, GlobalEnv* globals){
+    if(func == NULL){
+        return;
+    }
+
+    const char* name = func->name != NULL ? func->name->chars : "<script>";
+
+    printf("== %s ==\n", name);
+    printf(
+        CLR_GRAY 
+        "arity=%d upvalues=%d registers=%d constants=%zu instructions=%zu" 
+        CLR_RESET 
+        "\n",
+        func->arity,
+        func->upvalueCnt,
+        func->maxRegSlots,
+        func->chunk.constants.count,
+        func->chunk.count
+    );
+
+    for(size_t offset = 0; offset < func->chunk.count; offset++){
+        dasmInstruction(&func->chunk, (int)offset, globals);
+    }
+
+    for(size_t i = 0; i < func->chunk.constants.count; i++){
+        Value constant = func->chunk.constants.values[i];
+
+        if(IS_FUNC(constant)){
+            ObjectFunc* child = AS_FUNC(constant);
+
+            printf(
+                "\n" CLR_GRAY "-- function constant K[%zu] in %s --" CLR_RESET "\n",
+                i,
+                name
+            );
+
+            dasmFunction(child, globals);
+        }
     }
 }
 
@@ -130,34 +189,53 @@ static void dasmAsBx(const char* name, Instruction instruction){
 static void dasmLoadK(const char* name, const Chunk* chunk, Instruction instruction){
     int a = GET_ARG_A(instruction);
     int bx = GET_ARG_Bx(instruction);
-    Value constant = chunk->constants.values[bx];
+
     printf(
-        CLR_CYAN "%-16s" CLR_GRAY " | " \
-        CLR_MAGENTA "%-5s" CLR_GRAY " | " \
-        CLR_YELLOW "%4d" CLR_GRAY " | " \
-        CLR_YELLOW "%5d" CLR_GRAY " | " \
-        CLR_GRAY "%5s" CLR_GRAY " | " \
-        CLR_GRAY "'", name, "iABx", a, bx, "-"
+        CLR_CYAN "%-16s" CLR_GRAY " | "
+        CLR_MAGENTA "%-5s" CLR_GRAY " | "
+        CLR_YELLOW "%4d" CLR_GRAY " | "
+        CLR_YELLOW "%5d" CLR_GRAY " | "
+        CLR_GRAY "%5s" CLR_GRAY " | "
+        CLR_RESET,
+        name,
+        "iABx",
+        a,
+        bx,
+        "-"
     );
-    printValue(constant);
-    printf(CLR_RESET);
+
+    if((size_t)bx < chunk->constants.count){
+        printf(CLR_GRAY "'");
+        printValue(chunk->constants.values[bx]);
+        printf(CLR_RESET);
+    }else{
+        printf(CLR_RED "<invalid constant>" CLR_RESET);
+    }
 }
 
-static void dasmGlobal(const char* name, Chunk* chunk, Instruction instruction){
-    (void)chunk;  
-    // silence unused parameter warning if global slot optimization is not used
+static void dasmGlobal(const char* name, GlobalEnv* globals, Instruction instruction){
     int a = GET_ARG_A(instruction);
-    int bx = GET_ARG_Bx(instruction);
+    uint32_t bx = (uint32_t)GET_ARG_Bx(instruction);
 
     printf(
-        CLR_CYAN "%-16s" CLR_GRAY " | " \
-        CLR_MAGENTA "%-5s" CLR_GRAY " | " \
-        CLR_YELLOW "%4d" CLR_GRAY " | " \
-        CLR_YELLOW "%5d" CLR_GRAY " | " \
-        CLR_GRAY "%5s" CLR_GRAY " | " \
-        CLR_GRAY "'", name, "iABx", a, bx, "-"
+        CLR_CYAN "%-16s" CLR_GRAY " | "
+        CLR_MAGENTA "%-5s" CLR_GRAY " | "
+        CLR_YELLOW "%4d" CLR_GRAY " | "
+        CLR_YELLOW "%5u" CLR_GRAY " | "
+        CLR_GRAY "%5s" CLR_GRAY " | "
+        CLR_RESET,
+        name,
+        "iABx",
+        a,
+        bx,
+        "-"
     );
-    printf(CLR_RESET);
+
+    ObjectString* globalName = getGlobalSlot(globals, bx);
+
+    if(globalName != NULL){
+        printf(CLR_GRAY "'%s" CLR_RESET, globalName->chars);
+    }
 }
 
 static void dasmField(const char* name, const Chunk* chunk, Instruction instruction){
@@ -177,7 +255,7 @@ static void dasmField(const char* name, const Chunk* chunk, Instruction instruct
     printf(CLR_RESET);
 }
 
-void dasmInstruction(Chunk* chunk, int offset){
+void dasmInstruction(Chunk* chunk, int offset, GlobalEnv* globals){
     printf("offset: %04d ", offset);
     int line = chunk->lines[offset];
 
@@ -240,20 +318,16 @@ void dasmInstruction(Chunk* chunk, int offset){
             break;
 
         // iABx
+        case OP_LOADK:
         case OP_CLOSURE:
         case OP_IMPORT:
         case OP_CLASS:
-            dasmABx(opName, instruction);
-            break;
-        
-        // iABx (with constant & global)
-        case OP_LOADK:
             dasmLoadK(opName, chunk, instruction);
             break;
 
         case OP_GET_GLOBAL:
         case OP_SET_GLOBAL:
-            dasmGlobal(opName, chunk, instruction);
+            dasmGlobal(opName, globals, instruction);
             break;
 
         case OP_FIELD:

@@ -10,5 +10,6 @@
 char* readScript(const char* path);
 void runScript(VM* vm, const char* path);
 void buildScript(VM* vm, const char* path);
+int dumpScript(VM* vm, const char* path);
 
 #endif // FILE_H

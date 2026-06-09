@@ -1763,7 +1763,11 @@ static ObjectFunc* stopCompiler(Compiler* compiler){
     #ifdef DEBUG_PRINT_CODE
     if(!compiler->parser.hadError){
         printf("== Compiled code: %s ==\n", func->name != NULL ? func->name->chars : "<script>");
-        dasmChunk(&compiler->func->chunk, func->name != NULL ? func->name->chars : "<script>");
+        dasmChunk(
+            &compiler->func->chunk, 
+            func->name != NULL ? func->name->chars : "<script>"
+            compiler->globals
+        );
     }
     #endif
 

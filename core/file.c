@@ -2,6 +2,7 @@
 #include "vm.h"
 #include "compiler.h"
 #include "chunk.h"
+#include "debug.h"
 
 static bool endsWith(const char* str, const char* suffix){
     if(!str || !suffix) return false;
@@ -48,8 +49,8 @@ void buildScript(VM* vm, const char* path){
     initChunk(&chunk);
 
     ObjectFunc* func = compile(vm, source, path);
-    free(source);
     if(func == NULL){
+        free(source);
         exit(65);
     }
 
@@ -80,4 +81,19 @@ void buildScript(VM* vm, const char* path){
     free(source);
     freeChunk(vm, &chunk);
     printf("Compilation successful.\n");
+}
+
+int dumpScript(VM* vm, const char* path){
+    char* source = readScript(path);
+
+    ObjectFunc* func = compile(vm, source, path);
+
+    free(source);
+
+    if(func == NULL){
+        return 65;
+    }
+
+    dasmFunction(func, vm->curGlobal);
+    return 0;
 }

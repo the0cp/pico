@@ -414,7 +414,7 @@ static InterpreterStatus run(VM* vm){
             do { \
                 instruction = *frame->ip++; \
                 dasmInstruction(&frame->closure->func->chunk, \
-                    (int)(frame->ip - frame->closure->func->chunk.code - 1)); \
+                    (int)(frame->ip - frame->closure->func->chunk.code - 1), NULL); \
                 goto *dispatchTable[GET_OPCODE(instruction)]; \
             } while (0)
     #else
