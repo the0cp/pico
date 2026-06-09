@@ -104,6 +104,30 @@ build/release/pico
 build/release-windows/pico.exe
 ```
 
+## Installing
+
+Install PiCo to your local user prefix:
+
+```sh
+cmake --preset release
+cmake --build --preset release
+cmake --install build/release --prefix ~/.local
+```
+
+Make sure `~/.local/bin` is in your PATH:
+
+```sh
+export PATH="$HOME/.local/bin:$PATH"
+```
+
+Then run PiCo from anywhere.
+
+To install system-wide:
+
+```sh
+sudo cmake --install build/release
+```
+
 ## Testing
 
 Run the test suite with *CTest*:

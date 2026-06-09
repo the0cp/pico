@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 3.21)
 
-project(PiCo)
+project(PiCo VERSION 0.1.0 LANGUAGES C)
+
+include(GNUInstallDirs)
 
 set(CMAKE_C_COMPILER "gcc")
 
@@ -75,6 +77,19 @@ add_custom_target(check
     COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure
     DEPENDS pico
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+)
+
+install(TARGETS pico
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+)
+
+install(FILES README.md manual.md LICENSE gpl-3.0.txt
+    DESTINATION ${CMAKE_INSTALL_DOCDIR}
+)
+
+install(DIRECTORY examples/
+    DESTINATION ${CMAKE_INSTALL_DOCDIR}/examples
+    FILES_MATCHING PATTERN "*.pcs"
 )
 
 message(STATUS "Project 'PiCo' configured to use C Compiler: ${CMAKE_C_COMPILER}")
