@@ -46,18 +46,61 @@ add_compile_options(
     $<$<CONFIG:Release>:-O3>
 )
 
-add_executable(pico 
-    ${CORE_SRC} 
-    ${VM_SRC} 
-    ${COMPILER_SRC} 
-    ${STD_SRC} 
+set(PICO_API_SRC
+    api/pico.c
+)
+
+set(PICO_RUNTIME_SRC
+    ${PICO_API_SRC}
+    ${CORE_SRC}
+    ${VM_SRC}
+    ${COMPILER_SRC}
+    ${STD_SRC}
+)
+
+add_library(picort STATIC
+    ${PICO_RUNTIME_SRC}
+)
+
+target_include_directories(picort
+    PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+        $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
+)
+
+set_target_properties(picort PROPERTIES
+    OUTPUT_NAME pico
+)
+
+target_link_libraries(picort
+    PRIVATE
+        xxhash_lib
+        m
+)
+
+add_executable(pico
     ${CMD_SRC}
 )
 
-if(WIN32)
-    target_link_libraries(pico PRIVATE xxhash_lib m)
-else()
-    target_link_libraries(pico PRIVATE xxhash_lib linenoise_lib m)
+add_executable(pico_embed_basic
+    examples/embedding/basic.c
+)
+
+target_link_libraries(pico_embed_basic
+    PRIVATE
+        picort
+)
+
+target_link_libraries(pico
+    PRIVATE
+        picort
+)
+
+if(NOT WIN32)
+    target_link_libraries(pico
+        PRIVATE
+            linenoise_lib
+    )
 endif()
 
 include(CTest)
@@ -71,11 +114,16 @@ if(BUILD_TESTING)
                 bash run_tests.sh
         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/tests
     )
+
+    add_test(
+        NAME pico_embedding_basic
+        COMMAND $<TARGET_FILE:pico_embed_basic>
+    )
 endif()
 
 add_custom_target(check
     COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure
-    DEPENDS pico
+    DEPENDS pico pico_embed_basic
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
 )
 
