@@ -91,6 +91,15 @@ target_link_libraries(pico_embed_basic
         picort
 )
 
+add_executable(pico_embed_exit_policy
+    tests/embedding_exit_policy.c
+)
+
+target_link_libraries(pico_embed_exit_policy
+    PRIVATE
+        picort
+)
+
 target_link_libraries(pico
     PRIVATE
         picort
@@ -106,24 +115,55 @@ endif()
 include(CTest)
 
 if(BUILD_TESTING)
+    if(WIN32)
+        find_program(
+            PICO_BASH_EXECUTABLE
+            NAMES bash.exe
+            PATHS
+                "$ENV{ProgramFiles}/Git/bin"
+                "$ENV{ProgramFiles}/Git/usr/bin"
+                "C:/Program Files/Git/bin"
+                "C:/Program Files/Git/usr/bin"
+                "C:/msys64/usr/bin"
+            NO_DEFAULT_PATH
+        )
+    else()
+        find_program(
+            PICO_BASH_EXECUTABLE
+            NAMES bash
+        )
+    endif()
+
+    if(NOT PICO_BASH_EXECUTABLE)
+        message(FATAL_ERROR
+            "Bash was not found. On Windows, install Git for Windows or MSYS2."
+        )
+    endif()
+
     add_test(
         NAME pico_script_tests
-        COMMAND ${CMAKE_COMMAND} -E env
-                "PICO_EXEC=$<TARGET_FILE:pico>"
-                "TIMEOUT_SEC=60"
-                bash run_tests.sh
-        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/tests
+        COMMAND
+            "${PICO_BASH_EXECUTABLE}"
+            "${CMAKE_SOURCE_DIR}/tests/run_tests.sh"
+            "$<TARGET_FILE:pico>"
+            "60"
+        WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/tests"
     )
 
     add_test(
         NAME pico_embedding_basic
         COMMAND $<TARGET_FILE:pico_embed_basic>
     )
+
+    add_test(
+        NAME pico_embedding_exit_policy
+        COMMAND $<TARGET_FILE:pico_embed_exit_policy>
+    )
 endif()
 
 add_custom_target(check
     COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure
-    DEPENDS pico pico_embed_basic
+    DEPENDS pico pico_embed_basic pico_embed_exit_policy
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
 )
 

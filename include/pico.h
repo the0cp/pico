@@ -47,6 +47,14 @@ PicoStatus pico_vm_eval(
 );
 
 /*
+ * Returns the most recent compilation or runtime error message.
+ * Returns NULL if vm is NULL or no error message is currently available.
+ * The returned pointer is owned by the VM and must not be freed.
+ * It remains valid until the next pico_vm_eval() call or until the VM is destroyed.
+*/
+const char* pico_vm_last_error(const PicoVM* vm);
+
+/*
  * Returns a static human-readable name for a status value.
  * The returned string must not be freed.
 */

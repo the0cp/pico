@@ -101,6 +101,13 @@ void initVM(VM* vm, int argc, const char* argv[]){
 
     vm->hadRuntimeError = false;
 
+    /*
+     * initVM() is also used directly by the CLI. The embedding API overrides this after initialization.
+    */
+
+    vm->allowProcessExit = true;
+    vm->lastError[0] = '\0';
+
     registerPrelude(vm);
 }
 
@@ -204,8 +211,13 @@ static void closeUpvalues(VM* vm, Value* last){
 }
 
 InterpreterStatus interpret(VM* vm, const char* code, const char* srcName){
+    vm->lastError[0] = '\0';
+
     ObjectFunc* func = compile(vm, code, srcName);
-    if(func == NULL) return VM_COMPILE_ERROR;
+    if(func == NULL){
+        snprintf(vm->lastError, sizeof(vm->lastError), "Compilation failed.");
+        return VM_COMPILE_ERROR;
+    }
 
     push(vm, OBJECT_VAL(func));
 
@@ -1559,9 +1571,9 @@ static bool callValue(VM* vm, Value callee, int argCnt){
 void runtimeError(VM* vm, const char* format, ...){
     va_list args;
     va_start(args, format);
-    vfprintf(stderr, format, args);
+    vsnprintf(vm->lastError, sizeof(vm->lastError), format, args);
     va_end(args);
-    fputs("\n", stderr);
+    fprintf(stderr, "%s\n", vm->lastError);
 
     #ifdef DEBUG_TRACE
     if(vm->frameCount > 0){

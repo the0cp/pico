@@ -2,29 +2,21 @@
 
 set -u
 
-TIMEOUT_SEC="${TIMEOUT_SEC:-5}"
+PICO_EXEC="${1:-${PICO_EXEC:-}}"
+TIMEOUT_SEC="${2:-${TIMEOUT_SEC:-5}}"
 LOG_FILE="${LOG_FILE:-test_output.log}"
 
-if [ -z "${PICO_EXEC:-}" ]; then
-    if [ -f "../build/pico.exe" ]; then
-        PICO_EXEC="../build/pico.exe"
-    elif [ -f "../build/pico" ]; then
-        PICO_EXEC="../build/pico"
-    else
-        PICO_EXEC="$(find ../build -name "pico*" -type f 2>/dev/null | head -n 1)"
-    fi
-fi
-
-if [ -z "${PICO_EXEC:-}" ] || [ ! -f "$PICO_EXEC" ]; then
-    echo "Error: pico executable not found."
-    echo "Set it manually, for example:"
-    echo "  PICO_EXEC=\"../build/pico\" bash run_tests.sh"
-    echo "  PICO_EXEC=\"../build-stress/pico\" TIMEOUT_SEC=60 bash run_tests.sh"
+if [ -z "$PICO_EXEC" ]; then
+    echo "Error: PiCo executable path was not provided."
+    echo "Usage:"
+    echo "  bash run_tests.sh /path/to/pico [timeout_seconds]"
     exit 1
 fi
 
-if [ ! -x "$PICO_EXEC" ]; then
-    chmod +x "$PICO_EXEC" 2>/dev/null || true
+if [ ! -f "$PICO_EXEC" ]; then
+    echo "Error: PiCo executable not found:"
+    echo "  $PICO_EXEC"
+    exit 1
 fi
 
 PASSED=0

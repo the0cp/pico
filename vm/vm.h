@@ -17,6 +17,7 @@ typedef struct GCPolicy GCPolicy;
 #define STACK_MAX (FRAMES_MAX * 256)
 #define GLOBAL_STATCK_MAX 64
 #define MAX_DEFERS 255
+#define VM_ERROR_MESSAGE_MAX 512
 
 typedef struct CallFrame{
     ObjectClosure* closure;
@@ -79,6 +80,19 @@ typedef struct VM{
     const char** argv;
 
     bool hadRuntimeError;
+
+    /*
+     * Whether script code may terminate the host process through os.exit().
+     * The CLI enables this to preserve its existing behavior.
+     * The public embedding API disables it.
+    */
+    bool allowProcessExit;
+
+    /*
+     * Most recent compilation or runtime error.
+     * The message remains available after recover().
+    */
+    char lastError[VM_ERROR_MESSAGE_MAX];
 }VM;
 
 typedef enum{

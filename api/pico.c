@@ -25,6 +25,14 @@ PicoVM* pico_vm_create(void){
     }
 
     initVM(vm, 0, NULL);
+
+    /*
+     * A script embedded must not be allowed to terminate host process through os.exit().
+     * This overrides the initialization of initVM().
+    */
+
+    vm->allowProcessExit = false;
+
     return vm;
 }
 
@@ -52,6 +60,14 @@ PicoStatus pico_vm_eval(
 
     InterpreterStatus status = interpret(vm, source, source_name);
     return mapInterpreterStatus(status);
+}
+
+const char* pico_vm_last_error(const PicoVM* vm){
+    if(vm == NULL || vm->lastError[0] == '\0'){
+        return NULL;
+    }
+
+    return vm->lastError;
 }
 
 const char* pico_status_string(PicoStatus status){
