@@ -100,6 +100,15 @@ target_link_libraries(pico_embed_exit_policy
         picort
 )
 
+add_executable(pico_embed_native_function
+    tests/embedding_native_function.c
+)
+
+target_link_libraries(pico_embed_native_function
+    PRIVATE
+        picort
+)
+
 target_link_libraries(pico
     PRIVATE
         picort
@@ -159,11 +168,16 @@ if(BUILD_TESTING)
         NAME pico_embedding_exit_policy
         COMMAND $<TARGET_FILE:pico_embed_exit_policy>
     )
+
+    add_test(
+        NAME pico_embedding_native_function
+        COMMAND $<TARGET_FILE:pico_embed_native_function>
+    )
 endif()
 
 add_custom_target(check
     COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure
-    DEPENDS pico pico_embed_basic pico_embed_exit_policy
+    DEPENDS pico pico_embed_basic pico_embed_exit_policy pico_embed_native_function
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
 )
 

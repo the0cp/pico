@@ -174,16 +174,24 @@ ObjectFunc* newFunction(VM* vm){
     return func;
 }
 
-ObjectCFunc* newCFunc(VM* vm, CFunc func){
+ObjectCFunc* newHostCFunc(VM* vm, CFunc adapter, HostCFunc hostFunc, void* userData){
     ObjectCFunc* cfunc = (ObjectCFunc*)reallocate(vm, NULL, 0, sizeof(ObjectCFunc));
+
     cfunc->obj.type = OBJECT_CFUNC;
     cfunc->obj.isMarked = false;
-    cfunc->func = func;
-    cfunc->obj.isMarked = false;
+
+    cfunc->func = adapter;
+    cfunc->hostFunc = hostFunc;
+    cfunc->userData = userData;
 
     cfunc->obj.next = vm->objects;
     vm->objects = (Object*)cfunc;
+
     return cfunc;
+}
+
+ObjectCFunc* newCFunc(VM* vm, CFunc func){
+    return newHostCFunc(vm, func, NULL, NULL);
 }
 
 ObjectModule* newModule(VM* vm, ObjectString* name, ObjectString* path, ModuleKind kind){
