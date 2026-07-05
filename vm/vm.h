@@ -113,6 +113,7 @@ static bool isTruthy(Value value);
 static bool checkAccess(VM* vm, ObjectClass* instanceKlass, ObjectString* fieldName);
 
 InterpreterStatus interpret(VM* vm, const char* code, const char* srcName);
+InterpreterStatus vmCallValue(VM* vm, Value callee, int argCount, const Value* args, Value* result);
 static InterpreterStatus run(VM* vm);
 
 static bool call(VM* vm, ObjectClosure* closure, int argCnt);

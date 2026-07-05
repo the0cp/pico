@@ -24,6 +24,15 @@ typedef enum PicoValueType{
     PICO_VALUE_OTHER
 } PicoValueType;
 
+typedef struct PicoValue{
+    PicoValueType type;
+
+    union{
+        bool boolean;
+        double number;
+    }as;
+} PicoValue;
+
 typedef void (*PicoNativeFn)(PicoCall* call, void* user_data);
 
 /*
@@ -34,8 +43,14 @@ typedef enum PicoStatus{
     PICO_STATUS_OK = 0,
     PICO_STATUS_COMPILE_ERROR,
     PICO_STATUS_RUNTIME_ERROR,
-    PICO_STATUS_INVALID_ARGUMENT
+    PICO_STATUS_INVALID_ARGUMENT,
+    PICO_STATUS_OUT_OF_MEMORY,
+    PICO_STATUS_UNSUPPORTED_TYPE
 } PicoStatus;
+
+PicoValue pico_value_null(void);
+PicoValue pico_value_bool(bool value);
+PicoValue pico_value_number(double value);
 
 /*
  * Creates a new PiCo virtual machine.
@@ -71,6 +86,18 @@ PicoStatus pico_vm_register_native(
     const char* name,
     PicoNativeFn function,
     void* user_data
+);
+
+/*
+ * Calls a global PiCo function.
+ * result may be NULL if the caller does not need the return value.
+*/
+PicoStatus pico_vm_call(
+    PicoVM* vm, 
+    const char* name, 
+    int argCount,
+    const PicoValue* args, 
+    PicoValue* result
 );
 
 /*

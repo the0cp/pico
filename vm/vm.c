@@ -213,7 +213,9 @@ static void closeUpvalues(VM* vm, Value* last){
 InterpreterStatus interpret(VM* vm, const char* code, const char* srcName){
     vm->lastError[0] = '\0';
 
+    Value* stackBase = vm->stackTop;
     ObjectFunc* func = compile(vm, code, srcName);
+
     if(func == NULL){
         snprintf(vm->lastError, sizeof(vm->lastError), "Compilation failed.");
         return VM_COMPILE_ERROR;
@@ -234,7 +236,9 @@ InterpreterStatus interpret(VM* vm, const char* code, const char* srcName){
 
     if(status == VM_RUNTIME_ERROR){
         recover(vm);
-    }
+    }else{
+        vm->stackTop = stackBase;
+    }   // restore stack top to the base before the call
 
     return status;
 }
@@ -1462,9 +1466,10 @@ static InterpreterStatus run(VM* vm){
         vm->frameCount--;
 
         if(vm->frameCount == 0){
-            pop(vm);
+            vm->stackTop = calleeBase;
+            push(vm, result);
             return VM_OK;
-        }
+        }   // save the result
 
         frame = &vm->frames[vm->frameCount - 1];
 
@@ -1566,6 +1571,69 @@ static bool callValue(VM* vm, Value callee, int argCnt){
     }
     runtimeError(vm, "Can only call functions and classes.");
     return false;
+}
+
+InterpreterStatus vmCallValue(
+    VM* vm,
+    Value callee,
+    int argCnt,
+    const Value* args,
+    Value* result
+){
+    if(vm->frameCount != 0){
+        runtimeError(vm, "PiCo VM calls are not reentrant.");
+        return VM_RUNTIME_ERROR;
+    }
+
+    if(argCnt < 0 || (argCnt > 0 && args == NULL)){
+        runtimeError(vm, "Invalid argument count or null arguments.");
+        return VM_RUNTIME_ERROR;
+    }
+
+    Value* stackBase = vm->stackTop;
+
+    push(vm, callee);
+
+    for(int i = 0; i < argCnt; i++){
+        push(vm, args[i]);
+    }
+
+    if(!callValue(vm, callee, argCnt)){
+        recover(vm);
+        return VM_RUNTIME_ERROR;
+    }
+
+    InterpreterStatus status = VM_OK;
+
+    /*
+     * Native C functions complete immediately, so we can return the result directly.
+     * PiCo closures push a new frame onto the stack, and we need to run the VM loop to execute it.
+    */
+
+    if(vm->frameCount > 0){
+        status = run(vm);
+    }
+
+    if(status == VM_RUNTIME_ERROR){
+        recover(vm);
+        return status;
+    }
+
+    if(vm->stackTop <= stackBase){
+        runtimeError(vm, "Stack underflow after PiCo function call.");
+        recover(vm);
+        return VM_RUNTIME_ERROR;
+    }
+
+    Value returnValue = pop(vm);
+    vm->stackTop = stackBase;  
+    // restore stack top to the base before the call
+
+    if(result != NULL){
+        *result = returnValue;
+    }
+
+    return VM_OK;
 }
 
 void runtimeError(VM* vm, const char* format, ...){

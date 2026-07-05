@@ -69,6 +69,88 @@ static void setCallResult(PicoCall* call, Value value){
     call->result = value;
 }
 
+static bool toInternalValue(const PicoValue* publicValue, Value* internalValue){
+    if(publicValue == NULL || internalValue == NULL){
+        return false;
+    }
+
+    switch(publicValue->type){
+        case PICO_VALUE_NULL:
+            *internalValue = NULL_VAL;
+            return true;
+        case PICO_VALUE_BOOL:
+            *internalValue = BOOL_VAL(publicValue->as.boolean);
+            return true;
+        case PICO_VALUE_NUMBER:
+            *internalValue = NUM_VAL(publicValue->as.number);
+            return true;
+        case PICO_VALUE_STRING:
+        case PICO_VALUE_OTHER:
+        default:
+            return false;
+    }
+
+    return false;
+}
+
+static bool fromInternalValue(Value internalValue, PicoValue* publicValue){
+    if(publicValue == NULL){
+        return false;
+    }
+
+    if(IS_NULL(internalValue)){
+        *publicValue = pico_value_null();
+        return true;
+    }
+
+    if(IS_BOOL(internalValue)){
+        *publicValue = pico_value_bool(AS_BOOL(internalValue));
+        return true;
+    }
+
+    if(IS_NUM(internalValue)){
+        *publicValue = pico_value_number(AS_NUM(internalValue));
+        return true;
+    }
+
+    publicValue->type = PICO_VALUE_OTHER;
+    return false;
+}
+
+static PicoStatus setApiError(PicoVM* vm, PicoStatus status, const char* message){
+    if(vm != NULL && message != NULL){
+        snprintf(vm->lastError, sizeof(vm->lastError), "%s", message);
+    }
+
+    return status;
+}
+
+PicoValue pico_value_null(void){
+    PicoValue value = {
+        .type = PICO_VALUE_NULL
+    };
+
+    return value;
+}
+
+PicoValue pico_value_bool(bool value){
+    PicoValue result = {
+        .type = PICO_VALUE_BOOL,
+        .as.boolean = value
+    };
+
+    return result;
+}
+
+PicoValue pico_value_number(double value){
+    PicoValue result = {
+        .type = PICO_VALUE_NUMBER,
+        .as.number = value
+    };
+
+    return result;
+}
+
 PicoVM* pico_vm_create(void){
     PicoVM* vm = malloc(sizeof(*vm));
 
@@ -270,6 +352,83 @@ PicoStatus pico_vm_register_native(PicoVM* vm, const char* name, PicoNativeFn fu
     return PICO_STATUS_OK;
 }
 
+PicoStatus pico_vm_call(
+    PicoVM* vm, 
+    const char* name, 
+    int argCount,
+    const PicoValue* args, 
+    PicoValue* result
+){
+    if(vm == NULL || name == NULL || name[0] == '\0' || argCount < 0){
+        return PICO_STATUS_INVALID_ARGUMENT;
+    }
+
+    if(argCount > 0 && args == NULL){
+        return PICO_STATUS_INVALID_ARGUMENT;
+    }
+
+    if(vm->frameCount != 0){
+        return setApiError(vm, PICO_STATUS_RUNTIME_ERROR, "PiCo VM calls are not reentrant.");
+    }
+
+    size_t nameLength = strlen(name);
+
+    if(nameLength > INT_MAX){
+        return setApiError(vm, PICO_STATUS_INVALID_ARGUMENT, "PiCo function name is too long.");
+    }
+
+    vm->lastError[0] = '\0';
+
+    ObjectString* key = copyString(vm, name, (int)nameLength);
+    push(vm, OBJECT_VAL(key));
+
+    Value callee;
+    bool found = globalGetName(&vm->globals, key, &callee);
+
+    pop(vm);
+
+    if(!found){
+        snprintf(vm->lastError, sizeof(vm->lastError), "Global function '%s' is not defined.", name);
+        return PICO_STATUS_RUNTIME_ERROR;
+    }
+
+    Value* internalArgs = NULL;
+
+    if(argCount > 0){
+        internalArgs = malloc(sizeof(Value) * (size_t)argCount);
+
+        if(internalArgs == NULL){
+            return setApiError(vm, PICO_STATUS_OUT_OF_MEMORY, "Could not allocate PiCo call arguments.");
+        }
+    }
+
+    for(int i = 0; i < argCount; i++){
+        if(!toInternalValue(&args[i], &internalArgs[i])){
+            free(internalArgs);
+            return setApiError(vm, PICO_STATUS_UNSUPPORTED_TYPE, "Arguments contain unsupported value types.");
+        }
+    }
+
+    Value internalResult = NULL_VAL;
+    InterpreterStatus status = vmCallValue(vm, callee, argCount, internalArgs, &internalResult);
+
+    free(internalArgs);
+
+    if(status != VM_OK){
+        return mapInterpreterStatus(status);
+    }
+
+    if(result == NULL){
+        return PICO_STATUS_OK;
+    }
+
+    if(!fromInternalValue(internalResult, result)){
+        return setApiError(vm, PICO_STATUS_UNSUPPORTED_TYPE, "PiCo function returned an unsupported value type.");
+    }
+
+    return PICO_STATUS_OK;
+}
+
 const char* pico_vm_last_error(const PicoVM* vm){
     if(vm == NULL || vm->lastError[0] == '\0'){
         return NULL;
@@ -288,6 +447,10 @@ const char* pico_status_string(PicoStatus status){
             return "runtime error";
         case PICO_STATUS_INVALID_ARGUMENT:
             return "invalid argument";
+        case PICO_STATUS_OUT_OF_MEMORY:
+            return "out of memory";
+        case PICO_STATUS_UNSUPPORTED_TYPE:
+            return "unsupported type";
     }
 
     return "unknown status";
