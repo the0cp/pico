@@ -6,6 +6,8 @@
 #include "instruction.h"
 #include "gc_types.h"
 #include "global_env.h"
+#include "writer.h"
+
 #include <stddef.h>
 
 typedef struct Chunk Chunk;
@@ -18,6 +20,8 @@ typedef struct GCPolicy GCPolicy;
 #define GLOBAL_STATCK_MAX 64
 #define MAX_DEFERS 255
 #define VM_ERROR_MESSAGE_MAX 512
+
+typedef void(*VMWriteFunc)(const char* text, size_t length, void* userData);
 
 typedef struct CallFrame{
     ObjectClosure* closure;
@@ -93,6 +97,9 @@ typedef struct VM{
      * The message remains available after recover().
     */
     char lastError[VM_ERROR_MESSAGE_MAX];
+
+    Writer output;
+    Writer errOutput;
 }VM;
 
 typedef enum{
@@ -118,6 +125,11 @@ static InterpreterStatus run(VM* vm);
 
 static bool call(VM* vm, ObjectClosure* closure, int argCnt);
 static bool callValue(VM* vm, Value callee, int argCnt);
+
+void vmWrite(VM* vm, const char* text, size_t length);
+void vmWriteCString(VM* vm, const char* text);
+void vmWriteError(VM* vm, const char* text, size_t length);
+void vmWriteErrorCString(VM* vm, const char* text);
 
 void runtimeError(VM* vm, const char* format, ...);
 

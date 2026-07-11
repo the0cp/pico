@@ -399,66 +399,67 @@ void freeObjects(VM* vm){
     }
 }
 
-void printObject(Value value){
+void objectWrite(Value value, Writer* writer){
     switch(OBJECT_TYPE(value)){
         case OBJECT_STRING:
-            printf("%s", AS_CSTRING(value));
+            writerWCString(writer, AS_CSTRING(value));
             break;
         case OBJECT_LIST:
         {
             ObjectList* list = AS_LIST(value);
             printf("[");
             for(int i = 0; i < list->count; i++){
-                printValue(list->items[i]);
-                if(i < list->count - 1) printf(", ");
+                objectWrite(list->items[i], writer);
+                if(i < list->count - 1)
+                    writerWCString(writer, ", ");
             }
-            printf("]");
+            writerWCString(writer, "]");
             break;
         }
         case OBJECT_MAP:
-            printf("{map}");
+            writerWCString(writer, "{map}");
             break;
         case OBJECT_FUNC:
             if(AS_FUNC(value)->name == NULL)
-                printf("<script>");
+                writerWCString(writer, "<script>");
             else
-                printf("<fn %s>", AS_FUNC(value)->name->chars);
+                writerWFormat(writer, "<fn %s>", AS_FUNC(value)->name->chars);
             break;
         case OBJECT_CFUNC:
-            printf("<cfunc>");
+            writerWCString(writer, "<cfunc>");
             break;
         case OBJECT_MODULE:
-            printf("<module '%s'>", AS_MODULE(value)->name->chars);
+            writerWFormat(writer, "<module '%s'>", AS_MODULE(value)->name->chars);
             break;
         case OBJECT_CLOSURE:
             if(AS_CLOSURE(value)->func->name == NULL)
-                printf("<script>");
+                writerWCString(writer, "<script>");
             else
-                printf("<fn %s>", AS_CLOSURE(value)->func->name->chars);
+                writerWFormat(writer, "<fn %s>", AS_CLOSURE(value)->func->name->chars);
             break;
         case OBJECT_UPVALUE:
-            printf("<upvalue>");
+            writerWCString(writer, "<upvalue>");
             break;
         case OBJECT_CLASS:
-            printf("<class %s>", AS_CLASS(value)->name->chars);
+            writerWFormat(writer, "<class %s>", AS_CLASS(value)->name->chars);
             break;
         case OBJECT_INSTANCE:
-            printf("<instance of %s>", AS_INSTANCE(value)->klass->name->chars);
+            writerWFormat(writer, "<instance of %s>", AS_INSTANCE(value)->klass->name->chars);
             break;
         case OBJECT_BOUND_METHOD:
             ObjectBoundMethod* bound = AS_BOUND_METHOD(value);
             if(bound->method->type == OBJECT_CLOSURE){
                 ObjectClosure* closure = (ObjectClosure*)bound->method;
-                printf("<bound method %s>", closure->func->name->chars);
+                writerWFormat(writer, "<bound method %s>", closure->func->name->chars);
             }else{
-                printf("<bound native method>");
+                writerWCString(writer, "<bound native method>");
             }
             break;
         case OBJECT_FILE:
-            printf("<file '%s'>", AS_FILE(value)->isOpen ? "open" : "closed");
+            writerWFormat(writer, "<file '%s'>", AS_FILE(value)->isOpen ? "open" : "closed");
             break;
         case OBJECT_ITERATOR:
-            printf("<iterator>");
+            writerWCString(writer, "<iterator>");
             break;
     }
 }

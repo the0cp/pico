@@ -4,6 +4,7 @@
 #include <string.h>
 
 #include "common.h"
+#include "writer.h"
 
 typedef struct Object Object;
 typedef struct ObjectString ObjectString;
@@ -64,12 +65,11 @@ typedef struct{
 void initValueArray(ValueArray* array);
 void writeValueArray(VM* vm, ValueArray* array, Value value);
 void freeValueArray(VM* vm, ValueArray* array);
-void printValue(Value value);
 
 char* valueToString(Value value);
 ObjectString* toString(VM* vm, Value value);
 
-void printObject(Value value);
+void valueWrite(Value value, Writer* writer);
 
 ValueType getValueType(Value value);
 bool isEqual(Value a, Value b);

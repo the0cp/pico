@@ -143,17 +143,19 @@ void freeValueArray(VM* vm, ValueArray* array){
     initValueArray(array);
 }
 
-void printValue(Value value){
+void valueWrite(Value value, Writer* writer){
     if(IS_NULL(value)){
-        printf("null");
+        writerWCString(writer, "null");
     }else if(IS_BOOL(value)){
-        printf(AS_BOOL(value) ? "true" : "false");
+        writerWCString(writer, AS_BOOL(value) ? "true" : "false");
     }else if(IS_NUM(value)){
-        printf("%.14g", AS_NUM(value));
+        char buffer[32];
+        int length = numToString(AS_NUM(value), buffer, sizeof(buffer));
+        writerW(writer, buffer, (size_t)length);
     }else if(IS_OBJECT(value)){
-        printObject(value);
+        objectWrite(value, writer);
     }else{
-        printf("Unknown value type");
+        writerWCString(writer, "Unknown value type");
     }
 }
 

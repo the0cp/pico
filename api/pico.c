@@ -204,6 +204,24 @@ int pico_call_arg_count(const PicoCall* call){
     return call->argCount;
 }
 
+void pico_vm_set_output(PicoVM* vm, PicoWriteFunc func, void* userData){
+    if(vm == NULL){
+        return;
+    }
+
+    vm->output.write = func;
+    vm->output.userData = userData;
+}
+
+void pico_vm_set_error_output(PicoVM* vm, PicoWriteFunc func, void* userData){
+    if(vm == NULL){
+        return;
+    }
+
+    vm->errOutput.write = func;
+    vm->errOutput.userData = userData;
+}
+
 PicoValueType pico_call_arg_type(const PicoCall* call, int index){
     if(!isValidArgIndex(call, index)){
         return PICO_VALUE_OTHER;
@@ -326,7 +344,7 @@ void pico_call_error(PicoCall* call, const char* message){
     setCallResult(call, NULL_VAL);
 }
 
-PicoStatus pico_vm_register_native(PicoVM* vm, const char* name, PicoNativeFn function, void* user_data){
+PicoStatus pico_vm_register_native(PicoVM* vm, const char* name, PicoNativeFunc function, void* user_data){
     if(vm == NULL || name == NULL || name[0] == '\0' || function == NULL){
         return PICO_STATUS_INVALID_ARGUMENT;
     }

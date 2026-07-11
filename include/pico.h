@@ -33,7 +33,8 @@ typedef struct PicoValue{
     }as;
 } PicoValue;
 
-typedef void (*PicoNativeFn)(PicoCall* call, void* user_data);
+typedef void (*PicoWriteFunc)(const char* text, size_t length, void* userData);
+typedef void (*PicoNativeFunc)(PicoCall* call, void* userData);
 
 /*
  * Result of a public PiCo API operation
@@ -77,6 +78,18 @@ PicoStatus pico_vm_eval(
 );
 
 /*
+ * Sets the output function for the VM.
+ * The userData pointer is passed to the output function.
+*/
+void pico_vm_set_output(PicoVM* vm, PicoWriteFunc func, void* userData);
+
+/*
+ * Sets the error output function for the VM.
+ * The userData pointer is passed to the error output function.
+*/
+void pico_vm_set_error_output(PicoVM* vm, PicoWriteFunc func, void* userData);
+
+/*
  * Registers a host-provided native function as a PiCo global.
  * The user_data pointer is borrowed. PiCo does not free it, so it must remain valid
  * Register native functions before evaluating scripts that use them.
@@ -84,7 +97,7 @@ PicoStatus pico_vm_eval(
 PicoStatus pico_vm_register_native(
     PicoVM* vm,
     const char* name,
-    PicoNativeFn function,
+    PicoNativeFunc function,
     void* user_data
 );
 

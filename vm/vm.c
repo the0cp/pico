@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdarg.h>
+#include <string.h>
 #include <ctype.h>
 #include <math.h>
 #include <time.h>
@@ -47,6 +48,54 @@ static int normalizeSystemStatus(int status){
     return -1;
 }
 #endif
+
+static void defaultOWrite(const char* text, size_t length, void* userData){
+    (void)userData;
+    fwrite(text, 1, length, stdout);
+}
+
+static void defaultEWrite(const char* text, size_t length, void* userData){
+    (void)userData;
+    fwrite(text, 1, length, stderr);
+}
+
+void vmWrite(VM* vm, const char* text, size_t length){
+    if(vm == NULL || text == NULL || length == 0){
+        return;
+    }
+
+    if(vm->output.write != NULL){
+        vm->output.write(text, length, vm->output.userData);
+        return;
+    }
+
+    writerW(&vm->output, text, length);
+}
+
+void vmWriteCString(VM* vm, const char* text){
+    if(text != NULL){
+        vmWrite(vm, text, strlen(text));
+    }
+}
+
+void vmWriteError(VM* vm, const char* text, size_t length){
+    if(vm == NULL || text == NULL || length == 0){
+        return;
+    }
+
+    if(vm->errOutput.write != NULL){
+        vm->errOutput.write(text, length, vm->errOutput.userData);
+        return;
+    }
+
+    writerW(&vm->errOutput, text, length);
+}
+
+void vmWriteErrorCString(VM* vm, const char* text){
+    if(text != NULL){
+        vmWriteError(vm, text, strlen(text));
+    }
+}
 
 void resetStack(VM* vm){
     vm->stackTop = vm->stack;
@@ -107,6 +156,11 @@ void initVM(VM* vm, int argc, const char* argv[]){
 
     vm->allowProcessExit = true;
     vm->lastError[0] = '\0';
+
+    vm->output.write = defaultOWrite;
+    vm->output.userData = NULL;
+    vm->errOutput.write = defaultEWrite;
+    vm->errOutput.userData = NULL;
 
     registerPrelude(vm);
 }
@@ -939,8 +993,8 @@ static InterpreterStatus run(VM* vm){
     DO_OP_PRINT:
     {
         int a = GET_ARG_A(instruction);
-        printValue(R(a));
-        printf("\n");
+        valueWrite(R(a), &vm->output);
+        vmWriteCString(vm, "\n");
     } DISPATCH();
 
     DO_OP_JMP:
@@ -1641,7 +1695,8 @@ void runtimeError(VM* vm, const char* format, ...){
     va_start(args, format);
     vsnprintf(vm->lastError, sizeof(vm->lastError), format, args);
     va_end(args);
-    fprintf(stderr, "%s\n", vm->lastError);
+    vmWriteErrorCString(vm, vm->lastError);
+    vmWriteErrorCString(vm, "\n");
 
     #ifdef DEBUG_TRACE
     if(vm->frameCount > 0){

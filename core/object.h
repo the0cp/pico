@@ -7,6 +7,7 @@
 #include "chunk.h"
 #include "hashtable.h"
 #include "global_env.h"
+#include "writer.h"
 
 typedef struct VM VM;
 
@@ -227,6 +228,8 @@ typedef struct ObjectIterator{
 }ObjectIterator;
 
 ObjectIterator* newIterator(VM* vm, Value receiver);
+
+void objectWrite(Value value, Writer* writer);
 
 void freeObject(VM* vm, Object* object);
 void freeObjects(VM* vm);
