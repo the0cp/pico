@@ -7,10 +7,15 @@
 #include "chunk.h"
 #include "hashtable.h"
 #include "global_env.h"
+#include "writer.h"
 
 typedef struct VM VM;
 
 typedef Value (*CFunc)(VM* vm, int argCount, Value* args);
+
+typedef struct PicoCall PicoCall;
+
+typedef void (*HostCFunc)(PicoCall* call, void* userData);
 
 #define OBJECT_TYPE(value)  (AS_OBJECT(value)->type)
 
@@ -28,6 +33,7 @@ typedef Value (*CFunc)(VM* vm, int argCount, Value* args);
 #define AS_FUNC(value)          ((ObjectFunc*)AS_OBJECT(value))
 
 #define IS_CFUNC(value)         (IS_OBJECT(value) && OBJECT_TYPE(value) == OBJECT_CFUNC)
+#define AS_CFUNC_OBJECT(value)  ((ObjectCFunc*)AS_OBJECT(value))
 #define AS_CFUNC(value)         (((ObjectCFunc*)AS_OBJECT(value))->func)
 
 #define IS_MODULE(value)        (IS_OBJECT(value) && OBJECT_TYPE(value) == OBJECT_MODULE)
@@ -129,9 +135,13 @@ ObjectFunc* newFunction(VM* vm);
 typedef struct ObjectCFunc{
     Object obj;
     CFunc func;
+    HostCFunc hostFunc;
+    void* userData;
 }ObjectCFunc;
 
 ObjectCFunc* newCFunc(VM* vm, CFunc func);
+
+ObjectCFunc* newHostCFunc(VM* vm, CFunc adapter, HostCFunc hostFunc, void* userData);
 
 typedef enum{
     MODULE_NATIVE,
@@ -218,6 +228,8 @@ typedef struct ObjectIterator{
 }ObjectIterator;
 
 ObjectIterator* newIterator(VM* vm, Value receiver);
+
+void objectWrite(Value value, Writer* writer);
 
 void freeObject(VM* vm, Object* object);
 void freeObjects(VM* vm);

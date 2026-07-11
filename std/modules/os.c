@@ -134,6 +134,12 @@ static Value os_exit(VM* vm, int argCount, Value* args){
     if(argCount > 0 && IS_NUM(args[0])){
         exitCode = (int)AS_NUM(args[0]);
     }
+
+    if(!vm->allowProcessExit){
+        runtimeError(vm, "os.exit() is disabled when PiCo is embedded.");
+        return NULL_VAL;
+    }
+    
     exit(exitCode);
     return NULL_VAL; // Unreachable
 }

@@ -16,6 +16,16 @@
 #define CLR_CYAN    "\033[36m"
 #define CLR_MAGENTA "\033[35m"
 
+static void debugWrite(const char* text, size_t length, void* userData){
+    (void)userData;
+    fwrite(text, 1, length, stdout);
+}
+
+static Writer debugWriter = {
+    debugWrite,
+    NULL
+};
+
 static const char* opNames[] = {
     "OP_MOVE",        // R[A] <= R[B]
     "OP_LOADK",       // R[A] <= K[Bx]
@@ -206,7 +216,7 @@ static void dasmLoadK(const char* name, const Chunk* chunk, Instruction instruct
 
     if((size_t)bx < chunk->constants.count){
         printf(CLR_GRAY "'");
-        printValue(chunk->constants.values[bx]);
+        valueWrite(chunk->constants.values[bx], &debugWriter);
         printf(CLR_RESET);
     }else{
         printf(CLR_RED "<invalid constant>" CLR_RESET);
@@ -251,7 +261,7 @@ static void dasmField(const char* name, const Chunk* chunk, Instruction instruct
         CLR_YELLOW "%5d" CLR_GRAY " | " \
         CLR_GRAY "'", name, "iABC", a, b, c
     );
-    printValue(constant);
+    valueWrite(constant, &debugWriter);
     printf(CLR_RESET);
 }
 

@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdarg.h>
+#include <string.h>
 #include <ctype.h>
 #include <math.h>
 #include <time.h>
@@ -47,6 +48,54 @@ static int normalizeSystemStatus(int status){
     return -1;
 }
 #endif
+
+static void defaultOWrite(const char* text, size_t length, void* userData){
+    (void)userData;
+    fwrite(text, 1, length, stdout);
+}
+
+static void defaultEWrite(const char* text, size_t length, void* userData){
+    (void)userData;
+    fwrite(text, 1, length, stderr);
+}
+
+void vmWrite(VM* vm, const char* text, size_t length){
+    if(vm == NULL || text == NULL || length == 0){
+        return;
+    }
+
+    if(vm->output.write == NULL){
+        defaultOWrite(text, length, NULL);
+        return;
+    }
+
+    writerW(&vm->output, text, length);
+}
+
+void vmWriteCString(VM* vm, const char* text){
+    if(text != NULL){
+        vmWrite(vm, text, strlen(text));
+    }
+}
+
+void vmWriteError(VM* vm, const char* text, size_t length){
+    if(vm == NULL || text == NULL || length == 0){
+        return;
+    }
+
+    if(vm->errOutput.write == NULL){
+        defaultEWrite(text, length, NULL);
+        return;
+    }
+
+    writerW(&vm->errOutput, text, length);
+}
+
+void vmWriteErrorCString(VM* vm, const char* text){
+    if(text != NULL){
+        vmWriteError(vm, text, strlen(text));
+    }
+}
 
 void resetStack(VM* vm){
     vm->stackTop = vm->stack;
@@ -100,6 +149,18 @@ void initVM(VM* vm, int argc, const char* argv[]){
     vm->argv = argv;
 
     vm->hadRuntimeError = false;
+
+    /*
+     * initVM() is also used directly by the CLI. The embedding API overrides this after initialization.
+    */
+
+    vm->allowProcessExit = true;
+    vm->lastError[0] = '\0';
+
+    vm->output.write = defaultOWrite;
+    vm->output.userData = NULL;
+    vm->errOutput.write = defaultEWrite;
+    vm->errOutput.userData = NULL;
 
     registerPrelude(vm);
 }
@@ -204,8 +265,15 @@ static void closeUpvalues(VM* vm, Value* last){
 }
 
 InterpreterStatus interpret(VM* vm, const char* code, const char* srcName){
+    vm->lastError[0] = '\0';
+
+    Value* stackBase = vm->stackTop;
     ObjectFunc* func = compile(vm, code, srcName);
-    if(func == NULL) return VM_COMPILE_ERROR;
+
+    if(func == NULL){
+        snprintf(vm->lastError, sizeof(vm->lastError), "Compilation failed.");
+        return VM_COMPILE_ERROR;
+    }
 
     push(vm, OBJECT_VAL(func));
 
@@ -222,7 +290,9 @@ InterpreterStatus interpret(VM* vm, const char* code, const char* srcName){
 
     if(status == VM_RUNTIME_ERROR){
         recover(vm);
-    }
+    }else{
+        vm->stackTop = stackBase;
+    }   // restore stack top to the base before the call
 
     return status;
 }
@@ -923,8 +993,8 @@ static InterpreterStatus run(VM* vm){
     DO_OP_PRINT:
     {
         int a = GET_ARG_A(instruction);
-        printValue(R(a));
-        printf("\n");
+        valueWrite(R(a), &vm->output);
+        vmWriteCString(vm, "\n");
     } DISPATCH();
 
     DO_OP_JMP:
@@ -1450,9 +1520,10 @@ static InterpreterStatus run(VM* vm){
         vm->frameCount--;
 
         if(vm->frameCount == 0){
-            pop(vm);
+            vm->stackTop = calleeBase;
+            push(vm, result);
             return VM_OK;
-        }
+        }   // save the result
 
         frame = &vm->frames[vm->frameCount - 1];
 
@@ -1556,12 +1627,76 @@ static bool callValue(VM* vm, Value callee, int argCnt){
     return false;
 }
 
+InterpreterStatus vmCallValue(
+    VM* vm,
+    Value callee,
+    int argCnt,
+    const Value* args,
+    Value* result
+){
+    if(vm->frameCount != 0){
+        runtimeError(vm, "PiCo VM calls are not reentrant.");
+        return VM_RUNTIME_ERROR;
+    }
+
+    if(argCnt < 0 || (argCnt > 0 && args == NULL)){
+        runtimeError(vm, "Invalid argument count or null arguments.");
+        return VM_RUNTIME_ERROR;
+    }
+
+    Value* stackBase = vm->stackTop;
+
+    push(vm, callee);
+
+    for(int i = 0; i < argCnt; i++){
+        push(vm, args[i]);
+    }
+
+    if(!callValue(vm, callee, argCnt)){
+        recover(vm);
+        return VM_RUNTIME_ERROR;
+    }
+
+    InterpreterStatus status = VM_OK;
+
+    /*
+     * Native C functions complete immediately, so we can return the result directly.
+     * PiCo closures push a new frame onto the stack, and we need to run the VM loop to execute it.
+    */
+
+    if(vm->frameCount > 0){
+        status = run(vm);
+    }
+
+    if(status == VM_RUNTIME_ERROR){
+        recover(vm);
+        return status;
+    }
+
+    if(vm->stackTop <= stackBase){
+        runtimeError(vm, "Stack underflow after PiCo function call.");
+        recover(vm);
+        return VM_RUNTIME_ERROR;
+    }
+
+    Value returnValue = pop(vm);
+    vm->stackTop = stackBase;  
+    // restore stack top to the base before the call
+
+    if(result != NULL){
+        *result = returnValue;
+    }
+
+    return VM_OK;
+}
+
 void runtimeError(VM* vm, const char* format, ...){
     va_list args;
     va_start(args, format);
-    vfprintf(stderr, format, args);
+    vsnprintf(vm->lastError, sizeof(vm->lastError), format, args);
     va_end(args);
-    fputs("\n", stderr);
+    vmWriteErrorCString(vm, vm->lastError);
+    vmWriteErrorCString(vm, "\n");
 
     #ifdef DEBUG_TRACE
     if(vm->frameCount > 0){

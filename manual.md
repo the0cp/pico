@@ -16,7 +16,7 @@ PiCo supports two types of comments:
 
 Examples:
 
-```
+```javascript
 # This is a single-line comment
 
 #{ 
@@ -45,13 +45,13 @@ PiCo is dynamically typed. It supports the following fundamental types:
 
 ### Strings and Interpolation
 
-Strings are enclosed in double quotes `"`. 
+Strings are enclosed in double quotes `"`.
 
 PiCo supports interpolation, allowing expressions to be embedded directly within string literals. Supports standard escapes like `\n`, `\t`, `\r`, `\"`, `\\`, and `\$`.
 
 Example:
 
-```
+```javascript
 var name = "PiCo";
 print "Hello, ${name}!"; 
 # Output: Hello, PiCo!
@@ -67,7 +67,7 @@ Lists are defined using square brackets `[]`.
 
 Example:
 
-```
+```javascript
 var zeros = [0; 5]; # Creates [0, 0, 0, 0, 0]
 ```
 
@@ -82,7 +82,7 @@ Maps are key-value pairs enclosed in curly braces `{}`.
 
 Example:
 
-```
+```javascript
 var dict = { 
     "name": "PiCo", 
     "version": 1, 
@@ -103,7 +103,7 @@ Variables are declared using the `var` keyword.
 
 Example:
 
-```
+```javascript
 var x = 10;
 var y;      
 # y is null
@@ -117,7 +117,7 @@ PiCo supports standard operators with precedence rules defined in the compiler.
 
 - `+` (Addition), `-` (Subtraction), `*` (Multiplication), `/` (Division), `%` (Modulo).
 
-- Increment & Decrement: `++`, `--`. 
+- Increment & Decrement: `++`, `--`.
 
 Prefix (`++i`, `--i`): Increments/Decrements the value and returns the new value. Only supported for variables.
 
@@ -125,7 +125,7 @@ Postfix (`i++`, `i--`): Increments/Decrements the value and returns the original
 
 Example:
 
-```
+```javascript
 var a = 15;
 print ++a;      # Output: 16 (a is 16)
 print a++;      # Output: 16 (a becomes 17)
@@ -146,6 +146,7 @@ list[0]++;      # Supported (Postfix), list[0] becomes 11
 - **Unary**: `-` (Negation).
 
 ### Assignment & Increment
+
 PiCo provides shorthand operators for modifying variables and properties.
 
 - Compound Assignment: `+=`, `-=`.
@@ -160,7 +161,7 @@ If either operand of the `+` operator is a String, the other operand is automati
 
 Example:
 
-```
+```javascript
 var age = 20;
 print "Age: " + age;  # Output: "Age: 20"
 print 100 + "%";      # Output: "100%"
@@ -172,7 +173,7 @@ When the division operator `/` is used with two strings, it functions as a platf
 
 Example:
 
-```
+```javascript
 var path = "users" / "docs" / "report.txt";
 # Linux/Mac: "users/docs/report.txt"
 # Windows:   "users\docs\report.txt"
@@ -195,7 +196,7 @@ PiCo supports the conditional (ternary) operator, which is the only operator tha
 
 Example:
 
-```
+```javascript
 var age = 20;
 var status = age >= 18 ? "Adult" : "Minor";
 print status; # Output: Adult
@@ -218,7 +219,7 @@ The pipe operator `|>` allows for chaining function calls in a readable, left-to
 
 Example:
 
-```
+```javascript
 func addOne(n) { 
     return n + 1; 
 }
@@ -247,7 +248,7 @@ Access a single element using square brackets `[]`.
 
 Example:
 
-```
+```javascript
 var list = [10, 20, 30]; 
 print list[0]; # 10 
 print list[-1]; # 30
@@ -270,7 +271,7 @@ Extract a subsequence using the slice operator `:`. This creates a new string or
 
 Examples:
 
-```
+```javascript
 var s = "Hello World";
 
 # Basic Slicing
@@ -306,7 +307,7 @@ The `if` statement executes a block of code if a condition is `true`. An optiona
 
 - Example:
 
-```
+```javascript
 if(condition){
     # body
 }else{
@@ -326,7 +327,7 @@ PiCo supports `while` and C-style `for` loops. Both support `break` and `continu
 
 Repeats a block of code as long as the condition is true.
 
-```
+```javascript
 while(condition){
     # body
 }
@@ -336,7 +337,7 @@ while(condition){
 
 Standard C-style for loop with initialization, condition, and increment clauses.
 
-```
+```javascript
 for(var i = 0; i < 10; i = i + 1){
     print i;
 }
@@ -352,7 +353,7 @@ PiCo supports a simplified syntax for iterating over any iterable object (List, 
 
 Example:
 
-```
+```javascript
 # Iterating over a List
 var nums = [10, 20, 30];
 for (var n : nums) {
@@ -392,7 +393,7 @@ PiCo provides a `switch` statement for matching a value against multiple possibi
 
 Example:
 
-```
+```javascript
 switch(value){
     case 1, 2 => {
         print "One or Two";
@@ -420,7 +421,7 @@ The `defer` statement defers the execution of a statement (or a block of code) u
 
 Example:
 
-```
+```javascript
 func processFile() {
     var f = fs.open("log.txt", "w");
     if (!f) return;
@@ -451,7 +452,6 @@ var res = test();
 
 ```
 
-
 ### Command Statement
 
 PiCo features a simple syntax for executing system shell commands directly.
@@ -466,7 +466,7 @@ PiCo features a simple syntax for executing system shell commands directly.
   
   3. Prints the command's output directly to the standard output (stdout).
   
-  4. $> is a statement, not an expression. It executes the rest of the line through the system shell. The normalized exit code is stored in the global variable _exit_code. 
+  4. $> is a statement, not an expression. It executes the rest of the line through the system shell. The normalized exit code is stored in the global variable _exit_code.
   
   5. $> does not require a semicolon. It ends at the end of the line.
 
@@ -478,7 +478,7 @@ Non-zero: Indicates an error or a specific status code returned by the command.
 
 Example:
 
-```
+```javascript
 print "Listing files:";
 $> ls -la
 print "Done.";
@@ -504,7 +504,6 @@ PiCo exposes two global functions to work with iterators:
   
   - *Returns*: The next value, or `null` if the iteration has finished.
 
-
 ## Functions
 
 Functions in PiCo are first-class citizens (internally). Current syntax supports function declarations primarily as statements. They support closures, capturing variables from their enclosing scope.
@@ -513,7 +512,7 @@ Functions in PiCo are first-class citizens (internally). Current syntax supports
 
 Use the `func` keyword to define a function.
 
-```
+```javascript
 func add(a, b){
     return a + b;
 }
@@ -525,7 +524,7 @@ The `return` keyword exits the function with a value. If no value is returned, i
 
 Functions can access variables defined in their outer scopes (by upvalues).
 
-```
+```javascript
 func makeCounter(){
     var count = 0;
     func increment(){
@@ -546,7 +545,7 @@ Functions can be created without a name and used as expressions. This is particu
 
 Example:
 
-```
+```javascript
 var square = func(x) { return x * x; };
 print square(5); # Output: 25
 ```
@@ -559,7 +558,7 @@ PiCo implements a unique flavor of Object-Oriented Programming (OOP) that separa
 
 The `class` block is strictly for defining data structures (fields) and their default values.
 
-```
+```javascript
 class Point{
     x = 0;
     y = 0;
@@ -569,7 +568,7 @@ class Point{
 
 Call the class name like a function to create a new instance.
 
-```
+```javascript
 var p = Point();
 p.x = 10;
 ```
@@ -580,7 +579,7 @@ Methods are defined **outside** the class body using the `method` keyword. This 
 
 **Syntax**: `method (receiver_name ClassName) MethodName(args...) { ... }`
 
-```
+```javascript
 method (p Point) move(dx, dy){
     p.x = p.x + dx;
     p.y = p.y + dy;
@@ -601,7 +600,7 @@ PiCo uses a special method named `init` as the constructor to initialize new ins
 
 Example:
 
-```
+```javascript
 class Point {
     x = 0;
     y = 0;
@@ -627,7 +626,7 @@ PiCo enforces access control based on **Capitalization**.
 
 Example:
 
-```
+```javascript
 class User{
     Name;  # Public
     age;   # Private
@@ -667,14 +666,14 @@ Example:
 
 - FIle `math.pcs`:
 
-```
+```javascript
 func add(a, b) { return a + b; }
 var PI = 3.14;
 ```
 
 - File `main.pcs`:
 
-```
+```javascript
 import "math.pcs"; # Creates variable 'math'
 
 print math.PI;
@@ -687,7 +686,7 @@ When importing a module, PiCo automatically creates a variable derived from the 
 
 Example:
 
-```
+```javascript
 import "./utils/logger.pcs"; 
 # Automatically creates a variable named 'logger'
 logger.log("Ready");
@@ -701,13 +700,13 @@ Core value types such as strings and lists do not require imports; their operati
 
 The `fs` module provides functionality for interacting with the file system.
 
-#### Import:
+#### Import
 
-```
+```javascript
 import "fs";
 ```
 
-#### Functions:
+#### Functions
 
 - `fs.read(path)`
   
@@ -774,9 +773,9 @@ import "fs";
   - *Description*: Opens a file and returns a iterable **File Object** for advanced operations.
   
   - *Arguments*:
-    
+
     - `path` (String).
-    
+
     - `mode` (String, optional): "r" (read), "w" (write), etc. Defaults to "r".
   
   - *Returns*: A File Object.
@@ -785,19 +784,19 @@ import "fs";
 
 The `os` module provides tools to interact with the underlying operating system.
 
-#### Import:
+#### Import
 
-```
+```javascript
 import "os";
 ```
 
-#### Variables:
+#### Variables
 
 - `os.argv`
   
   - *Description*: A List of Strings containing the command-line arguments passed to the PiCo script. `os.argv[0]` is the script name.
 
-#### Functions:
+#### Functions
 
 - `os.run(command)`
   
@@ -825,7 +824,7 @@ import "os";
   
   - *Description*: Sets or creates an environment variable.
   
-  - *Arguments*: 
+  - *Arguments*:
     - `key` (String).
     - `value` (String).
   
@@ -839,13 +838,13 @@ import "os";
 
 ### time - Time Module
 
-#### Import:
+#### Import
 
-```
+```javascript
 import "time";
 ```
 
-#### Functions:
+#### Functions
 
 - `time.now()`
   
@@ -870,9 +869,9 @@ import "time";
   - *Description*: Formats a timestamp into a readable string.
   
   - *Arguments*:
-    
+
     - `timestamp` (Number).
-    
+
     - `format` (String, optional): Default is `"%Y-%m-%d %H:%M:%S"`.
   
   - *Returns*: String.
@@ -881,13 +880,13 @@ import "time";
 
 Utilities for handling file paths cross-platform.
 
-#### Import:
+#### Import
 
-```
+```javascript
 import "path";
 ```
 
-#### Functions:
+#### Functions
 
 - `path.join(part1, part2, ...)`
   
@@ -919,13 +918,13 @@ import "path";
 
 ### glob - Glob Module
 
-#### Import:
+#### Import
 
-```
+```javascript
 import "glob";
 ```
 
-#### Funtions:
+#### Funtions
 
 - `glob.match(pattern, text)`
   - *Description*: Checks if the text string matches the specified pattern. It supports:
@@ -939,7 +938,7 @@ import "glob";
 
 Example:
 
-```
+```javascript
 glob.match("*.txt", "doc.txt");            # true
 glob.match("img_{0..5}.png", "img_2.png"); # true
 ```
@@ -949,6 +948,7 @@ glob.match("img_{0..5}.png", "img_2.png"); # true
 The `Glob` class is used to configure complex file searches. Instances of this class can be passed to `fs.list()` to retrieve matching files.
 
 Properties:
+
 - `Dir` (String): The root directory to start the search from. Defaults to "`.`" (current directory).
 - `Pattern` (String): The glob pattern to match files against (e.g., "`*.txt`", "`**/*.c`"). Defaults to "`*`" (match all files).
 - `Recursive` (Boolean): If true, the search will traverse subdirectories recursively. Defaults to false.
@@ -959,7 +959,7 @@ Example:
 
 To search for files, instantiate `glob.Glob`, configure its properties, and pass the object to `fs.list()`.
 
-```
+```javascript
 import "fs";
 import "glob";
 
@@ -1020,9 +1020,9 @@ Available on any String object (e.g., `"hello"`).
   - *Description*: Returns a substring from `start` index up to (but not including) `end`. Supports negative indexing (e.g., `-1` is the last character).
   
   - *Arguments*:
-    
+
     - `start` (Number).
-    
+
     - `end` (Number, optional): Defaults to the end of the string.
   
   - *Returns*: String.
@@ -1068,6 +1068,122 @@ Available on any String object (e.g., `"hello"`).
   - *Arguments*: `old` (String), `new` (String).
   
   - *Returns*: String.
+
+## Embedding PiCo in C
+
+PiCo can be embedded into a C host program. In embedded mode, the host owns the VM and decides when to load scripts, what native functions are available, how output is handled, and when the VM is destroyed.
+
+The basic lifecycle is:
+
+```c
+PicoVM* vm = pico_vm_create();
+
+pico_vm_eval(vm, source, "<script>");
+pico_vm_call(vm, "functionName", argCount, args, &result);
+
+pico_vm_destroy(vm);
+```
+
+### Evaluating source code
+
+`pico_vm_eval()` compiles and executes a null-terminated PiCo source string:
+
+```c
+PicoStatus status = pico_vm_eval(vm,
+    "func add(a, b){ return a + b; }\n",
+    "<embedded>"
+);
+```
+
+The source name is used only for diagnostics. It can be a real file path, but it can also be a virtual name such as `"<embedded>"`.
+
+### Calling PiCo from C
+
+A host program can call a global PiCo function with `pico_vm_call()`:
+
+```c
+PicoValue args[] = {
+    pico_value_number(20),
+    pico_value_number(22)
+};
+
+PicoValue result;
+PicoStatus status = pico_vm_call(vm, "add", 2, args, &result);
+```
+
+The initial public `PicoValue` API supports `null`, `bool`, and `number` for C-to-PiCo calls and return values. String arguments can be read inside native callbacks, and strings can be returned from native callbacks to PiCo, but persistent public string ownership for `pico_vm_call()` results should be handled by a future API.
+
+### Registering C functions
+
+A C function can be registered as a global PiCo function:
+
+```c
+static void hostAdd(PicoCall* call, void* userData){
+    (void)userData;
+
+    double left;
+    double right;
+
+    if(!pico_call_get_number(call, 0, &left) || !pico_call_get_number(call, 1, &right)){
+        pico_call_error(call, "hostAdd() expects two numbers.");
+        return;
+    }
+
+    pico_call_return_number(call, left + right);
+}
+
+pico_vm_register_native(vm, "hostAdd", hostAdd, NULL);
+```
+
+After registration, PiCo code can call it like an ordinary function:
+
+```javascript
+print hostAdd(20, 22);
+```
+
+`userData` is borrowed by PiCo. The host must keep it valid for as long as the registered function may be called.
+
+### Capturing output and errors
+
+By default, PiCo output goes to standard output and runtime error output goes to standard error. A host can redirect both streams:
+
+```c
+static void captureWrite(const char* text, size_t length, void* userData){
+    fwrite(text, 1, length, (FILE*)userData);
+}
+
+pico_vm_set_output(vm, captureWrite, stdout);
+pico_vm_set_error_output(vm, captureWrite, stderr);
+```
+
+This is useful for GUI programs, servers, tests, and plugin systems where embedded scripts should not write directly to the process console.
+
+### Error handling
+
+Most public API functions return a `PicoStatus`. When compilation or runtime execution fails, the host can read the last error message:
+
+```c
+if(status != PICO_STATUS_OK){
+    const char* error = pico_vm_last_error(vm);
+    fprintf(stderr, "%s\n", error != NULL ? error : pico_status_string(status));
+}
+```
+
+The returned error pointer is owned by the VM. It must not be freed and remains valid until the next API call that updates the VM error state or until the VM is destroyed.
+
+### Host safety
+
+VMs created by `pico_vm_create()` are embedding-oriented. Script code cannot terminate the host process through `os.exit()`; this produces a normal PiCo runtime error instead. This keeps embedded scripts inside the host application's error boundary.
+
+### Building against an installed PiCo
+
+After installing PiCo, external programs can link against `libpico.a`:
+
+```sh
+gcc main.c -I /path/to/pico/include -L /path/to/pico/lib -lpico -lm -o embed_app
+```
+
+For CMake users, see `examples/embedding/external-cmake/`.
 
 ## REPL
 
