@@ -2,6 +2,20 @@
 
 #include <pico.h>
 
+static void hostAdd(PicoCall* call, void* userData){
+    (void)userData;
+
+    double left;
+    double right;
+
+    if(!pico_call_get_number(call, 0, &left) || !pico_call_get_number(call, 1, &right)){
+        pico_call_error(call, "hostAdd() expects two numbers.");
+        return;
+    }
+
+    pico_call_return_number(call, left + right);
+}
+
 int main(void){
     PicoVM* vm = pico_vm_create();
 
@@ -10,10 +24,12 @@ int main(void){
         return 1;
     }
 
+    pico_vm_register_native(vm, "hostAdd", hostAdd, NULL);
+
     PicoStatus status = pico_vm_eval(vm,
-        "var name = \"PiCo\";\n"
-        "print \"Hello from ${name}!\";\n",
-        "<basic>"
+        "var result = hostAdd(20, 22);\n"
+        "print result;\n",
+        "<native_function>"
     );
 
     if(status != PICO_STATUS_OK){

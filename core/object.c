@@ -402,62 +402,83 @@ void freeObjects(VM* vm){
 void objectWrite(Value value, Writer* writer){
     switch(OBJECT_TYPE(value)){
         case OBJECT_STRING:
-            writerWCString(writer, AS_CSTRING(value));
+            writerW(writer, AS_STRING(value)->chars, (size_t)AS_STRING(value)->length);
             break;
-        case OBJECT_LIST:
-        {
+
+        case OBJECT_LIST:{
             ObjectList* list = AS_LIST(value);
-            printf("[");
+
+            writerWCString(writer, "[");
+
             for(int i = 0; i < list->count; i++){
-                objectWrite(list->items[i], writer);
-                if(i < list->count - 1)
+                valueWrite(list->items[i], writer);
+
+                if(i < list->count - 1){
                     writerWCString(writer, ", ");
+                }
             }
+
             writerWCString(writer, "]");
             break;
         }
+
         case OBJECT_MAP:
             writerWCString(writer, "{map}");
             break;
+
         case OBJECT_FUNC:
-            if(AS_FUNC(value)->name == NULL)
+            if(AS_FUNC(value)->name == NULL){
                 writerWCString(writer, "<script>");
-            else
+            }else{
                 writerWFormat(writer, "<fn %s>", AS_FUNC(value)->name->chars);
+            }
             break;
+
         case OBJECT_CFUNC:
             writerWCString(writer, "<cfunc>");
             break;
+
         case OBJECT_MODULE:
             writerWFormat(writer, "<module '%s'>", AS_MODULE(value)->name->chars);
             break;
+
         case OBJECT_CLOSURE:
-            if(AS_CLOSURE(value)->func->name == NULL)
+            if(AS_CLOSURE(value)->func->name == NULL){
                 writerWCString(writer, "<script>");
-            else
+            }else{
                 writerWFormat(writer, "<fn %s>", AS_CLOSURE(value)->func->name->chars);
+            }
             break;
+
         case OBJECT_UPVALUE:
             writerWCString(writer, "<upvalue>");
             break;
+
         case OBJECT_CLASS:
             writerWFormat(writer, "<class %s>", AS_CLASS(value)->name->chars);
             break;
+
         case OBJECT_INSTANCE:
             writerWFormat(writer, "<instance of %s>", AS_INSTANCE(value)->klass->name->chars);
             break;
-        case OBJECT_BOUND_METHOD:
+
+        case OBJECT_BOUND_METHOD:{
             ObjectBoundMethod* bound = AS_BOUND_METHOD(value);
+
             if(bound->method->type == OBJECT_CLOSURE){
                 ObjectClosure* closure = (ObjectClosure*)bound->method;
                 writerWFormat(writer, "<bound method %s>", closure->func->name->chars);
             }else{
                 writerWCString(writer, "<bound native method>");
             }
+
             break;
+        }
+
         case OBJECT_FILE:
             writerWFormat(writer, "<file '%s'>", AS_FILE(value)->isOpen ? "open" : "closed");
             break;
+
         case OBJECT_ITERATOR:
             writerWCString(writer, "<iterator>");
             break;

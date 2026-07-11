@@ -64,8 +64,8 @@ void vmWrite(VM* vm, const char* text, size_t length){
         return;
     }
 
-    if(vm->output.write != NULL){
-        vm->output.write(text, length, vm->output.userData);
+    if(vm->output.write == NULL){
+        defaultOWrite(text, length, NULL);
         return;
     }
 
@@ -83,8 +83,8 @@ void vmWriteError(VM* vm, const char* text, size_t length){
         return;
     }
 
-    if(vm->errOutput.write != NULL){
-        vm->errOutput.write(text, length, vm->errOutput.userData);
+    if(vm->errOutput.write == NULL){
+        defaultEWrite(text, length, NULL);
         return;
     }
 

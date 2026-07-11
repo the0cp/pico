@@ -20,7 +20,6 @@ int main(void){
     PicoVM* vm = pico_vm_create();
 
     if(vm == NULL){
-        fprintf(stderr, "Could not create PiCo VM.\n");
         return 1;
     }
 
@@ -31,11 +30,10 @@ int main(void){
         "    return hostAdd(a, b) * 2;\n"
         "}\n";
 
-    PicoStatus status = pico_vm_eval(vm, source, "<call_script>");
+    PicoStatus status = pico_vm_eval(vm, source, "<external_cmake>");
 
     if(status != PICO_STATUS_OK){
-        const char* error = pico_vm_last_error(vm);
-        fprintf(stderr, "%s\n", error != NULL ? error : pico_status_string(status));
+        fprintf(stderr, "%s\n", pico_vm_last_error(vm));
         pico_vm_destroy(vm);
         return 1;
     }
@@ -49,8 +47,7 @@ int main(void){
     status = pico_vm_call(vm, "calculate", 2, args, &result);
 
     if(status != PICO_STATUS_OK){
-        const char* error = pico_vm_last_error(vm);
-        fprintf(stderr, "%s\n", error != NULL ? error : pico_status_string(status));
+        fprintf(stderr, "%s\n", pico_vm_last_error(vm));
         pico_vm_destroy(vm);
         return 1;
     }

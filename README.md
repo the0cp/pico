@@ -128,6 +128,83 @@ To install system-wide:
 sudo cmake --install build/release
 ```
 
+## Embedding PiCo in C
+
+PiCo can also be used as an embedded scripting VM inside a C program. The host program owns a `PicoVM`, loads PiCo source code, registers native C functions, calls PiCo functions, and can capture script output and runtime errors.
+
+A minimal embedded program looks like this:
+
+```c
+#include <stdio.h>
+#include <pico.h>
+
+int main(void){
+    PicoVM* vm = pico_vm_create();
+
+    if(vm == NULL){
+        return 1;
+    }
+
+    PicoStatus status = pico_vm_eval(vm,
+        "func add(a, b){ return a + b; }\n",
+        "<embedded>"
+    );
+
+    if(status != PICO_STATUS_OK){
+        fprintf(stderr, "%s\n", pico_vm_last_error(vm));
+        pico_vm_destroy(vm);
+        return 1;
+    }
+
+    PicoValue args[] = {
+        pico_value_number(20),
+        pico_value_number(22)
+    };
+
+    PicoValue result;
+    status = pico_vm_call(vm, "add", 2, args, &result);
+
+    if(status == PICO_STATUS_OK && result.type == PICO_VALUE_NUMBER){
+        printf("%.14g\n", result.as.number);
+    }
+
+    pico_vm_destroy(vm);
+    return status == PICO_STATUS_OK ? 0 : 1;
+}
+```
+
+The third argument of `pico_vm_eval()` is a diagnostic source name. It does not need to be a real file path; names like `"<embedded>"` or `"<plugin>"` are useful for error messages.
+
+The embedding API currently supports these core operations:
+
+- `pico_vm_create()` / `pico_vm_destroy()` for VM lifetime management
+- `pico_vm_eval()` for loading PiCo source code
+- `pico_vm_register_native()` for exposing C functions to PiCo
+- `pico_vm_call()` for calling global PiCo functions from C
+- `pico_vm_set_output()` and `pico_vm_set_error_output()` for capturing `print` output and runtime error output
+- `pico_vm_last_error()` for reading the latest compile or runtime error
+
+More complete examples are in `examples/embedding/`.
+
+### Linking against an installed libpico
+
+After installation, an external C program can include `pico.h` and link against `libpico.a`:
+
+```sh
+gcc main.c -I /path/to/pico/include -L /path/to/pico/lib -lpico -lm -o embed_app
+```
+
+On Windows with MinGW, the command is the same except paths usually point to the local install prefix, for example:
+
+```powershell
+gcc .\main.c `
+    -I .\install-debug\include `
+    -L .\install-debug\lib `
+    -lpico `
+    -lm `
+    -o .\embed_app.exe
+```
+
 ## Testing
 
 Run the test suite with *CTest*:
