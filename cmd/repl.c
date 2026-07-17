@@ -30,7 +30,7 @@ void completion(const char *buf, linenoiseCompletions *lc){
 void repl(VM* vm){
 #ifdef _WIN32
     char line[1024];
-    printf("PiCo REPL. Press Ctrl+C to exit.\n");
+    printf("Cieto REPL. Press Ctrl+C to exit.\n");
     while(true){
         printf(">>> ");
         
@@ -50,13 +50,13 @@ void repl(VM* vm){
     }
 #else
     char* line;
-    const char* his = ".pico_history";
+    const char* his = ".cieto_history";
 
     linenoiseSetCompletionCallback(completion);
     linenoiseHistorySetMaxLen(100);
     linenoiseHistoryLoad(his);
 
-    printf("PiCo REPL. Press Ctrl+C to exit.\n");
+    printf("Cieto REPL. Press Ctrl+C to exit.\n");
 
     while((line = linenoise(">>> ")) != NULL){
         if(line[0] != '\0'){

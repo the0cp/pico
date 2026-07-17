@@ -1,11 +1,11 @@
-import "math_lib.pcs";
-import "assert.pcs";
-import "module_cases/main.pcs";
+import "math_lib.cies";
+import "assert.cies";
+import "module_cases/main.cies";
 
 assert.eq(main.value, 42, "Nested relative import should resolve from requester directory");
 
-import "module_cases/cache/same_a.pcs";
-import "module_cases/cache/same_b.pcs";
+import "module_cases/cache/same_a.cies";
+import "module_cases/cache/same_b.cies";
 
 assert.eq(same_a.value, 100, "Module cache normalized import A");
 assert.eq(same_b.value, 100, "Module cache normalized import B");

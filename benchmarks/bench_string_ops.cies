@@ -1,7 +1,7 @@
 var total = 0;
 
 for (var i = 0; i < 200000; i++) {
-    var s = "pico-" + i + "-runtime-benchmark";
+    var s = "cieto-" + i + "-runtime-benchmark";
 
     total = total + s.len();
     total = total + s.find("runtime");

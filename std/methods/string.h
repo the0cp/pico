@@ -1,5 +1,5 @@
-#ifndef PICO_METHODS_STRING_H
-#define PICO_METHODS_STRING_H
+#ifndef CIETO_METHODS_STRING_H
+#define CIETO_METHODS_STRING_H
 
 #include "vm.h"
 
@@ -12,4 +12,4 @@ Value string_split(VM* vm, int argCount, Value* args);
 Value string_replace(VM* vm, int argCount, Value* args);
 Value string_find(VM* vm, int argCount, Value* args);
 
-#endif  // PICO_METHODS_STRING_H
+#endif  // CIETO_METHODS_STRING_H

@@ -1,4 +1,4 @@
-name: Cross-Platform PiCo Build
+name: Cross-Platform Cieto Build
 
 on: [push, pull_request]
 

@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#include <pico.h>
+#include <cieto.h>
 
 typedef struct Buffer{
     char data[1024];
@@ -21,55 +21,55 @@ static void bufferWrite(const char* text, size_t length, void* userData){
 }
 
 int main(void){
-    PicoVM* vm = pico_vm_create();
+    CieVM* vm = cie_vm_create();
 
     if(vm == NULL){
-        fprintf(stderr, "Could not create PiCo VM.\n");
+        fprintf(stderr, "Could not create Cieto VM.\n");
         return 1;
     }
 
     Buffer out = {0};
     Buffer err = {0};
 
-    pico_vm_set_output(vm, bufferWrite, &out);
-    pico_vm_set_error_output(vm, bufferWrite, &err);
+    cie_vm_set_output(vm, bufferWrite, &out);
+    cie_vm_set_error_output(vm, bufferWrite, &err);
 
-    PicoStatus status = pico_vm_eval(vm,
+    CieStatus status = cie_vm_eval(vm,
         "print \"hello\";\n"
         "print 42;\n"
         "print [1, true, null];\n",
         "<output_test>"
     );
 
-    if(status != PICO_STATUS_OK){
-        fprintf(stderr, "Unexpected eval failure: %s\n", pico_status_string(status));
-        pico_vm_destroy(vm);
+    if(status != CIE_STATUS_OK){
+        fprintf(stderr, "Unexpected eval failure: %s\n", cie_status_string(status));
+        cie_vm_destroy(vm);
         return 1;
     }
 
     if(strcmp(out.data, "hello\n42\n[1, true, null]\n") != 0){
         fprintf(stderr, "Unexpected captured output: [%s]\n", out.data);
-        pico_vm_destroy(vm);
+        cie_vm_destroy(vm);
         return 1;
     }
 
-    status = pico_vm_eval(vm, "print 1 / 0;\n", "<error_test>");
+    status = cie_vm_eval(vm, "print 1 / 0;\n", "<error_test>");
 
-    if(status != PICO_STATUS_RUNTIME_ERROR){
-        fprintf(stderr, "Expected runtime error, got %s.\n", pico_status_string(status));
-        pico_vm_destroy(vm);
+    if(status != CIE_STATUS_RUNTIME_ERROR){
+        fprintf(stderr, "Expected runtime error, got %s.\n", cie_status_string(status));
+        cie_vm_destroy(vm);
         return 1;
     }
 
     if(strstr(err.data, "Division by zero") == NULL){
         fprintf(stderr, "Unexpected captured error: [%s]\n", err.data);
-        pico_vm_destroy(vm);
+        cie_vm_destroy(vm);
         return 1;
     }
 
     printf("Captured output: %s", out.data);
     printf("Captured error: %s", err.data);
 
-    pico_vm_destroy(vm);
+    cie_vm_destroy(vm);
     return 0;
 }

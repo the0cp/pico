@@ -1,6 +1,6 @@
 # Script modules export their globals and are named automatically from the file name.
 
-import "stats.pcs";
+import "stats.cies";
 
 var scores = [88, 91, 73, 100, 95, 84];
 

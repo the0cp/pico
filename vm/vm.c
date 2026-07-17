@@ -1635,7 +1635,7 @@ InterpreterStatus vmCallValue(
     Value* result
 ){
     if(vm->frameCount != 0){
-        runtimeError(vm, "PiCo VM calls are not reentrant.");
+        runtimeError(vm, "Cieto VM calls are not reentrant.");
         return VM_RUNTIME_ERROR;
     }
 
@@ -1661,7 +1661,7 @@ InterpreterStatus vmCallValue(
 
     /*
      * Native C functions complete immediately, so we can return the result directly.
-     * PiCo closures push a new frame onto the stack, and we need to run the VM loop to execute it.
+     * Cieto closures push a new frame onto the stack, and we need to run the VM loop to execute it.
     */
 
     if(vm->frameCount > 0){
@@ -1674,7 +1674,7 @@ InterpreterStatus vmCallValue(
     }
 
     if(vm->stackTop <= stackBase){
-        runtimeError(vm, "Stack underflow after PiCo function call.");
+        runtimeError(vm, "Stack underflow after Cieto function call.");
         recover(vm);
         return VM_RUNTIME_ERROR;
     }

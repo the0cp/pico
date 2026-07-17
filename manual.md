@@ -1,6 +1,6 @@
 # Manual
 
-PiCo source files generally use the `.pcs` extension. The language syntax is inspired by the C/JavaScript family.
+Cieto source files generally use the `.cies` extension. The language syntax is inspired by the C/JavaScript family.
 
 ## Statements
 
@@ -8,7 +8,7 @@ Statements must be terminated with a semicolon `;`.
 
 ## Comments
 
-PiCo supports two types of comments:
+Cieto supports two types of comments:
 
 - **Single-line comments**: Start with `#` and continue to the end of the line.
 
@@ -27,7 +27,7 @@ Examples:
 
 ## Data Types
 
-PiCo is dynamically typed. It supports the following fundamental types:
+Cieto is dynamically typed. It supports the following fundamental types:
 
 - **null**: Represents the absence of a value. Keyword: `null`.
 
@@ -47,14 +47,14 @@ PiCo is dynamically typed. It supports the following fundamental types:
 
 Strings are enclosed in double quotes `"`.
 
-PiCo supports interpolation, allowing expressions to be embedded directly within string literals. Supports standard escapes like `\n`, `\t`, `\r`, `\"`, `\\`, and `\$`.
+Cieto supports interpolation, allowing expressions to be embedded directly within string literals. Supports standard escapes like `\n`, `\t`, `\r`, `\"`, `\\`, and `\$`.
 
 Example:
 
 ```javascript
-var name = "PiCo";
+var name = "Cieto";
 print "Hello, ${name}!"; 
-# Output: Hello, PiCo!
+# Output: Hello, Cieto!
 ```
 
 ### Lists
@@ -84,12 +84,12 @@ Example:
 
 ```javascript
 var dict = { 
-    "name": "PiCo", 
+    "name": "Cieto",
     "version": 1, 
     true: "Verified" 
 };
 
-print dict["name"]; # Output: PiCo 
+print dict["name"]; # Output: Cieto
 dict["new_key"] = 100;
 ```
 
@@ -111,7 +111,7 @@ var y;
 
 ## Operators
 
-PiCo supports standard operators with precedence rules defined in the compiler.
+Cieto supports standard operators with precedence rules defined in the compiler.
 
 ### Arithmetic
 
@@ -147,7 +147,7 @@ list[0]++;      # Supported (Postfix), list[0] becomes 11
 
 ### Assignment & Increment
 
-PiCo provides shorthand operators for modifying variables and properties.
+Cieto provides shorthand operators for modifying variables and properties.
 
 - Compound Assignment: `+=`, `-=`.
 
@@ -189,7 +189,7 @@ var path = "users" / "docs" / "report.txt";
 
 ### Ternary Operator
 
-PiCo supports the conditional (ternary) operator, which is the only operator that takes three operands. It is frequently used as a shortcut for the `if` statement.
+Cieto supports the conditional (ternary) operator, which is the only operator that takes three operands. It is frequently used as a shortcut for the `if` statement.
 
 - *Syntax*: `condition ? expression1 : expression2`
 - *Behavior*: If `condition` is truthy, `expression1` is evaluated and returned; otherwise, `expression2` is evaluated and returned.
@@ -236,7 +236,7 @@ print double(addOne(5)); # Output: 12
 
 ### Indexing & Slicing
 
-PiCo supports powerful indexing and slicing operations for both **Lists** and **Strings**.
+Cieto supports powerful indexing and slicing operations for both **Lists** and **Strings**.
 
 #### Indexing
 
@@ -321,7 +321,7 @@ if(condition){
 
 ### Loops
 
-PiCo supports `while` and C-style `for` loops. Both support `break` and `continue`.
+Cieto supports `while` and C-style `for` loops. Both support `break` and `continue`.
 
 #### while
 
@@ -347,7 +347,7 @@ All three clauses are optional (e.g., `for (;;) { ... }` creates an infinite loo
 
 #### foreach
 
-PiCo supports a simplified syntax for iterating over any iterable object (List, Map, File, etc.) using the `:` operator. This is syntactic sugar for the underlying `iter()` and `next()` protocol.
+Cieto supports a simplified syntax for iterating over any iterable object (List, Map, File, etc.) using the `:` operator. This is syntactic sugar for the underlying `iter()` and `next()` protocol.
 
 - **Syntax**: `for (var item : iterable) { ... }`
 
@@ -389,7 +389,7 @@ f.close();
 
 ### Switch Statement
 
-PiCo provides a `switch` statement for matching a value against multiple possibilities.
+Cieto provides a `switch` statement for matching a value against multiple possibilities.
 
 Example:
 
@@ -407,7 +407,7 @@ switch(value){
 
 - **Multiple Matches**: A single `case` can match multiple values separated by commas (e.g., `case 1, 2`).
 
-- **No Fallthrough**: Unlike C, PiCo switches **do not** fall through automatically. You do not need to write `break`.
+- **No Fallthrough**: Unlike C, Cieto switches **do not** fall through automatically. You do not need to write `break`.
 
 - **Default**: An optional `default` case handles values not matched by any case.
 
@@ -454,13 +454,13 @@ var res = test();
 
 ### Command Statement
 
-PiCo features a simple syntax for executing system shell commands directly.
+Cieto features a simple syntax for executing system shell commands directly.
 
 - **Syntax**: `$> command`
 
 - **Behavior**:
   
-  1. Pauses PiCo execution.
+  1. Pauses Cieto execution.
   
   2. Passes the rest of the line (after `$>` ) to the underlying system shell.
   
@@ -486,9 +486,9 @@ print "Done.";
 
 ## Iterators
 
-PiCo provides a built-in iterator protocol to traverse collections efficiently. This mechanism underpins the `foreach` loop but can also be used manually.
+Cieto provides a built-in iterator protocol to traverse collections efficiently. This mechanism underpins the `foreach` loop but can also be used manually.
 
-PiCo exposes two global functions to work with iterators:
+Cieto exposes two global functions to work with iterators:
 
 - `iter(iterable)`
   
@@ -506,7 +506,7 @@ PiCo exposes two global functions to work with iterators:
 
 ## Functions
 
-Functions in PiCo are first-class citizens (internally). Current syntax supports function declarations primarily as statements. They support closures, capturing variables from their enclosing scope.
+Functions in Cieto are first-class citizens (internally). Current syntax supports function declarations primarily as statements. They support closures, capturing variables from their enclosing scope.
 
 ### Function Declaration
 
@@ -552,7 +552,7 @@ print square(5); # Output: 25
 
 ## Class & Objects
 
-PiCo implements a unique flavor of Object-Oriented Programming (OOP) that separates **data definition** (classes) from **behavior definition** (methods), similar to Go or Rust's approach, but with explicit class definitions for fields.
+Cieto implements a unique flavor of Object-Oriented Programming (OOP) that separates **data definition** (classes) from **behavior definition** (methods), similar to Go or Rust's approach, but with explicit class definitions for fields.
 
 ### Class Definition (Fields)
 
@@ -593,9 +593,9 @@ Inside a method, you can use the `this` keyword to refer to the instance (receiv
 
 ### Constructors
 
-PiCo uses a special method named `init` as the constructor to initialize new instances.
+Cieto uses a special method named `init` as the constructor to initialize new instances.
 
-- **Automatic Invocation**: When you instantiate a class (e.g., `var p = Point(10, 20);`), PiCo automatically calls the `init` method matching that class with the provided arguments.
+- **Automatic Invocation**: When you instantiate a class (e.g., `var p = Point(10, 20);`), Cieto automatically calls the `init` method matching that class with the provided arguments.
 - **Implicit Return**: The `init` method is special; it implicitly returns the new instance (`this`). You do not need to write `return`, and returning a specific value from `init` is a syntax error.
 
 Example:
@@ -618,7 +618,7 @@ var p = Point(10, 20); # Calls init implicitly
 
 ### Visibility
 
-PiCo enforces access control based on **Capitalization**.
+Cieto enforces access control based on **Capitalization**.
 
 - **Public**: Field names starting with an Uppercase letter (e.g., `Name`, `ID`) are accessible from anywhere.
 
@@ -643,20 +643,20 @@ u.Name = "Alice";
 
 ## Modules
 
-PiCo supports two kinds of modules:
+Cieto supports two kinds of modules:
 
-1. Script modules: user-defined `.pcs` files.
+1. Script modules: user-defined `.cies` files.
 2. Native standard modules: built-in modules implemented by the runtime, such as `fs`, `os`, `time`, `path`, `glob`, and `gc`.
 
 ### Importing
 
-Use the `import` keyword to load another `.pcs` file.
+Use the `import` keyword to load another `.cies` file.
 
-- **Syntax**: `import "path/to/mod.pcs";`
+- **Syntax**: `import "path/to/mod.cies";`
 
 - **Behavior**:
   
-  1. PiCo executes the referenced file.
+  1. Cieto executes the referenced file.
   
   2. All global variables defined in that file become properties of the module object.
   
@@ -664,17 +664,17 @@ Use the `import` keyword to load another `.pcs` file.
 
 Example:
 
-- FIle `math.pcs`:
+- FIle `math.cies`:
 
 ```javascript
 func add(a, b) { return a + b; }
 var PI = 3.14;
 ```
 
-- File `main.pcs`:
+- File `main.cies`:
 
 ```javascript
-import "math.pcs"; # Creates variable 'math'
+import "math.cies"; # Creates variable 'math'
 
 print math.PI;
 print math.add(10, 20);
@@ -682,12 +682,12 @@ print math.add(10, 20);
 
 ### Automatic Module Naming
 
-When importing a module, PiCo automatically creates a variable derived from the filename (without extension and directory path) to reference the module. Custom aliasing (e.g., `as`) is not currently supported.
+When importing a module, Cieto automatically creates a variable derived from the filename (without extension and directory path) to reference the module. Custom aliasing (e.g., `as`) is not currently supported.
 
 Example:
 
 ```javascript
-import "./utils/logger.pcs"; 
+import "./utils/logger.cies";
 # Automatically creates a variable named 'logger'
 logger.log("Ready");
 ```
@@ -794,7 +794,7 @@ import "os";
 
 - `os.argv`
   
-  - *Description*: A List of Strings containing the command-line arguments passed to the PiCo script. `os.argv[0]` is the script name.
+  - *Description*: A List of Strings containing the command-line arguments passed to the Cieto script. `os.argv[0]` is the script name.
 
 #### Functions
 
@@ -1069,27 +1069,27 @@ Available on any String object (e.g., `"hello"`).
   
   - *Returns*: String.
 
-## Embedding PiCo in C
+## Embedding Cieto in C
 
-PiCo can be embedded into a C host program. In embedded mode, the host owns the VM and decides when to load scripts, what native functions are available, how output is handled, and when the VM is destroyed.
+Cieto can be embedded into a C host program. In embedded mode, the host owns the VM and decides when to load scripts, what native functions are available, how output is handled, and when the VM is destroyed.
 
 The basic lifecycle is:
 
 ```c
-PicoVM* vm = pico_vm_create();
+CieVM* vm = cie_vm_create();
 
-pico_vm_eval(vm, source, "<script>");
-pico_vm_call(vm, "functionName", argCount, args, &result);
+cie_vm_eval(vm, source, "<script>");
+cie_vm_call(vm, "functionName", argCount, args, &result);
 
-pico_vm_destroy(vm);
+cie_vm_destroy(vm);
 ```
 
 ### Evaluating source code
 
-`pico_vm_eval()` compiles and executes a null-terminated PiCo source string:
+`cie_vm_eval()` compiles and executes a null-terminated Cieto source string:
 
 ```c
-PicoStatus status = pico_vm_eval(vm,
+CieStatus status = cie_vm_eval(vm,
     "func add(a, b){ return a + b; }\n",
     "<embedded>"
 );
@@ -1097,75 +1097,75 @@ PicoStatus status = pico_vm_eval(vm,
 
 The source name is used only for diagnostics. It can be a real file path, but it can also be a virtual name such as `"<embedded>"`.
 
-### Calling PiCo from C
+### Calling Cieto from C
 
-A host program can call a global PiCo function with `pico_vm_call()`:
+A host program can call a global Cieto function with `cie_vm_call()`:
 
 ```c
-PicoValue args[] = {
-    pico_value_number(20),
-    pico_value_number(22)
+CieValue args[] = {
+    cie_value_number(20),
+    cie_value_number(22)
 };
 
-PicoValue result;
-PicoStatus status = pico_vm_call(vm, "add", 2, args, &result);
+CieValue result;
+CieStatus status = cie_vm_call(vm, "add", 2, args, &result);
 ```
 
-The initial public `PicoValue` API supports `null`, `bool`, and `number` for C-to-PiCo calls and return values. String arguments can be read inside native callbacks, and strings can be returned from native callbacks to PiCo, but persistent public string ownership for `pico_vm_call()` results should be handled by a future API.
+The initial public `CieValue` API supports `null`, `bool`, and `number` for C-to-Cieto calls and return values. String arguments can be read inside native callbacks, and strings can be returned from native callbacks to Cieto, but persistent public string ownership for `cie_vm_call()` results should be handled by a future API.
 
 ### Registering C functions
 
-A C function can be registered as a global PiCo function:
+A C function can be registered as a global Cieto function:
 
 ```c
-static void hostAdd(PicoCall* call, void* userData){
+static void hostAdd(CieCall* call, void* userData){
     (void)userData;
 
     double left;
     double right;
 
-    if(!pico_call_get_number(call, 0, &left) || !pico_call_get_number(call, 1, &right)){
-        pico_call_error(call, "hostAdd() expects two numbers.");
+    if(!cie_call_get_number(call, 0, &left) || !cie_call_get_number(call, 1, &right)){
+        cie_call_error(call, "hostAdd() expects two numbers.");
         return;
     }
 
-    pico_call_return_number(call, left + right);
+    cie_call_return_number(call, left + right);
 }
 
-pico_vm_register_native(vm, "hostAdd", hostAdd, NULL);
+cie_vm_register_native(vm, "hostAdd", hostAdd, NULL);
 ```
 
-After registration, PiCo code can call it like an ordinary function:
+After registration, Cieto code can call it like an ordinary function:
 
 ```javascript
 print hostAdd(20, 22);
 ```
 
-`userData` is borrowed by PiCo. The host must keep it valid for as long as the registered function may be called.
+`userData` is borrowed by Cieto. The host must keep it valid for as long as the registered function may be called.
 
 ### Capturing output and errors
 
-By default, PiCo output goes to standard output and runtime error output goes to standard error. A host can redirect both streams:
+By default, Cieto output goes to standard output and runtime error output goes to standard error. A host can redirect both streams:
 
 ```c
 static void captureWrite(const char* text, size_t length, void* userData){
     fwrite(text, 1, length, (FILE*)userData);
 }
 
-pico_vm_set_output(vm, captureWrite, stdout);
-pico_vm_set_error_output(vm, captureWrite, stderr);
+cie_vm_set_output(vm, captureWrite, stdout);
+cie_vm_set_error_output(vm, captureWrite, stderr);
 ```
 
 This is useful for GUI programs, servers, tests, and plugin systems where embedded scripts should not write directly to the process console.
 
 ### Error handling
 
-Most public API functions return a `PicoStatus`. When compilation or runtime execution fails, the host can read the last error message:
+Most public API functions return a `CieStatus`. When compilation or runtime execution fails, the host can read the last error message:
 
 ```c
-if(status != PICO_STATUS_OK){
-    const char* error = pico_vm_last_error(vm);
-    fprintf(stderr, "%s\n", error != NULL ? error : pico_status_string(status));
+if(status != CIE_STATUS_OK){
+    const char* error = cie_vm_last_error(vm);
+    fprintf(stderr, "%s\n", error != NULL ? error : cie_status_string(status));
 }
 ```
 
@@ -1173,14 +1173,14 @@ The returned error pointer is owned by the VM. It must not be freed and remains 
 
 ### Host safety
 
-VMs created by `pico_vm_create()` are embedding-oriented. Script code cannot terminate the host process through `os.exit()`; this produces a normal PiCo runtime error instead. This keeps embedded scripts inside the host application's error boundary.
+VMs created by `cie_vm_create()` are embedding-oriented. Script code cannot terminate the host process through `os.exit()`; this produces a normal Cieto runtime error instead. This keeps embedded scripts inside the host application's error boundary.
 
-### Building against an installed PiCo
+### Building against an installed Cieto
 
-After installing PiCo, external programs can link against `libpico.a`:
+After installing Cieto, external programs can link against `libcieto.a`:
 
 ```sh
-gcc main.c -I /path/to/pico/include -L /path/to/pico/lib -lpico -lm -o embed_app
+gcc main.c -I /path/to/cieto/include -L /path/to/cieto/lib -lcieto -lm -o embed_app
 ```
 
 For CMake users, see `examples/embedding/external-cmake/`.
@@ -1189,29 +1189,29 @@ For CMake users, see `examples/embedding/external-cmake/`.
 
 ### Launch the REPL
 
-To start the REPL, simply run the PiCo executable without any arguments in your terminal.
+To start the REPL, simply run the Cieto executable without any arguments in your terminal.
 
 ```bash
-$ ./pico
-PiCo REPL. Press Ctrl+C to exit.
+$ ./cieto
+Cieto REPL. Press Ctrl+C to exit.
 >>>
 ```
 
 ### Features
 
-The PiCo REPL is powered by the `linenoise` library, offering modern terminal features:
+The Cieto REPL is powered by the `linenoise` library, offering modern terminal features:
 
 #### Persistent History
 
 - *Behavior*: The REPL remembers 100 lines of your previously entered commands even after you exit.
 
-- *Storage*: History is saved to a hidden file named `.pico_history` in the PiCo directory.
+- *Storage*: History is saved to a hidden file named `.cieto_history` in the Cieto directory.
 
 - *Navigation*: Use the **Up** and **Down** arrow keys to scroll through your command history.
 
 #### Tab Auto-Completion
 
-Pressing the **Tab** key triggers auto-completion for PiCo keywords.
+Pressing the **Tab** key triggers auto-completion for Cieto keywords.
 
 ### Exiting
 

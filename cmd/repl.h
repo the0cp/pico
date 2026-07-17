@@ -1,5 +1,5 @@
-#ifndef PICO_REPL_H
-#define PICO_REPL_H
+#ifndef CIETO_REPL_H
+#define CIETO_REPL_H
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -9,4 +9,4 @@ typedef struct VM VM;
 
 void repl(VM* vm);
 
-#endif // PICO_REPL_H
+#endif // CIETO_REPL_H

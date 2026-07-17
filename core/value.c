@@ -1,4 +1,4 @@
-#define PICO_MAX_SAFE_INT 9007199254740991.0
+#define CIETO_MAX_SAFE_INT 9007199254740991.0
 
 #include <stdio.h>
 
@@ -30,14 +30,14 @@ int numToString(double num, char* out, size_t cap){
         return 1;
     }
 
-    if(num > 0.0 && num <= PICO_MAX_SAFE_INT){
+    if(num > 0.0 && num <= CIETO_MAX_SAFE_INT){
         uint64_t n = (uint64_t)num;
         if((double)n == num){
             return u64ToString(n, out);
         }
     }
 
-    if(num < 0.0 && num >= -PICO_MAX_SAFE_INT){
+    if(num < 0.0 && num >= -CIETO_MAX_SAFE_INT){
         uint64_t n = (uint64_t)(-num);
         if((double)(-n) == num){
             out[0] = '-';

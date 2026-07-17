@@ -1,0 +1,4 @@
+#!/usr/bin/env cieto
+
+print("hello from a Cieto shebang script");
+print("Run me with: chmod +x examples/shebang.cies && ./examples/shebang.cies");

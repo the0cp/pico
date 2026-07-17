@@ -1,4 +1,4 @@
-# PiCo exposes a tiny GC control module for experiments.
+# Cieto exposes a tiny GC control module for experiments.
 
 import "gc";
 

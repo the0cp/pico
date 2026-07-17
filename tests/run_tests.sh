@@ -2,20 +2,20 @@
 
 set -u
 
-PICO_EXEC="${1:-${PICO_EXEC:-}}"
+CIETO_EXEC="${1:-${CIETO_EXEC:-}}"
 TIMEOUT_SEC="${2:-${TIMEOUT_SEC:-5}}"
 LOG_FILE="${LOG_FILE:-test_output.log}"
 
-if [ -z "$PICO_EXEC" ]; then
-    echo "Error: PiCo executable path was not provided."
+if [ -z "$CIETO_EXEC" ]; then
+    echo "Error: Cieto executable path was not provided."
     echo "Usage:"
-    echo "  bash run_tests.sh /path/to/pico [timeout_seconds]"
+    echo "  bash run_tests.sh /path/to/cieto [timeout_seconds]"
     exit 1
 fi
 
-if [ ! -f "$PICO_EXEC" ]; then
-    echo "Error: PiCo executable not found:"
-    echo "  $PICO_EXEC"
+if [ ! -f "$CIETO_EXEC" ]; then
+    echo "Error: Cieto executable not found:"
+    echo "  $CIETO_EXEC"
     exit 1
 fi
 
@@ -26,18 +26,18 @@ TIMEOUTS=0
 rm -f "$LOG_FILE"
 
 echo "Starting tests..."
-echo "PICO_EXEC: $PICO_EXEC"
+echo "CIETO_EXEC: $CIETO_EXEC"
 echo "TIMEOUT_SEC: $TIMEOUT_SEC"
 echo
 
-for file in test_*.pcs; do
+for file in test_*.cies; do
     if [ ! -f "$file" ]; then
         continue
     fi
 
     printf "Running %-35s " "$file"
 
-    timeout "$TIMEOUT_SEC" "$PICO_EXEC" "$file" > "$LOG_FILE" 2>&1
+    timeout "$TIMEOUT_SEC" "$CIETO_EXEC" "$file" > "$LOG_FILE" 2>&1
     EXIT_CODE=$?
 
     if [ "$EXIT_CODE" -eq 0 ]; then

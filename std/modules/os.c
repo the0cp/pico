@@ -136,7 +136,7 @@ static Value os_exit(VM* vm, int argCount, Value* args){
     }
 
     if(!vm->allowProcessExit){
-        runtimeError(vm, "os.exit() is disabled when PiCo is embedded.");
+        runtimeError(vm, "os.exit() is disabled when Cieto is embedded.");
         return NULL_VAL;
     }
     

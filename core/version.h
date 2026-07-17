@@ -1,6 +1,6 @@
-#ifndef PICO_VERSION_H
-#define PICO_VERSION_H
+#ifndef CIETO_VERSION_H
+#define CIETO_VERSION_H
 
-#define PICO_VERSION "0.2.0"
+#define CIETO_VERSION "0.2.0"
 
-#endif // PICO_VERSION_H
+#endif // CIETO_VERSION_H

@@ -1,5 +1,5 @@
-#ifndef PICO_WRITER_H
-#define PICO_WRITER_H
+#ifndef CIETO_WRITER_H
+#define CIETO_WRITER_H
 
 #include <stddef.h>
 
@@ -14,4 +14,4 @@ void writerW(Writer* writer, const char* text, size_t length);
 void writerWCString(Writer* writer, const char* text);
 void writerWFormat(Writer* writer, const char* format, ...);
 
-#endif // PICO_WRITER_H
+#endif // CIETO_WRITER_H

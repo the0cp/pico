@@ -18,7 +18,7 @@ func normalize(text) {
 var text = fs.read("examples/data/sample.txt");
 var words = normalize(text).split(" ");
 var counts = {
-    "pico": 0, "is": 0, "a": 0, "tiny": 0, "language": 0,
+    "cieto": 0, "is": 0, "a": 0, "tiny": 0, "language": 0,
     "with": 0, "register": 0, "vm": 0, "the": 0, "runs": 0,
     "bytecode": 0, "has": 0, "lists": 0, "maps": 0, "strings": 0,
     "modules": 0, "files": 0, "and": 0, "classes": 0, "small": 0,
@@ -38,12 +38,12 @@ for (var word : words) {
 }
 
 print "Total words: ${total}";
-print "pico: ${counts["pico"]}";
+print "cieto: ${counts["cieto"]}";
 print "vm: ${counts["vm"]}";
 print "language: ${counts["language"]}";
 print "";
 print "Selected counts:";
-var interesting = ["pico", "vm", "language", "modules", "classes", "examples"];
+var interesting = ["cieto", "vm", "language", "modules", "classes", "examples"];
 for (var key : interesting) {
     print "  ${key} => ${counts[key]}";
 }

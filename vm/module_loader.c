@@ -234,7 +234,7 @@ static bool endWith(const char* str, const char* suffix){
 }
 
 static bool isScriptModule(const char* str){
-    return hasSep(str) || endWith(str, ".pcs");
+    return hasSep(str) || endWith(str, ".cies");
 }
 
 static ObjectString* getModuleName(VM* vm, const char* spec){
@@ -248,7 +248,7 @@ static ObjectString* getModuleName(VM* vm, const char* spec){
 
     const char* end = start + strlen(start);
 
-    if(end - start >= 4 && strcmp(end - 4, ".pcs") == 0){
+    if(end - start >= 4 && strcmp(end - 4, ".cies") == 0){
         end -= 4;
     }else{
         for(const char* p = end; p > start; p--){

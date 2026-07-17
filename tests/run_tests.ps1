@@ -7,36 +7,36 @@ if (-not [string]::IsNullOrWhiteSpace($env:TIMEOUT_SEC)) {
     $timeoutSec = [int]$env:TIMEOUT_SEC
 }
 
-$picoExec = $env:PICO_EXEC
+$cietoExec = $env:CIETO_EXEC
 
-if ([string]::IsNullOrWhiteSpace($picoExec)) {
+if ([string]::IsNullOrWhiteSpace($cietoExec)) {
     $candidates = @(
-        (Join-Path $PSScriptRoot "..\build\debug\pico.exe"),
-        (Join-Path $PSScriptRoot "..\build\release\pico.exe")
+        (Join-Path $PSScriptRoot "..\build\debug\cieto.exe"),
+        (Join-Path $PSScriptRoot "..\build\release\cieto.exe")
     )
 
     foreach ($candidate in $candidates) {
         if (Test-Path -LiteralPath $candidate) {
-            $picoExec = $candidate
+            $cietoExec = $candidate
             break
         }
     }
 }
 
-if ([string]::IsNullOrWhiteSpace($picoExec) -or
-    -not (Test-Path -LiteralPath $picoExec)) {
+if ([string]::IsNullOrWhiteSpace($cietoExec) -or
+    -not (Test-Path -LiteralPath $cietoExec)) {
     Write-Error @"
-PiCo executable was not found.
+Cieto executable was not found.
 
-Set PICO_EXEC explicitly, for example:
+Set CIETO_EXEC explicitly, for example:
 
-    `$env:PICO_EXEC = "..\build\debug\pico.exe"
+    `$env:CIETO_EXEC = "..\build\debug\cieto.exe"
     .\run_tests.ps1
 "@
     exit 1
 }
 
-$picoExec = (Resolve-Path -LiteralPath $picoExec).Path
+$cietoExec = (Resolve-Path -LiteralPath $cietoExec).Path
 
 function Show-CapturedOutput {
     param(
@@ -68,7 +68,7 @@ function Show-CapturedOutput {
 
 $testFiles = Get-ChildItem `
     -LiteralPath $PSScriptRoot `
-    -Filter "test_*.pcs" |
+    -Filter "test_*.cies" |
     Where-Object {
         -not $_.PSIsContainer
     } |
@@ -79,7 +79,7 @@ $failed = 0
 $timeouts = 0
 
 Write-Host "Starting tests..."
-Write-Host "PICO_EXEC: $picoExec"
+Write-Host "CIETO_EXEC: $cietoExec"
 Write-Host "TIMEOUT_SEC: $timeoutSec"
 Write-Host ""
 
@@ -88,14 +88,14 @@ foreach ($test in $testFiles) {
 
     $temporaryBase = Join-Path `
         ([System.IO.Path]::GetTempPath()) `
-        ("pico-test-{0}-{1}" -f $PID, [Guid]::NewGuid().ToString("N"))
+        ("cieto-test-{0}-{1}" -f $PID, [Guid]::NewGuid().ToString("N"))
 
     $stdoutFile = "$temporaryBase.stdout.log"
     $stderrFile = "$temporaryBase.stderr.log"
 
     try {
         $process = Start-Process `
-            -FilePath $picoExec `
+            -FilePath $cietoExec `
             -ArgumentList @($test.Name) `
             -WorkingDirectory $PSScriptRoot `
             -RedirectStandardOutput $stdoutFile `

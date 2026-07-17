@@ -1,5 +1,5 @@
-#ifndef PICO_GLOBAL_ENV_H
-#define PICO_GLOBAL_ENV_H
+#ifndef CIETO_GLOBAL_ENV_H
+#define CIETO_GLOBAL_ENV_H
 
 #include <stdbool.h>
 #include <stddef.h>
@@ -43,4 +43,4 @@ bool globalSetName(VM* vm, GlobalEnv* env, ObjectString* name, Value value);
 void markGlobalEnv(VM* vm, GlobalEnv* env);
 
 
-#endif // PICO_GLOBAL_ENV_H
+#endif // CIETO_GLOBAL_ENV_H

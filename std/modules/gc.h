@@ -1,5 +1,5 @@
-#ifndef PICO_MODULE_GC_H
-#define PICO_MODULE_GC_H
+#ifndef CIETO_MODULE_GC_H
+#define CIETO_MODULE_GC_H
 
 #include "vm.h"
 

@@ -1,5 +1,5 @@
-#ifndef PICO_MODULES_H
-#define PICO_MODULES_H
+#ifndef CIETO_MODULES_H
+#define CIETO_MODULES_H
 
 #include "vm.h"
 
@@ -16,4 +16,4 @@ const NativeModuleDef* findNativeModule(const char* name);
 
 void registerPrelude(VM* vm);
 
-#endif // PICO_MODULES_H
+#endif // CIETO_MODULES_H

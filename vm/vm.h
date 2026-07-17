@@ -1,5 +1,5 @@
-#ifndef PICO_VM_H
-#define PICO_VM_H
+#ifndef CIETO_VM_H
+#define CIETO_VM_H
 
 #include "hashtable.h"
 #include "object.h"
@@ -133,4 +133,4 @@ void vmWriteErrorCString(VM* vm, const char* text);
 
 void runtimeError(VM* vm, const char* format, ...);
 
-#endif // PICO_VM_H
+#endif // CIETO_VM_H

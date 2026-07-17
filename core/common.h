@@ -1,5 +1,5 @@
-#ifndef PICO_COMMON_H
-#define PICO_COMMON_H
+#ifndef CIETO_COMMON_H
+#define CIETO_COMMON_H
 
 #include <stdbool.h>
 #include <stddef.h>
@@ -10,4 +10,4 @@
 // #define DEBUG_STRESS_GC
 // #define GC_LOG_ALLOC
 
-#endif // PICO_COMMON_H
+#endif // CIETO_COMMON_H

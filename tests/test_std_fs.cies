@@ -1,7 +1,7 @@
 import "fs";
 import "path";
 import "glob";
-import "assert.pcs";
+import "assert.cies";
 
 var fname = "test_file.tmp";
 

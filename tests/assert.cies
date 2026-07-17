@@ -1,4 +1,4 @@
-# assert.pcs
+# assert.cies
 import "os";
 
 # Check if actual equals expected

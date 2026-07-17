@@ -1,5 +1,5 @@
-#ifndef PICO_MODULE_LOADER_H
-#define PICO_MODULE_LOADER_H
+#ifndef CIETO_MODULE_LOADER_H
+#define CIETO_MODULE_LOADER_H
 
 #include "vm.h"
 
@@ -15,4 +15,4 @@ InterpreterStatus importModule(
     ImportResult* result
 );
 
-#endif // PICO_MODULE_LOADER_H
+#endif // CIETO_MODULE_LOADER_H

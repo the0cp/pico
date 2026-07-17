@@ -5,25 +5,25 @@
 #include "version.h"
 
 static void printVersion(void){
-    printf("PiCo %s\n", PICO_VERSION);
+    printf("Cieto %s\n", CIETO_VERSION);
 }
 
 static void printHelp(const char* programName){
-    printf("PiCo %s\n", PICO_VERSION);
+    printf("Cieto %s\n", CIETO_VERSION);
     printf("\n");
-    printf("A small register-based scripting language and virtual machine written in C.\n");
+    printf("A compact C-family scripting language and embeddable register-based virtual machine implemented entirely in C.\n");
     printf("\n");
     printf("Usage:\n");
     printf("  %s                         Start the REPL\n", programName);
-    printf("  %s <file.pcs> [args...]    Run a script\n", programName);
-    printf("  %s run <file.pcs> [args...] Run a script\n", programName);
-    printf("  %s --dump, -d <file.pcs>   Compile and dump bytecode\n", programName);
+    printf("  %s <file.cies> [args...]    Run a script\n", programName);
+    printf("  %s run <file.cies> [args...] Run a script\n", programName);
+    printf("  %s --dump, -d <file.cies>   Compile and dump bytecode\n", programName);
     printf("  %s --help                  Show this help message\n", programName);
     printf("  %s --version               Show version information\n", programName);
     printf("\n");
     printf("Examples:\n");
-    printf("  %s examples/tour.pcs\n", programName);
-    printf("  %s examples/argv_echo.pcs hello world\n", programName);
+    printf("  %s examples/tour.cies\n", programName);
+    printf("  %s examples/argv_echo.cies hello world\n", programName);
 }
 
 int main(int argc, const char* argv[]){
