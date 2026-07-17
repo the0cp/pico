@@ -1,11 +1,15 @@
-name: Cross-Platform Cieto Build
+name: Cieto CI
 
-on: [push, pull_request]
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
 
 jobs:
   build:
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
 
     strategy:
       fail-fast: false
@@ -14,14 +18,16 @@ jobs:
           - name: Linux Release
             os: ubuntu-latest
             preset: release
+            package: cieto-linux-x86_64
 
           - name: Windows Release
             os: windows-latest
             preset: release-windows
+            package: cieto-windows-x86_64
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           submodules: recursive
 
@@ -33,3 +39,49 @@ jobs:
 
       - name: Run tests
         run: ctest --preset ${{ matrix.preset }} --output-on-failure
+
+      - name: Stage install tree
+        run: cmake --install build/${{ matrix.preset }} --prefix package/cieto
+
+      - name: Create ZIP package
+        working-directory: package
+        run: |
+          cmake -E tar cf ../${{ matrix.package }}.zip cieto
+          cmake -E tar tf ../${{ matrix.package }}.zip
+
+      - name: Upload ZIP artifact
+        uses: actions/upload-artifact@v7
+        with:
+          path: ${{ matrix.package }}.zip
+          archive: false
+          if-no-files-found: error
+          retention-days: 14
+
+  sanitizers:
+    name: Linux ASan + UBSan
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
+      UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+        with:
+          submodules: recursive
+
+      - name: Configure sanitizers
+        run: >-
+          cmake -S . -B build/sanitizers -G Ninja
+          -DCMAKE_BUILD_TYPE=Debug
+          -DCMAKE_C_COMPILER=gcc
+          -DBUILD_TESTING=ON
+          "-DCMAKE_C_FLAGS=-fsanitize=address,undefined -fno-omit-frame-pointer -fno-sanitize-recover=all"
+          "-DCMAKE_EXE_LINKER_FLAGS=-fsanitize=address,undefined"
+
+      - name: Build with sanitizers
+        run: cmake --build build/sanitizers
+
+      - name: Run sanitizer tests
+        run: ctest --test-dir build/sanitizers --output-on-failure --timeout 180
