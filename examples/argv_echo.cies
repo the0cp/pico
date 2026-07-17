@@ -1,5 +1,5 @@
 # Run with extra arguments, for example:
-#   pico examples/argv_echo.pcs hello PiCo 123
+#   cieto examples/argv_echo.cies hello Cieto 123
 
 import "os";
 

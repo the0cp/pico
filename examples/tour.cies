@@ -1,4 +1,4 @@
-# A compact PiCo tour: closures, classes, methods, lists, strings, paths and modules.
+# A compact Cieto tour: closures, classes, methods, lists, strings, paths and modules.
 
 import "time";
 
@@ -44,12 +44,12 @@ method (n Note) slug() {
 
 var newId = makeIdGenerator("note");
 var notes = [
-    Note("Register VM", "PiCo compiles source code into compact register-based bytecode."),
+    Note("Register VM", "Cieto compiles source code into compact register-based bytecode."),
     Note("External Methods", "Classes define data, while methods are attached outside the class body."),
     Note("Tiny Stdlib", "The standard modules cover files, paths, time, glob, os, and gc.")
 ];
 
-print "PiCo mini tour";
+print "Cieto mini tour";
 print "started at ${time.fmt(time.clock())}";
 print "";
 
@@ -63,4 +63,4 @@ for (var note : notes) {
 print "";
 print "portable path join with '/': ${"examples" / "data" / "notes.txt"}";
 print "slicing demo: ${"register-vm"[0:8]}";
-print "reverse slicing: ${"PiCo"[::-1]}";
+print "reverse slicing: ${"Cieto"[::-1]}";

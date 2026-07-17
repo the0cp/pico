@@ -1,5 +1,5 @@
-#ifndef PICO_GC_TYPES_H
-#define PICO_GC_TYPES_H
+#ifndef CIETO_GC_TYPES_H
+#define CIETO_GC_TYPES_H
 
 typedef enum{
     GC_REASON_THRESHOLD,
@@ -14,4 +14,4 @@ typedef enum{
     GC_MODE_OFF
 }GCMode;
 
-#endif // PICO_GC_TYPES_H
+#endif // CIETO_GC_TYPES_H

@@ -1,5 +1,5 @@
 import "gc";
-import "assert.pcs";
+import "assert.cies";
 
 assert.eq(gc.mode(), "auto", "default gc mode is auto");
 

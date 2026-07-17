@@ -1,5 +1,5 @@
-#ifndef PICO_HASHTABLE_H
-#define PICO_HASHTABLE_H
+#ifndef CIETO_HASHTABLE_H
+#define CIETO_HASHTABLE_H
 
 #include "common.h"
 #include "value.h"

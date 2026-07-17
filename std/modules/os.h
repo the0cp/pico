@@ -1,5 +1,5 @@
-#ifndef PICO_MODULES_OS_H
-#define PICO_MODULES_OS_H
+#ifndef CIETO_MODULES_OS_H
+#define CIETO_MODULES_OS_H
 
 #include "vm.h"
 

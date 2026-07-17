@@ -1,4 +1,4 @@
-# math_lib.pcs
+# math_lib.cies
 var PI = 3.14159;
 
 func add(a, b) {

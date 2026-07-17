@@ -1,5 +1,5 @@
-#ifndef PICO_VALUE_H
-#define PICO_VALUE_H
+#ifndef CIE_VALUE_H
+#define CIE_VALUE_H
 
 #include <string.h>
 
@@ -74,4 +74,4 @@ void valueWrite(Value value, Writer* writer);
 ValueType getValueType(Value value);
 bool isEqual(Value a, Value b);
 
-#endif  // PICO_VALUE_H
+#endif  // CIE_VALUE_H

@@ -1,5 +1,5 @@
-#ifndef PICO_DEBUG_H
-#define PICO_DEBUG_H
+#ifndef CIETO_DEBUG_H
+#define CIETO_DEBUG_H
 
 #include "chunk.h"
 #include "global_env.h"
@@ -19,4 +19,4 @@ static void dasmLoadK(const char* name, const Chunk* chunk, Instruction instruct
 static void dasmField(const char* name, const Chunk* chunk, Instruction instruction);
 static void dasmGlobal(const char* name, GlobalEnv* globals, Instruction instruction);
 
-#endif  // PICO_DEBUG_H
+#endif  // CIETO_DEBUG_H

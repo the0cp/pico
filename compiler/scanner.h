@@ -1,5 +1,5 @@
-#ifndef PICO_SCANNER_H
-#define PICO_SCANNER_H
+#ifndef CIETO_SCANNER_H
+#define CIETO_SCANNER_H
 
 #include <stdbool.h>
 
@@ -83,4 +83,4 @@ static inline Token handleIdentifier();
 static inline bool isDigit(char c);
 static inline bool isAlpha(char c);
 
-#endif // PICO_SCANNER_H
+#endif // CIETO_SCANNER_H

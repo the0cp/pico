@@ -1,3 +1,3 @@
-import "lib/outer.pcs";
+import "lib/outer.cies";
 
 var value = outer.value;

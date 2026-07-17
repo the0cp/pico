@@ -1,9 +1,9 @@
 /*
  * ============================================================================
- * Pico Virtual Machine Instruction Set Architecture (ISA)
+ * Cieto Virtual Machine Instruction Set Architecture (ISA)
  * ============================================================================
  *
- * The Pico VM utilizes a Register-Based, Fixed-Width (32-bit) Instruction Set.
+ * The Cieto VM utilizes a Register-Based, Fixed-Width (32-bit) Instruction Set.
  * 
  * ----------------------------------------------------------------------------
  * 1. Fixed-Width (32-bit): Every instruction is exactly 4 bytes. 
@@ -58,14 +58,14 @@
  *
  * MACRO:
  * -----------------------------------------------------------------------------
- * To pack/unpack these values efficiently, Pico use bitwise operations:
+ * To pack/unpack these values efficiently, Cieto use bitwise operations:
  * - Packing: (val << POS) & MASK
  * - Unpacking: (instruction >> POS) & MASK
  *
 **/
 
-#ifndef PICO_INSTRUCTION_H
-#define PICO_INSTRUCTION_H
+#ifndef CIETO_INSTRUCTION_H
+#define CIETO_INSTRUCTION_H
 
 #include <stdint.h>
 #include "common.h"
@@ -173,4 +173,4 @@ typedef enum{
 #define CREATE_AsBx(op, a, sbx) \
     (CREATE_ABx(op, a, (sbx + OFFSET_sBx)))
 
-#endif // PICO_INSTRUCTION_H
+#endif // CIETO_INSTRUCTION_H

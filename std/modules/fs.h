@@ -1,5 +1,5 @@
-#ifndef PICO_MODULES_FS_H
-#define PICO_MODULES_FS_H
+#ifndef CIETO_MODULES_FS_H
+#define CIETO_MODULES_FS_H
 
 #include "vm.h"
 
@@ -17,4 +17,4 @@ Value file_readLine(VM* vm, int argCount, Value* args);
 Value file_write(VM* vm, int argCount, Value* args);
 Value file_close(VM* vm, int argCount, Value* args);
 
-#endif // PICO_MODULES_FS_H
+#endif // CIETO_MODULES_FS_H

@@ -111,7 +111,7 @@ static inline void handleBlockComment(){
 static bool handleComment(){
     if(*sc.cur == '#'){
         // This also supports Unix shebang lines, 
-        // e.g. "#!/usr/bin/env pico".
+        // e.g. "#!/usr/bin/env cieto".
         if(sc.cur[1] == '{'){
             handleBlockComment();
         }else{

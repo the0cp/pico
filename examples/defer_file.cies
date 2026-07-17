@@ -7,7 +7,7 @@ func writeLog(path) {
     var f = fs.open(path, "w");
     defer f.close();
 
-    f.write("PiCo log file\n");
+    f.write("Cieto log file\n");
     f.write("created at: ${time.fmt(time.clock())}\n");
     f.write("defer will close this file handle automatically\n");
 }

@@ -1,4 +1,4 @@
-import "assert.pcs";
+import "assert.cies";
 
 # Arithmetic Precedence
 var res = 10 + 5 * 2;

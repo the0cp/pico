@@ -1,4 +1,4 @@
-import "assert.pcs";
+import "assert.cies";
 
 # List Operations
 var list = [1, 2];

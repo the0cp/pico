@@ -1,4 +1,4 @@
-import "assert.pcs";
+import "assert.cies";
 
 $> true
 assert.eq(_exit_code, 0, "$> true exit code");
@@ -6,7 +6,7 @@ assert.eq(_exit_code, 0, "$> true exit code");
 $> false
 assert.eq(_exit_code, 1, "$> false exit code");
 
-$> echo pico-system-test
+$> echo cieto-system-test
 assert.eq(_exit_code, 0, "$> echo exit code");
 
 print "system command tests done";

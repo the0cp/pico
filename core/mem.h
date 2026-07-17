@@ -1,5 +1,5 @@
-#ifndef PICO_MEM_H
-#define PICO_MEM_H
+#ifndef CIETO_MEM_H
+#define CIETO_MEM_H
 
 #include "common.h"
 #include "vm.h"

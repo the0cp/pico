@@ -1,5 +1,5 @@
-#ifndef PICO_OBJECT_H
-#define PICO_OBJECT_H
+#ifndef CIETO_OBJECT_H
+#define CIETO_OBJECT_H
 
 #include <stddef.h>
 #include <stdio.h>
@@ -13,9 +13,9 @@ typedef struct VM VM;
 
 typedef Value (*CFunc)(VM* vm, int argCount, Value* args);
 
-typedef struct PicoCall PicoCall;
+typedef struct CieCall CieCall;
 
-typedef void (*HostCFunc)(PicoCall* call, void* userData);
+typedef void (*HostCFunc)(CieCall* call, void* userData);
 
 #define OBJECT_TYPE(value)  (AS_OBJECT(value)->type)
 
@@ -234,4 +234,4 @@ void objectWrite(Value value, Writer* writer);
 void freeObject(VM* vm, Object* object);
 void freeObjects(VM* vm);
 
-#endif // PICO_OBJECT_H
+#endif // CIETO_OBJECT_H

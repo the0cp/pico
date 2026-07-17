@@ -1,4 +1,4 @@
-import "assert.pcs";
+import "assert.cies";
 
 # Closures
 func makeAdder(x) {

@@ -1,9 +1,9 @@
-import "assert.pcs";
+import "assert.cies";
 
 func testInterpolation() {
-    var name = "PiCo";
+    var name = "Cieto";
     var msg = "Hello, ${name}!";
-    assert.eq(msg, "Hello, PiCo!", "String interpolation");
+    assert.eq(msg, "Hello, Cieto!", "String interpolation");
 }
 
 func testIndexingAndSlicing() {

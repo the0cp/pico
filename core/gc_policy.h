@@ -1,5 +1,5 @@
-#ifndef PICO_GC_POLICY_H
-#define PICO_GC_POLICY_H
+#ifndef CIETO_GC_POLICY_H
+#define CIETO_GC_POLICY_H
 
 #include <stddef.h>
 #include <stdbool.h>
@@ -34,4 +34,4 @@ void gcWriteBarrier(VM* vm, Object* owner, Value value);
 
 bool gcMarkSweep(VM* vm, GCReason reason);
 
-#endif // PICO_GC_POLICY_H
+#endif // CIETO_GC_POLICY_H

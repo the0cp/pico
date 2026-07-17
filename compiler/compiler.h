@@ -1,5 +1,5 @@
-#ifndef PICO_COMPILER_H
-#define PICO_COMPILER_H
+#ifndef CIETO_COMPILER_H
+#define CIETO_COMPILER_H
 
 #include "vm.h"
 #include "scanner.h"
@@ -165,4 +165,4 @@ static void systemStmt(Compiler* compiler);
 static void deferStmt(Compiler* compiler);
 static void returnStmt(Compiler* compiler);
 
-#endif // PICO_COMPILER_H
+#endif // CIETO_COMPILER_H

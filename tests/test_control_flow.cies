@@ -1,4 +1,4 @@
-import "assert.pcs";
+import "assert.cies";
 
 # Loops with break and continue
 var sum = 0;

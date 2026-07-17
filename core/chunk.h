@@ -1,5 +1,5 @@
-#ifndef PICO_CHUNK_H
-#define PICO_CHUNK_H
+#ifndef CIETO_CHUNK_H
+#define CIETO_CHUNK_H
 
 #include "common.h"
 #include "value.h"
@@ -21,4 +21,4 @@ void freeChunk(VM* vm, Chunk* chunk);
 
 int addConstant(VM* vm, Chunk* chunk, Value value);
 
-#endif  // PICO_CHUNK_H
+#endif  // CIETO_CHUNK_H

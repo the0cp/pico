@@ -1,6 +1,8 @@
-# PiCo
+# Cieto
 
-A small, compact scripting language and virtual machine implemented in C. pico includes a compiler, virtual machine, REPL, and a set of core modules for working with values, objects, and I/O.
+A compact C-family scripting language and embeddable register-based virtual machine implemented entirely in C.
+
+Cieto is inspired by the Latin verb *cieō*, “to set in motion.”
 
 ## Features
 
@@ -13,12 +15,12 @@ A small, compact scripting language and virtual machine implemented in C. pico i
 - Small standard library
 - Manual / automatic GC modes
 
-See the included `manual.md` for a detailed language reference and usage examples: [https://github.com/the0cp/pico/blob/master/manual.md](https://github.com/the0cp/pico/blob/master/manual.md)
+See the included `manual.md` for a detailed language reference and usage examples: [https://github.com/the0cp/cieto/blob/master/manual.md](https://github.com/the0cp/cieto/blob/master/manual.md)
 
 ## What it looks like
 
 ```javascript
-# A tiny PiCo demo: 
+# A tiny Cieto demo:
 
 func slug(s) {
     return s.trim().lower().replace(" ", "-");
@@ -46,7 +48,7 @@ for (var topic : topics) {
 }
 
 print "path: ${"examples" / "data" / "sample.txt"}";
-print "slice: ${"register-vm"[0:8]}, reverse: ${"PiCo"[::-1]}";
+print "slice: ${"register-vm"[0:8]}, reverse: ${"Cieto"[::-1]}";
 
 $> echo hello from the host shell
 print "shell exit code = ${_exit_code}";
@@ -59,9 +61,9 @@ More examples are available in `examples/`.
 Try more examples:
 
 ```sh
-./build/debug/pico examples/tour.pcs
-./build/debug/pico examples/file_indexer.pcs
-./build/debug/pico examples/modules/main.pcs
+./build/debug/cieto examples/tour.cies
+./build/debug/cieto examples/file_indexer.cies
+./build/debug/cieto examples/modules/main.cies
 # ...
 ```
 
@@ -72,7 +74,7 @@ Requirements: gcc and CMake. The code uses GCC-specific techniques such as compu
 Clone the repo:
 
 ```sh
-git clone --recursive https://github.com/the0cp/pico.git
+git clone --recursive https://github.com/the0cp/cieto.git
 ```
 
 Configure and build a debug version:
@@ -99,14 +101,14 @@ cmake --build --preset release-windows
 The executable is generated under the corresponding build directory, for example:
 
 ```text
-build/debug/pico
-build/release/pico
-build/release-windows/pico.exe
+build/debug/cieto
+build/release/cieto
+build/release-windows/cieto.exe
 ```
 
 ## Installing
 
-Install PiCo to your local user prefix:
+Install Cieto to your local user prefix:
 
 ```sh
 cmake --preset release
@@ -120,7 +122,7 @@ Make sure `~/.local/bin` is in your PATH:
 export PATH="$HOME/.local/bin:$PATH"
 ```
 
-Then run PiCo from anywhere.
+Then run Cieto from anywhere.
 
 To install system-wide:
 
@@ -128,70 +130,70 @@ To install system-wide:
 sudo cmake --install build/release
 ```
 
-## Embedding PiCo in C
+## Embedding Cieto in C
 
-PiCo can also be used as an embedded scripting VM inside a C program. The host program owns a `PicoVM`, loads PiCo source code, registers native C functions, calls PiCo functions, and can capture script output and runtime errors.
+Cieto can also be used as an embedded scripting VM inside a C program. The host program owns a `CieVM`, loads Cieto source code, registers native C functions, calls Cieto functions, and can capture script output and runtime errors.
 
 A minimal embedded program looks like this:
 
 ```c
 #include <stdio.h>
-#include <pico.h>
+#include <cieto.h>
 
 int main(void){
-    PicoVM* vm = pico_vm_create();
+    CieVM* vm = cie_vm_create();
 
     if(vm == NULL){
         return 1;
     }
 
-    PicoStatus status = pico_vm_eval(vm,
+    CieStatus status = cie_vm_eval(vm,
         "func add(a, b){ return a + b; }\n",
         "<embedded>"
     );
 
-    if(status != PICO_STATUS_OK){
-        fprintf(stderr, "%s\n", pico_vm_last_error(vm));
-        pico_vm_destroy(vm);
+    if(status != CIE_STATUS_OK){
+        fprintf(stderr, "%s\n", cie_vm_last_error(vm));
+        cie_vm_destroy(vm);
         return 1;
     }
 
-    PicoValue args[] = {
-        pico_value_number(20),
-        pico_value_number(22)
+    CieValue args[] = {
+        cie_value_number(20),
+        cie_value_number(22)
     };
 
-    PicoValue result;
-    status = pico_vm_call(vm, "add", 2, args, &result);
+    CieValue result;
+    status = cie_vm_call(vm, "add", 2, args, &result);
 
-    if(status == PICO_STATUS_OK && result.type == PICO_VALUE_NUMBER){
+    if(status == CIE_STATUS_OK && result.type == CIE_VALUE_NUMBER){
         printf("%.14g\n", result.as.number);
     }
 
-    pico_vm_destroy(vm);
-    return status == PICO_STATUS_OK ? 0 : 1;
+    cie_vm_destroy(vm);
+    return status == CIE_STATUS_OK ? 0 : 1;
 }
 ```
 
-The third argument of `pico_vm_eval()` is a diagnostic source name. It does not need to be a real file path; names like `"<embedded>"` or `"<plugin>"` are useful for error messages.
+The third argument of `cie_vm_eval()` is a diagnostic source name. It does not need to be a real file path; names like `"<embedded>"` or `"<plugin>"` are useful for error messages.
 
 The embedding API currently supports these core operations:
 
-- `pico_vm_create()` / `pico_vm_destroy()` for VM lifetime management
-- `pico_vm_eval()` for loading PiCo source code
-- `pico_vm_register_native()` for exposing C functions to PiCo
-- `pico_vm_call()` for calling global PiCo functions from C
-- `pico_vm_set_output()` and `pico_vm_set_error_output()` for capturing `print` output and runtime error output
-- `pico_vm_last_error()` for reading the latest compile or runtime error
+- `cie_vm_create()` / `cie_vm_destroy()` for VM lifetime management
+- `cie_vm_eval()` for loading Cieto source code
+- `cie_vm_register_native()` for exposing C functions to Cieto
+- `cie_vm_call()` for calling global Cieto functions from C
+- `cie_vm_set_output()` and `cie_vm_set_error_output()` for capturing `print` output and runtime error output
+- `cie_vm_last_error()` for reading the latest compile or runtime error
 
 More complete examples are in `examples/embedding/`.
 
-### Linking against an installed libpico
+### Linking against an installed libcieto
 
-After installation, an external C program can include `pico.h` and link against `libpico.a`:
+After installation, an external C program can include `cieto.h` and link against `libcieto.a`:
 
 ```sh
-gcc main.c -I /path/to/pico/include -L /path/to/pico/lib -lpico -lm -o embed_app
+gcc main.c -I /path/to/cieto/include -L /path/to/cieto/lib -lcieto -lm -o embed_app
 ```
 
 On Windows with MinGW, the command is the same except paths usually point to the local install prefix, for example:
@@ -200,7 +202,7 @@ On Windows with MinGW, the command is the same except paths usually point to the
 gcc .\main.c `
     -I .\install-debug\include `
     -L .\install-debug\lib `
-    -lpico `
+    -lcieto `
     -lm `
     -o .\embed_app.exe
 ```
@@ -224,19 +226,19 @@ ctest --preset release --output-on-failure
 Run the interactive REPL:
 
 ```sh
-pico
+cieto
 ```
 
 Run a script:
 
 ```sh
-pico path/to/script.pcs
+cieto path/to/script.cies
 ```
 
-Pico scripts can also be executed directly with a Unix shebang:
+Cieto scripts can also be executed directly with a Unix shebang:
 
 ```sh
-#!/usr/bin/env pico
+#!/usr/bin/env cieto
 
 print("hello from Shebang");
 ```
@@ -244,8 +246,8 @@ print("hello from Shebang");
 Make it executable and run it:
 
 ```sh
-chmod +x hello.pcs
-./hello.pcs
+chmod +x hello.cies
+./hello.cies
 ```
 
 Check `manual.md` for language syntax, built-in functions, and examples.
