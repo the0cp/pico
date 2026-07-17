@@ -49,10 +49,18 @@ jobs:
           cmake -E tar cf ../${{ matrix.package }}.zip cieto
           cmake -E tar tf ../${{ matrix.package }}.zip
 
+      - name: Generate SHA256 checksum
+        run: |
+          cmake -E sha256sum ${{ matrix.package }}.zip > ${{ matrix.package }}.zip.sha256
+          cmake -E cat ${{ matrix.package }}.zip.sha256
+
       - name: Upload ZIP artifact
         uses: actions/upload-artifact@v7
         with:
-          path: ${{ matrix.package }}.zip
+          name: ${{ matrix.package }}
+          path: |
+            ${{ matrix.package }}.zip
+            ${{ matrix.package }}.zip.sha256
           archive: false
           if-no-files-found: error
           retention-days: 14

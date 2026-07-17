@@ -2,7 +2,7 @@
 
 A compact C-family scripting language and embeddable register-based virtual machine implemented entirely in C.
 
-Cieto is inspired by the Latin verb *cieō*, “to set in motion.”
+Cieto takes its name from Latin *ciētō*, a future imperative form of *cieō* (“to set in motion”).
 
 ## Features
 
