@@ -1869,7 +1869,26 @@ static void handleBinary(Compiler* compiler, ExprDesc* expr, bool canAssign){
                     return;
                 }
                 break; // Modulo by zero, do not fold
-            default: return;  // Should not reach here
+            case TOKEN_EQUAL:
+                initExpr(expr, expr->data.num == right.data.num ? EXPR_TRUE : EXPR_FALSE, 0);
+                return;
+            case TOKEN_NOT_EQUAL:
+                initExpr(expr, expr->data.num != right.data.num ? EXPR_TRUE : EXPR_FALSE, 0);
+                return;
+            case TOKEN_GREATER:
+                initExpr(expr, expr->data.num > right.data.num ? EXPR_TRUE : EXPR_FALSE, 0);
+                return;
+            case TOKEN_LESS:
+                initExpr(expr, expr->data.num < right.data.num ? EXPR_TRUE : EXPR_FALSE, 0);
+                return;
+            case TOKEN_GREATER_EQUAL:
+                initExpr(expr, expr->data.num >= right.data.num ? EXPR_TRUE : EXPR_FALSE, 0);
+                return;
+            case TOKEN_LESS_EQUAL:
+                initExpr(expr, expr->data.num <= right.data.num ? EXPR_TRUE : EXPR_FALSE, 0);
+                return;
+            default:
+                break;
         }
     }
 

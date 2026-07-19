@@ -4,6 +4,21 @@ import "assert.cies";
 var res = 10 + 5 * 2;
 assert.eq(res, 20, "Multiplication has higher precedence");
 
+# Literal Comparison Folding
+assert.eq(1 == 1, true, "Literal equality folds to true");
+assert.eq(1 == 2, false, "Literal equality folds to false");
+assert.eq(1 != 2, true, "Literal inequality folds to true");
+assert.eq(1 != 1, false, "Literal inequality folds to false");
+assert.eq(2 > 1, true, "Literal greater-than folds to true");
+assert.eq(1 > 2, false, "Literal greater-than folds to false");
+assert.eq(1 < 2, true, "Literal less-than folds to true");
+assert.eq(2 < 1, false, "Literal less-than folds to false");
+assert.eq(2 >= 2, true, "Literal greater-equal folds to true");
+assert.eq(1 >= 2, false, "Literal greater-equal folds to false");
+assert.eq(1 <= 1, true, "Literal less-equal folds to true");
+assert.eq(2 <= 1, false, "Literal less-equal folds to false");
+assert.eq(-1 < 0, true, "Folded negative literal participates in comparison");
+
 # Increment and Decrement
 var a = 1;
 var b = a++; 
